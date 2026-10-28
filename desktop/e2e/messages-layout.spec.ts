@@ -16,7 +16,7 @@ test('conversation list and message history scroll at typical and small window s
   });
 
   try {
-    const window = await app.firstWindow();
+    const page = await app.firstWindow();
     const css = fs.readFileSync(
       path.resolve(process.cwd(), 'src/renderer/styles.css'),
       'utf8',
@@ -43,7 +43,7 @@ test('conversation list and message history scroll at typical and small window s
         </div>`,
     ).join('');
 
-    await window.setContent(`<!doctype html>
+    await page.setContent(`<!doctype html>
       <html>
         <head><style>${css}</style></head>
         <body>
@@ -77,8 +77,8 @@ test('conversation list and message history scroll at typical and small window s
         },
         { width, height },
       );
-      await window.waitForTimeout(250);
-      const result = await window.evaluate(() => {
+      await page.waitForTimeout(250);
+      const result = await page.evaluate(() => {
         const list = document.querySelector<HTMLElement>('.thread-list');
         const chat = document.querySelector<HTMLElement>('.chat-scroll');
         const composer = document.querySelector<HTMLElement>('.composer');

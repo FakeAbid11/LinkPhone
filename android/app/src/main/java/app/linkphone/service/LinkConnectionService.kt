@@ -820,7 +820,6 @@ class LinkConnectionService : Service() {
             .setContentIntent(pending)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .build()
         notifySafely(SMS_OPEN_NOTIFICATION_ID, builder.build())
     }
 
