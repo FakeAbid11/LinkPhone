@@ -1,0 +1,978 @@
+package app.linkphone.service
+
+import android.annotation.SuppressLint
+import android.app.Activity
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.Uri
+import android.net.wifi.WifiManager
+import android.os.Build
+import android.os.Handler
+import android.os.IBinder
+import android.os.Looper
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
+import app.linkphone.BuildConfig
+import app.linkphone.MainActivity
+import app.linkphone.R
+import app.linkphone.core.crypto.DeviceIdentity
+import app.linkphone.core.crypto.normalizeFingerprint
+import app.linkphone.core.model.CallDialRequest
+import app.linkphone.core.model.CallState
+import app.linkphone.core.model.ClipboardSetRequest
+import app.linkphone.core.model.HandoffOpenRequest
+import app.linkphone.core.model.MirrorState
+import app.linkphone.core.model.MirrorTouchRequest
+import app.linkphone.core.model.NotificationDismissRequest
+import app.linkphone.core.model.OkResult
+import app.linkphone.core.model.PhotoFetchRequest
+import app.linkphone.core.model.PhotoListRequest
+import app.linkphone.core.model.PhotoListResult
+import app.linkphone.core.model.PhotoStreamMeta
+import app.linkphone.core.model.Pong
+import app.linkphone.core.model.SmsChanged
+import app.linkphone.core.model.SmsListRequest
+import app.linkphone.core.model.SmsListResult
+import app.linkphone.core.model.SmsSendRequest
+import app.linkphone.core.model.StreamEnd
+import app.linkphone.core.net.ConnectionHub
+import app.linkphone.core.net.LinkAuthException
+import app.linkphone.core.net.LinkProtocolException
+import app.linkphone.core.net.PcDiscovery
+import app.linkphone.core.net.PhoneConnector
+import app.linkphone.core.net.PhoneSession
+import app.linkphone.core.prefs.LinkPrefs
+import app.linkphone.core.protocol.BinaryCodec
+import app.linkphone.core.protocol.Envelope
+import app.linkphone.core.protocol.ErrorCodes
+import app.linkphone.core.protocol.ProtocolCodec
+import app.linkphone.core.protocol.Types
+import app.linkphone.core.protocol.decodeData
+import app.linkphone.core.util.Backoff
+import app.linkphone.core.util.FeaturePermissionException
+import app.linkphone.core.util.LinkState
+import app.linkphone.core.util.LinkStatus
+import app.linkphone.core.util.SafeInput
+import app.linkphone.features.Permissions
+import app.linkphone.features.PhoneInfoBuilder
+import app.linkphone.features.calls.CallController
+import app.linkphone.features.clipboard.ClipboardBridge
+import app.linkphone.features.mirror.LinkAccessibilityService
+import app.linkphone.features.mirror.MirrorController
+import app.linkphone.features.notifications.LinkNotificationListener
+import app.linkphone.features.photos.PhotoRepository
+import app.linkphone.features.sms.SmsObserver
+import app.linkphone.features.sms.SmsReader
+import app.linkphone.features.sms.SmsSender
+import app.linkphone.ui.ClipboardApplyActivity
+import app.linkphone.ui.MirrorConsentActivity
+import app.linkphone.ui.SendClipboardActivity
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.json.JsonElement
+import java.util.concurrent.atomic.AtomicLong
+import javax.net.ssl.SSLHandshakeException
+import kotlin.math.min
+
+class LinkConnectionService : Service() {
+
+    private lateinit var prefs: LinkPrefs
+    private val identity = DeviceIdentity()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val reconnectSignal = Channel<Unit>(Channel.CONFLATED)
+    private val streamCounter = AtomicLong(1)
+
+    private var loopJob: Job? = null
+    private var currentConnector: PhoneConnector? = null
+    private var currentSession: PhoneSession? = null
+    private var smsObserver: SmsObserver? = null
+    private var smsDebounceJob: Job? = null
+    private var wifiLock: WifiManager.WifiLock? = null
+    private var multicastLock: WifiManager.MulticastLock? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var destroyed = false
+
+    private val smsReader by lazy { SmsReader(this) }
+    private val smsSender by lazy { SmsSender(this) }
+    private val photos by lazy { PhotoRepository(this) }
+    private val calls by lazy { CallController(this) { state -> sendCallState(state) } }
+    private val mirror by lazy {
+        MirrorController(
+            context = this,
+            onFrame = ::sendMirrorFrame,
+            onState = ::sendMirrorState,
+            onStopped = ::onMirrorStopped,
+        )
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        prefs = LinkPrefs(this)
+        createChannels()
+        acquireLocks()
+        registerNetworkCallback()
+        LinkStatus.log("Service", "Created")
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        startForegroundCompat(includeMediaProjection = mirror.isActive())
+
+        when (intent?.action) {
+            ACTION_DISCONNECT -> {
+                LinkStatus.setState(LinkState.Stopped)
+                shutdownConnection()
+                stopSelf()
+                return START_NOT_STICKY
+            }
+
+            ACTION_FORGET -> {
+                prefs.clearPairing()
+                LinkStatus.setState(LinkState.Stopped)
+                shutdownConnection()
+                stopSelf()
+                return START_NOT_STICKY
+            }
+
+            ACTION_MIRROR_START -> handleMirrorStart(intent)
+            ACTION_MIRROR_STOP -> mirror.stop("Stopped from the PC")
+            ACTION_SYNC_SMS -> sendSmsChanged()
+            ACTION_REFRESH_INFO -> sendPhoneInfo()
+            else -> {
+                if (!prefs.isPaired) {
+                    LinkStatus.setState(LinkState.Stopped)
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
+                startLoop()
+            }
+        }
+        return START_STICKY
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        // Keep the connection alive; the ongoing notification remains visible.
+        super.onTaskRemoved(rootIntent)
+    }
+
+    override fun onDestroy() {
+        destroyed = true
+        shutdownConnection()
+        runCatching { calls.stop() }
+        networkCallback?.let { callback ->
+            runCatching {
+                getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(callback)
+            }
+        }
+        networkCallback = null
+        releaseLocks()
+        mainHandler.removeCallbacksAndMessages(null)
+        scope.cancel()
+        if (LinkStatus.state.value !is LinkState.Error) {
+            LinkStatus.setState(LinkState.Stopped)
+        }
+        stopForeground(Service.STOP_FOREGROUND_REMOVE)
+        LinkStatus.log("Service", "Destroyed")
+        super.onDestroy()
+    }
+
+    @Synchronized
+    private fun startLoop() {
+        if (loopJob?.isActive == true) return
+        LinkStatus.setState(LinkState.Connecting("Connecting…"))
+        refreshNotification()
+        loopJob = scope.launch { connectionLoop() }
+    }
+
+    private fun shutdownConnection() {
+        loopJob?.cancel()
+        loopJob = null
+        currentConnector?.shutdown()
+        currentConnector = null
+        ConnectionHub.detach(currentSession)
+        currentSession = null
+        stopFeatureObservers()
+        runCatching { mirror.stop("Disconnected") }
+    }
+
+    private suspend fun connectionLoop() {
+        val backoff = Backoff()
+        var lastConnectFailed = false
+
+        while (currentCoroutineContext().isActive) {
+            val paired = prefs.pairedPc ?: break
+            LinkStatus.setState(LinkState.Connecting("Connecting to ${paired.pcName}…"))
+            refreshNotification()
+
+            if (lastConnectFailed) {
+                val discovered = runCatching {
+                    PcDiscovery(this@LinkConnectionService).find(paired.pcId)
+                }.getOrNull()
+                if (discovered != null) {
+                    val advertised = normalizeFingerprint(discovered.fingerprint)
+                    if (advertised == null || advertised == paired.fingerprint) {
+                        prefs.updateTarget(discovered.host, discovered.port)
+                        LinkStatus.log(
+                            "Net",
+                            "mDNS found ${discovered.host}:${discovered.port}",
+                        )
+                    }
+                }
+            }
+
+            val target = prefs.pairedPc ?: break
+            val closed = CompletableDeferred<String>()
+            val connector = PhoneConnector(
+                identity = identity,
+                phoneId = prefs.phoneId,
+                phoneName = prefs.phoneName,
+                appVersion = BuildConfig.VERSION_NAME,
+                onMessage = ::handleEnvelope,
+                onBinary = {},
+                onClosed = { reason ->
+                    if (!closed.isCompleted) closed.complete(reason)
+                },
+            )
+            currentConnector = connector
+            var retry = true
+
+            try {
+                val session = connector.connect(target, target.host, target.port)
+                currentSession = session
+                ConnectionHub.attach(session)
+                lastConnectFailed = false
+                backoff.reset()
+                LinkStatus.setState(LinkState.Connected(target.pcName, target.host))
+                LinkStatus.log("Net", "Authenticated with ${target.pcName} at ${target.host}")
+                refreshNotification()
+                startFeatureObservers()
+                sendPhoneInfo()
+                sendSmsChanged()
+                val reason = closed.await()
+                LinkStatus.log("Net", "Connection ended: $reason")
+            } catch (error: LinkAuthException) {
+                if (error.code == ErrorCodes.BUSY) {
+                    LinkStatus.log("Net", "PC is busy; will retry")
+                    LinkStatus.setState(
+                        LinkState.Connecting("PC is busy; retrying…"),
+                        error.message,
+                    )
+                } else {
+                    retry = false
+                    LinkStatus.setState(
+                        LinkState.Error(error.message ?: "Authentication failed"),
+                        error.message,
+                    )
+                    LinkStatus.log("Net", "Authentication failed: ${error.message}")
+                    postAlert(
+                        "LinkPhone needs attention",
+                        error.message ?: "Authentication failed. Pair the phone again.",
+                    )
+                }
+            } catch (error: LinkProtocolException) {
+                retry = false
+                LinkStatus.setState(
+                    LinkState.Error(error.message ?: "Protocol error"),
+                    error.message,
+                )
+                LinkStatus.log("Net", "Protocol error: ${error.message}")
+                postAlert(
+                    "LinkPhone protocol error",
+                    error.message ?: "The phone and PC may be running different versions.",
+                )
+            } catch (error: SSLHandshakeException) {
+                retry = false
+                LinkStatus.setState(
+                    LinkState.Error("PC certificate changed. Pair this phone again."),
+                    error.message,
+                )
+                LinkStatus.log("Net", "TLS pin mismatch")
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                lastConnectFailed = true
+                LinkStatus.setState(LinkState.Connecting("Reconnecting…"), error.message)
+                LinkStatus.log("Net", "Connection failed: ${error.message}")
+            } finally {
+                ConnectionHub.detach(currentSession)
+                currentSession = null
+                currentConnector = null
+                stopFeatureObservers()
+                connector.shutdown()
+            }
+
+            if (!retry) break
+
+            val delayMs = backoff.nextDelayMs()
+            LinkStatus.setState(LinkState.Connecting("Reconnecting in ${delayMs / 1000}s…"))
+            refreshNotification()
+            withTimeoutOrNull(delayMs) { reconnectSignal.receive() }
+        }
+
+        if (!destroyed) {
+            if (LinkStatus.state.value !is LinkState.Error) {
+                LinkStatus.setState(LinkState.Stopped)
+            }
+            refreshNotification()
+            stopSelf()
+        }
+    }
+
+    private fun startFeatureObservers() {
+        if (Permissions.sms(this)) {
+            smsObserver?.stop()
+            smsObserver = SmsObserver(this) { scheduleSmsChanged() }.also { it.start() }
+        }
+        mainHandler.post { calls.start() }
+    }
+
+    private fun stopFeatureObservers() {
+        smsObserver?.stop()
+        smsObserver = null
+        smsDebounceJob?.cancel()
+        smsDebounceJob = null
+        mainHandler.post { calls.stop() }
+    }
+
+    private fun scheduleSmsChanged() {
+        smsDebounceJob?.cancel()
+        smsDebounceJob = scope.launch {
+            delay(700)
+            sendSmsChanged()
+        }
+    }
+
+    private fun sendSmsChanged() {
+        if (!ConnectionHub.isConnected()) return
+        ConnectionHub.sendEvent(
+            Types.SMS_CHANGED,
+            ProtocolCodec.data(SmsChanged(System.currentTimeMillis())),
+        )
+    }
+
+    private fun sendPhoneInfo() {
+        if (!ConnectionHub.isConnected()) return
+        ConnectionHub.sendEvent(
+            Types.PHONE_INFO,
+            ProtocolCodec.data(PhoneInfoBuilder.build(this, BuildConfig.VERSION_NAME)),
+        )
+    }
+
+    private fun sendCallState(state: CallState) {
+        if (!ConnectionHub.isConnected()) return
+        ConnectionHub.sendEvent(Types.CALL_STATE, ProtocolCodec.data(state))
+    }
+
+    private fun sendMirrorState(state: MirrorState) {
+        ConnectionHub.sendEvent(Types.MIRROR_STATE, ProtocolCodec.data(state))
+        if (!state.active) refreshNotification()
+    }
+
+    private fun sendMirrorFrame(frame: ByteArray) {
+        ConnectionHub.sendBinary(frame)
+    }
+
+    private fun onMirrorStopped() {
+        refreshNotification()
+    }
+
+    private fun handleEnvelope(envelope: Envelope) {
+        if (envelope.replyTo != null) return
+        scope.launch {
+            try {
+                route(envelope)
+            } catch (error: FeaturePermissionException) {
+                replyError(envelope, ErrorCodes.PERMISSION_DENIED, error.message ?: "Permission missing")
+            } catch (error: IllegalArgumentException) {
+                replyError(envelope, ErrorCodes.BAD_REQUEST, error.message ?: "Invalid request")
+            } catch (error: Exception) {
+                LinkStatus.log(
+                    "Net",
+                    "Command ${envelope.type} failed: ${error.javaClass.simpleName}",
+                )
+                replyError(
+                    envelope,
+                    ErrorCodes.INTERNAL,
+                    error.message ?: "Command failed",
+                )
+            }
+        }
+    }
+
+    private fun route(envelope: Envelope) {
+        when (envelope.type) {
+            Types.PING -> reply(envelope, ProtocolCodec.data(Pong(System.currentTimeMillis())))
+
+            Types.SMS_LIST -> {
+                val request = envelope.decodeData<SmsListRequest>()
+                val messages = smsReader.listMessages(request.limit)
+                reply(envelope, ProtocolCodec.data(SmsListResult(messages)))
+            }
+
+            Types.SMS_SEND -> {
+                val request = envelope.decodeData<SmsSendRequest>()
+                val result = smsSender.send(request.address, request.body, request.subId)
+                reply(envelope, ProtocolCodec.data(result))
+            }
+
+            Types.NOTIF_DISMISS -> {
+                val request = envelope.decodeData<NotificationDismissRequest>()
+                if (LinkNotificationListener.dismiss(request.key)) {
+                    replyOk(envelope)
+                } else {
+                    replyError(
+                        envelope,
+                        ErrorCodes.PERMISSION_DENIED,
+                        "Notification access is not available on the phone",
+                    )
+                }
+            }
+
+            Types.PHOTO_LIST -> {
+                val request = envelope.decodeData<PhotoListRequest>()
+                val items = photos.list(request.limit)
+                reply(envelope, ProtocolCodec.data(PhotoListResult(items)))
+            }
+
+            Types.PHOTO_FETCH -> streamPhoto(envelope)
+
+            Types.CALL_DIAL -> {
+                val request = envelope.decodeData<CallDialRequest>()
+                resultReply(envelope, calls.placeCall(request.number))
+            }
+
+            Types.CALL_ANSWER -> resultReply(envelope, calls.answer())
+            Types.CALL_DECLINE -> resultReply(envelope, calls.decline())
+
+            Types.CLIPBOARD_SET -> {
+                val request = envelope.decodeData<ClipboardSetRequest>()
+                val text = SafeInput.truncateClipboard(request.text)
+                if (text.isBlank()) {
+                    replyError(envelope, ErrorCodes.BAD_REQUEST, "Clipboard text is empty")
+                    return
+                }
+                ClipboardBridge.write(this, text)
+                postClipboardNotification(text)
+                replyOk(envelope)
+            }
+
+            Types.HANDOFF_OPEN -> {
+                val request = envelope.decodeData<HandoffOpenRequest>()
+                if (!SafeInput.isSafeHttpUrl(request.url)) {
+                    replyError(envelope, ErrorCodes.BAD_REQUEST, "Only http(s) links can be opened")
+                    return
+                }
+                postOpenLinkNotification(request.url)
+                replyOk(envelope)
+            }
+
+            Types.MIRROR_START -> {
+                if (mirror.isActive()) {
+                    replyOk(envelope)
+                    return
+                }
+                if (!Permissions.notifications(this)) {
+                    replyError(
+                        envelope,
+                        ErrorCodes.PERMISSION_DENIED,
+                        "Allow notifications on the phone so the screen-sharing prompt can be shown",
+                    )
+                    return
+                }
+                postMirrorConsentNotification()
+                replyOk(envelope)
+            }
+
+            Types.MIRROR_STOP -> {
+                mirror.stop("Stopped from the PC")
+                replyOk(envelope)
+            }
+
+            Types.MIRROR_TOUCH -> {
+                val request = envelope.decodeData<MirrorTouchRequest>()
+                if (request.action != "tap" && request.action != "swipe") {
+                    replyError(envelope, ErrorCodes.BAD_REQUEST, "Unknown touch action")
+                    return
+                }
+                val performed = LinkAccessibilityService.performTouch(
+                    action = request.action,
+                    x1 = request.x,
+                    y1 = request.y,
+                    x2 = request.x2,
+                    y2 = request.y2,
+                    durationMs = request.durationMs,
+                )
+                if (performed) {
+                    replyOk(envelope)
+                } else {
+                    replyError(
+                        envelope,
+                        ErrorCodes.PERMISSION_DENIED,
+                        "Enable the LinkPhone Accessibility service on the phone to send taps",
+                    )
+                }
+            }
+
+            else -> replyError(
+                envelope,
+                ErrorCodes.UNSUPPORTED,
+                "Unsupported command: ${envelope.type}",
+            )
+        }
+    }
+
+    private fun streamPhoto(envelope: Envelope) {
+        val request = envelope.decodeData<PhotoFetchRequest>()
+        if (request.kind != "thumb" && request.kind != "full") {
+            replyError(envelope, ErrorCodes.BAD_REQUEST, "Unknown photo kind")
+            return
+        }
+        val bytes = photos.loadJpeg(request.id, request.kind)
+        if (bytes == null) {
+            replyError(envelope, ErrorCodes.NOT_FOUND, "Photo not found or could not be decoded")
+            return
+        }
+        if (bytes.size > MAX_TRANSFER_BYTES) {
+            replyError(envelope, ErrorCodes.TOO_LARGE, "Photo is too large to transfer")
+            return
+        }
+
+        val streamId = streamCounter.getAndIncrement()
+        reply(
+            envelope,
+            ProtocolCodec.data(
+                PhotoStreamMeta(
+                    streamId = streamId,
+                    photoId = request.id,
+                    kind = request.kind,
+                    mime = "image/jpeg",
+                    size = bytes.size.toLong(),
+                ),
+            ),
+        )
+
+        var offset = 0
+        var sequence = 0
+        while (offset < bytes.size) {
+            if (!ConnectionHub.isConnected()) return
+            val end = min(offset + BinaryCodec.CHUNK_SIZE, bytes.size)
+            val last = end == bytes.size
+            val frame = BinaryCodec.encode(
+                type = BinaryCodec.TYPE_PHOTO,
+                streamId = streamId,
+                seq = sequence++,
+                last = last,
+                payload = bytes.copyOfRange(offset, end),
+            )
+            if (!ConnectionHub.sendBinary(frame)) return
+            offset = end
+        }
+        ConnectionHub.sendEvent(
+            Types.PHOTO_STREAM_END,
+            ProtocolCodec.data(StreamEnd(streamId)),
+        )
+    }
+
+    private fun resultReply(envelope: Envelope, result: Result<Unit>) {
+        result.fold(
+            onSuccess = { replyOk(envelope) },
+            onFailure = { error ->
+                val code = if (error is FeaturePermissionException) {
+                    ErrorCodes.PERMISSION_DENIED
+                } else {
+                    ErrorCodes.BAD_REQUEST
+                }
+                replyError(envelope, code, error.message ?: "Call action failed")
+            },
+        )
+    }
+
+    private fun reply(request: Envelope, data: JsonElement? = null) {
+        ConnectionHub.sendEnvelope(ProtocolCodec.response(request, data))
+    }
+
+    private fun replyOk(request: Envelope) {
+        reply(request, ProtocolCodec.data(OkResult()))
+    }
+
+    private fun replyError(request: Envelope, code: String, message: String) {
+        ConnectionHub.sendEnvelope(ProtocolCodec.failure(request, code, message))
+    }
+
+    @Suppress("DEPRECATION")
+    private fun handleMirrorStart(intent: Intent) {
+        val resultData = intent.getParcelableExtra(EXTRA_RESULT_DATA) as? Intent
+        val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
+        if (resultCode != Activity.RESULT_OK || resultData == null) {
+            cancelAlert(MIRROR_REQUEST_ID)
+            postAlert("Screen sharing not started", "Screen capture consent was cancelled.")
+            return
+        }
+        startForegroundCompat(includeMediaProjection = true)
+        try {
+            mirror.start(resultCode, resultData)
+            cancelAlert(MIRROR_REQUEST_ID)
+        } catch (error: Exception) {
+            LinkStatus.log("Mirror", "Start failed: ${error.message}")
+            startForegroundCompat(includeMediaProjection = false)
+            postAlert(
+                "Screen sharing failed",
+                error.message ?: "Could not start screen capture.",
+            )
+        }
+    }
+
+    private fun startForegroundCompat(includeMediaProjection: Boolean = false) {
+        val types = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or
+            (if (includeMediaProjection) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+            } else {
+                0
+            })
+        try {
+            ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(), types)
+        } catch (error: Exception) {
+            LinkStatus.log("Service", "Foreground start failed: ${error.javaClass.simpleName}")
+            runCatching { stopSelf() }
+        }
+    }
+
+    private fun refreshNotification() {
+        mainHandler.post {
+            if (!destroyed) startForegroundCompat(mirror.isActive())
+        }
+    }
+
+    private fun buildNotification(): Notification {
+        val state = LinkStatus.state.value
+        val title: String
+        val text: String
+        when (state) {
+            is LinkState.Connected -> {
+                title = "Connected to ${state.pcName}"
+                text = "LinkPhone is running • ${state.host}"
+            }
+            is LinkState.Connecting -> {
+                title = "LinkPhone"
+                text = state.detail
+            }
+            is LinkState.Error -> {
+                title = "LinkPhone disconnected"
+                text = state.message
+            }
+            LinkState.Stopped -> {
+                title = "LinkPhone"
+                text = "Disconnected"
+            }
+        }
+
+        val openApp = PendingIntent.getActivity(
+            this,
+            1,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val disconnect = PendingIntent.getService(
+            this,
+            2,
+            Intent(this, LinkConnectionService::class.java).setAction(ACTION_DISCONNECT),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val clipboard = PendingIntent.getActivity(
+            this,
+            3,
+            Intent(this, SendClipboardActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+
+        val builder = NotificationCompat.Builder(this, CHANNEL_CONNECTION)
+            .setSmallIcon(R.drawable.ic_stat_link)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setContentIntent(openApp)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setShowWhen(false)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            .addAction(
+                NotificationCompat.Action(
+                    0,
+                    "Send clipboard",
+                    clipboard,
+                ),
+            )
+
+        if (state is LinkState.Connected) {
+            builder.addAction(NotificationCompat.Action(0, "Disconnect", disconnect))
+        }
+        if (mirror.isActive()) {
+            builder.setSubText("Screen mirroring active")
+        }
+        return builder.build()
+    }
+
+    private fun postClipboardNotification(text: String) {
+        val intent = Intent(this, ClipboardApplyActivity::class.java)
+            .putExtra(EXTRA_CLIPBOARD_TEXT, text)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val pending = PendingIntent.getActivity(
+            this,
+            201,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val notification = NotificationCompat.Builder(this, CHANNEL_ALERTS)
+            .setSmallIcon(R.drawable.ic_stat_link)
+            .setContentTitle("Copied from PC")
+            .setContentText("Tap to copy the text on this phone")
+            .setContentIntent(pending)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setSilent(true)
+            .build()
+        notifySafely(CLIPBOARD_NOTIFICATION_ID, notification)
+    }
+
+    private fun postOpenLinkNotification(url: String) {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val pending = PendingIntent.getActivity(
+            this,
+            202,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val host = runCatching { Uri.parse(url).host }.getOrNull() ?: "the link"
+        val notification = NotificationCompat.Builder(this, CHANNEL_ALERTS)
+            .setSmallIcon(R.drawable.ic_stat_link)
+            .setContentTitle("Link from PC")
+            .setContentText("Tap to open $host on this phone")
+            .setContentIntent(pending)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .build()
+        notifySafely(LINK_NOTIFICATION_ID, notification)
+    }
+
+    private fun postMirrorConsentNotification() {
+        val intent = Intent(this, MirrorConsentActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val pending = PendingIntent.getActivity(
+            this,
+            203,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val builder = NotificationCompat.Builder(this, CHANNEL_MIRROR)
+            .setSmallIcon(R.drawable.ic_stat_link)
+            .setContentTitle("Screen mirroring requested")
+            .setContentText("Tap to allow your PC to view this screen. Consent is required each session.")
+            .setStyle(
+                NotificationCompat.BigTextStyle().bigText(
+                    "Your PC asked to view this screen. Android requires you to approve " +
+                        "screen capture for every session. Tap to choose what to share.",
+                ),
+            )
+            .setContentIntent(pending)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_RECOMMENDATION)
+            .build()
+        notifySafely(MIRROR_REQUEST_ID, builder.build())
+    }
+
+    private fun postAlert(title: String, text: String) {
+        val notification = NotificationCompat.Builder(this, CHANNEL_ALERTS)
+            .setSmallIcon(R.drawable.ic_stat_link)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .build()
+        notifySafely(ALERT_NOTIFICATION_ID, notification)
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun notifySafely(id: Int, notification: Notification) {
+        runCatching { NotificationManagerCompat.from(this).notify(id, notification) }
+    }
+
+    private fun cancelAlert(id: Int) {
+        runCatching { NotificationManagerCompat.from(this).cancel(id) }
+    }
+
+    private fun createChannels() {
+        val manager = getSystemService(NotificationManager::class.java) ?: return
+        manager.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_CONNECTION,
+                "Connection",
+                NotificationManager.IMPORTANCE_LOW,
+            ).apply {
+                description = "Ongoing phone-to-PC connection"
+                setShowBadge(false)
+            },
+        )
+        manager.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_ALERTS,
+                "Alerts",
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ).apply {
+                description = "Clipboard, link handoff and mirroring alerts"
+            },
+        )
+        manager.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_MIRROR,
+                "Screen mirroring",
+                NotificationManager.IMPORTANCE_HIGH,
+            ).apply {
+                description = "Screen-sharing consent requests"
+            },
+        )
+    }
+
+    @Suppress("DEPRECATION")
+    private fun acquireLocks() {
+        val wifi = applicationContext.getSystemService(WifiManager::class.java) ?: return
+        runCatching {
+            wifiLock = wifi.createWifiLock(
+                WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                "LinkPhone:wifi",
+            ).apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+            multicastLock = wifi.createMulticastLock("LinkPhone:mdns").apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+        }.onFailure {
+            LinkStatus.log("Service", "Wi-Fi locks unavailable")
+        }
+    }
+
+    private fun releaseLocks() {
+        runCatching { if (wifiLock?.isHeld == true) wifiLock?.release() }
+        runCatching { if (multicastLock?.isHeld == true) multicastLock?.release() }
+        wifiLock = null
+        multicastLock = null
+    }
+
+    private fun registerNetworkCallback() {
+        val manager = getSystemService(ConnectivityManager::class.java) ?: return
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                reconnectSignal.trySend(Unit)
+            }
+        }
+        runCatching {
+            manager.registerDefaultNetworkCallback(callback)
+            networkCallback = callback
+        }
+    }
+
+    companion object {
+        const val ACTION_CONNECT = "app.linkphone.action.CONNECT"
+        const val ACTION_DISCONNECT = "app.linkphone.action.DISCONNECT"
+        const val ACTION_FORGET = "app.linkphone.action.FORGET"
+        const val ACTION_SYNC_SMS = "app.linkphone.action.SYNC_SMS"
+        const val ACTION_REFRESH_INFO = "app.linkphone.action.REFRESH_INFO"
+        const val ACTION_MIRROR_START = "app.linkphone.action.MIRROR_START"
+        const val ACTION_MIRROR_STOP = "app.linkphone.action.MIRROR_STOP"
+
+        const val EXTRA_RESULT_CODE = "app.linkphone.extra.RESULT_CODE"
+        const val EXTRA_RESULT_DATA = "app.linkphone.extra.RESULT_DATA"
+        const val EXTRA_CLIPBOARD_TEXT = "app.linkphone.extra.CLIPBOARD_TEXT"
+
+        const val CHANNEL_CONNECTION = "connection"
+        const val CHANNEL_ALERTS = "alerts"
+        const val CHANNEL_MIRROR = "mirror"
+
+        const val NOTIFICATION_ID = 1001
+        const val MIRROR_REQUEST_ID = 1002
+        const val CLIPBOARD_NOTIFICATION_ID = 1003
+        const val LINK_NOTIFICATION_ID = 1004
+        const val ALERT_NOTIFICATION_ID = 1005
+
+        private const val MAX_TRANSFER_BYTES = 8 * 1024 * 1024
+
+        fun start(context: Context) {
+            runCatching {
+                ContextCompat.startForegroundService(
+                    context,
+                    Intent(context, LinkConnectionService::class.java)
+                        .setAction(ACTION_CONNECT),
+                )
+            }
+        }
+
+        fun disconnect(context: Context) {
+            runCatching {
+                ContextCompat.startForegroundService(
+                    context,
+                    Intent(context, LinkConnectionService::class.java)
+                        .setAction(ACTION_DISCONNECT),
+                )
+            }
+        }
+
+        fun forget(context: Context) {
+            runCatching {
+                ContextCompat.startForegroundService(
+                    context,
+                    Intent(context, LinkConnectionService::class.java)
+                        .setAction(ACTION_FORGET),
+                )
+            }
+        }
+
+        fun refreshInfo(context: Context) {
+            runCatching {
+                ContextCompat.startForegroundService(
+                    context,
+                    Intent(context, LinkConnectionService::class.java)
+                        .setAction(ACTION_REFRESH_INFO),
+                )
+            }
+        }
+
+        fun stopMirror(context: Context) {
+            runCatching {
+                ContextCompat.startForegroundService(
+                    context,
+                    Intent(context, LinkConnectionService::class.java)
+                        .setAction(ACTION_MIRROR_STOP),
+                )
+            }
+        }
+    }
+}
