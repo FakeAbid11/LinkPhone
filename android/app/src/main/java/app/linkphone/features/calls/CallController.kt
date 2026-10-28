@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
-import android.os.Looper
 import android.provider.ContactsContract
 import android.telecom.TelecomManager
 import android.telephony.PhoneStateListener
@@ -36,7 +35,7 @@ class CallController(
         if (listener != null) return
         if (!Permissions.calls(context) || !isSupported()) return
         val manager = telephony ?: return
-        val stateListener = object : PhoneStateListener(Looper.getMainLooper()) {
+        val stateListener = object : PhoneStateListener() {
             override fun onCallStateChanged(state: Int, phoneNumber: String?) {
                 val mapped = when (state) {
                     TelephonyManager.CALL_STATE_RINGING -> "ringing"

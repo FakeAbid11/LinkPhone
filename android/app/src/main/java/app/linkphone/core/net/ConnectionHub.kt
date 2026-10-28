@@ -6,7 +6,7 @@ import app.linkphone.core.protocol.Types
 import kotlinx.serialization.json.JsonElement
 import okhttp3.OkHttpClient
 import okhttp3.WebSocket
-import okhttp3.ByteString.Companion.toByteString
+import okio.ByteString.Companion.toByteString
 import java.util.concurrent.atomic.AtomicReference
 
 class PhoneSession internal constructor(

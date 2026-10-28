@@ -9,15 +9,11 @@ import app.linkphone.core.net.ConnectionHub
 import app.linkphone.ui.SendClipboardActivity
 
 class ClipboardTileService : TileService() {
+    @Suppress("DEPRECATION")
     override fun onStartListening() {
         super.onStartListening()
         val state = if (ConnectionHub.isConnected()) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            tile?.state = state
-        } else {
-            @Suppress("DEPRECATION")
-            qsTile?.state = state
-        }
+        qsTile?.state = state
     }
 
     override fun onClick() {

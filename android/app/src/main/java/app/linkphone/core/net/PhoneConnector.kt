@@ -16,12 +16,12 @@ import app.linkphone.core.protocol.decodeData
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
-import okhttp3.ByteString
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import okio.ByteString
 import java.io.IOException
 import java.util.Base64
 import java.util.concurrent.atomic.AtomicBoolean
