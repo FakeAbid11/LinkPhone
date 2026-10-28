@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LinkPhone</string>
+    <string name="notification_channel_connection">Connection</string>
+    <string name="notification_channel_alerts">Alerts</string>
+    <string name="notification_channel_mirror">Screen mirroring</string>
+    <string name="accessibility_description">Adds tap and swipe input to LinkPhone screen mirroring. LinkPhone only performs gestures sent by the PC you paired with.</string>
+</resources>
