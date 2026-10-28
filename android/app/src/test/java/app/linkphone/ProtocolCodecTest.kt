@@ -1,6 +1,8 @@
 package app.linkphone
 
 import app.linkphone.core.model.CallDialRequest
+import app.linkphone.core.model.ContactDto
+import app.linkphone.core.model.ContactListResult
 import app.linkphone.core.model.Pong
 import app.linkphone.core.model.SmsOpenThreadRequest
 import app.linkphone.core.protocol.BinaryCodec
@@ -112,6 +114,30 @@ class ProtocolCodecTest {
             encoded,
         )
         assertEquals("+15550101000", decoded.address)
+    }
+
+    @Test
+    fun contactListResultRoundTrips() {
+        val encoded = ProtocolCodec.json.encodeToString(
+            ContactListResult.serializer(),
+            ContactListResult(
+                listOf(
+                    ContactDto(
+                        id = "42",
+                        name = "Ada",
+                        number = "+15550101000",
+                        label = "Mobile",
+                    ),
+                ),
+            ),
+        )
+        val decoded = ProtocolCodec.json.decodeFromString(
+            ContactListResult.serializer(),
+            encoded,
+        )
+        assertEquals(1, decoded.contacts.size)
+        assertEquals("Ada", decoded.contacts[0].name)
+        assertEquals("+15550101000", decoded.contacts[0].number)
     }
 
     @Test

@@ -591,6 +591,10 @@ export class AppController {
     await this.calls.dial(number, subId);
   }
 
+  async refreshContacts(): Promise<void> {
+    await this.calls.refreshContacts();
+  }
+
   async answerCall(): Promise<void> {
     await this.calls.answer();
   }

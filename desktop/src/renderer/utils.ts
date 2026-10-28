@@ -55,6 +55,7 @@ export function initials(name: string): string {
 export function capabilityLabel(capability: string): string {
   const labels: Record<string, string> = {
     sms: 'SMS',
+    contacts: 'Contacts',
     notifications: 'Notifications',
     photos: 'Photos',
     'photos.partial': 'Selected photos',

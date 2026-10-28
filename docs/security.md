@@ -73,7 +73,7 @@
 | Paired PC details | Phone SharedPreferences | App-private; device encryption |
 | PC private key | `userData/certs/pc-key.pem` | File mode 0600; OS account encryption recommended |
 | Paired phones, settings, SMS read-state ids | `userData/state.json` | File mode 0600; public keys plus message ids (no SMS bodies) |
-| Message/notification caches | PC memory | Not persisted by LinkPhone |
+| Message/notification caches and contacts | PC memory | Not persisted by LinkPhone; contacts are fetched on demand with `READ_CONTACTS` |
 | Photo thumbnails | PC memory | Not persisted |
 | Saved photos/files | User-selected folders | Normal OS file permissions |
 | Logs | `userData/logs/linkphone.log` | Connection events only; no message or notification bodies; tokens never logged |

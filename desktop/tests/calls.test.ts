@@ -16,6 +16,20 @@ function harness() {
   const session = {
     request: async (type: string, data: unknown) => {
       requests.push({ type, data });
+      if (type === TYPES.CONTACTS_LIST) {
+        return {
+          v: 1,
+          id: 'reply',
+          type: 'response',
+          ok: true,
+          data: {
+            contacts: [
+              { id: 'c1', name: 'Ada', number: '+15550101000', label: 'Mobile' },
+            ],
+          },
+          ts: Date.now(),
+        };
+      }
       return {
         v: 1,
         id: 'reply',
@@ -53,6 +67,22 @@ describe('call dialing', () => {
     expect(requests[1]).toEqual({
       type: TYPES.CALL_DIAL,
       data: { number: '+15550101000' },
+    });
+  });
+
+  it('loads contacts on demand', async () => {
+    const { service, requests } = harness();
+    await service.refreshContacts();
+
+    expect(requests.find((request) => request.type === TYPES.CONTACTS_LIST)?.data).toEqual({
+      limit: 1000,
+    });
+    const contacts = service.status().contacts;
+    expect(contacts).toHaveLength(1);
+    expect(contacts[0]).toMatchObject({
+      name: 'Ada',
+      number: '+15550101000',
+      label: 'Mobile',
     });
   });
 

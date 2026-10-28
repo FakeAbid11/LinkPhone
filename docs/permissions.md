@@ -16,7 +16,7 @@ next time the feature is used (reconnect to refresh the capability list).
 | `CALL_PHONE` | all | Place a call | Calls card | Dialing is refused |
 | `ANSWER_PHONE_CALLS` | 26+ | Answer/decline and end a call | Calls card (optional group) | Answer/decline buttons are disabled |
 | `READ_CALL_LOG` | all | Caller number on incoming calls | Calls card (optional) | Android 10+ hides the incoming number; the PC shows “Incoming call” |
-| `READ_CONTACTS` | all | Contact name for a number | Calls card (optional) | The number is shown instead of a name |
+| `READ_CONTACTS` | all | Contact search on the PC and caller names | Calls card (optional) | The number is shown instead of a name; the PC contact picker is unavailable |
 | `READ_MEDIA_IMAGES` | 13+ | Camera-roll photos | Photos card | No photos |
 | `READ_MEDIA_VISUAL_USER_SELECTED` | 14+ | Partial photo access | Photos card (requested with images) | Only full/partial access chosen in the system dialog |
 | `READ_EXTERNAL_STORAGE` | 10–12 | Camera-roll photos | Photos card | No photos |

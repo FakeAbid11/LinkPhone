@@ -141,6 +141,20 @@ data class PhotoStreamMeta(
 )
 
 @Serializable
+data class ContactDto(
+    val id: String,
+    val name: String,
+    val number: String,
+    val label: String? = null,
+)
+
+@Serializable
+data class ContactListRequest(val limit: Int = 1_000)
+
+@Serializable
+data class ContactListResult(val contacts: List<ContactDto>)
+
+@Serializable
 data class CallState(
     val state: String,
     val number: String? = null,
@@ -218,6 +232,7 @@ data class Pong(val timestamp: Long)
 object Capabilities {
     const val SMS = "sms"
     const val SMS_OPEN_THREAD = "sms.openThread"
+    const val CONTACTS = "contacts"
     const val NOTIFICATIONS = "notifications"
     const val PHOTOS = "photos"
     const val PHOTOS_PARTIAL = "photos.partial"

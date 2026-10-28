@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CAPABILITIES, type AppSnapshot } from '../../shared/types';
 import { api } from '../api';
-import { Badge, Button, Card, EmptyState, Notice, PageHeader } from '../components';
+import { Badge, Button, Card, EmptyState, Notice, PageHeader, Spinner } from '../components';
 import type { Ui } from '../ui';
+import { initials } from '../utils';
 
 export function CallsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   const connected = state.connection.connected;
@@ -14,15 +15,47 @@ export function CallsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   const simSelectionSupported = state.connection.capabilities.includes(
     CAPABILITIES.CALLS_SIM_SELECTION,
   );
+  const canSearchContacts = state.connection.capabilities.includes(CAPABILITIES.CONTACTS);
   const [number, setNumber] = useState('');
   const [subId, setSubId] = useState<number | null>(null);
+  const [contactQuery, setContactQuery] = useState('');
+  const contactsLoadedRef = useRef(false);
   const selectedSim = subscriptions.find((sim) => sim.subscriptionId === subId);
+  const filteredContacts = useMemo(() => {
+    const query = contactQuery.trim().toLowerCase();
+    const list = query
+      ? state.calls.contacts.filter(
+          (contact) =>
+            contact.name.toLowerCase().includes(query) ||
+            contact.number.toLowerCase().includes(query) ||
+            (contact.label ?? '').toLowerCase().includes(query),
+        )
+      : state.calls.contacts;
+    return list.slice(0, 200);
+  }, [state.calls.contacts, contactQuery]);
 
   useEffect(() => {
     if (subId !== null && !subscriptions.some((sim) => sim.subscriptionId === subId)) {
       setSubId(null);
     }
   }, [subscriptions, subId]);
+
+  useEffect(() => {
+    if (!connected || !canSearchContacts || contactsLoadedRef.current) return;
+    contactsLoadedRef.current = true;
+    void api.refreshContacts().catch(() => undefined);
+  }, [connected, canSearchContacts]);
+
+  useEffect(() => {
+    if (!connected) contactsLoadedRef.current = false;
+  }, [connected]);
+
+  const pickContact = (value: string) => {
+    setNumber(value);
+    window.requestAnimationFrame(() => {
+      document.getElementById('dial-number')?.focus();
+    });
+  };
 
   if (!connected) {
     return (
@@ -139,9 +172,10 @@ export function CallsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
           {state.calls.error && <Notice tone="bad">{state.calls.error}</Notice>}
         </Card>
 
-        <Card title="Dial a call" subtitle="The call is placed by the phone's dialer/telecom service.">
-          <form
-            className="dialer"
+        <div className="calls-right">
+          <Card title="Dial a call" subtitle="The call is placed by the phone's dialer/telecom service.">
+            <form
+              className="dialer"
             onSubmit={(event) => {
               event.preventDefault();
               if (!number.trim()) return;
@@ -199,7 +233,78 @@ export function CallsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
             Emergency calls are handled by Android's telecom stack. LinkPhone does not place
             emergency calls itself.
           </p>
-        </Card>
+          </Card>
+
+          <Card
+            title="Contacts"
+            subtitle="Tap a contact to fill the dialer, then choose a SIM and call."
+            actions={
+              canSearchContacts ? (
+                <Button
+                  small
+                  variant="ghost"
+                  onClick={() => void api.refreshContacts().catch(() => undefined)}
+                  disabled={state.calls.contactsLoading}
+                >
+                  {state.calls.contactsLoading ? 'Loading…' : 'Refresh'}
+                </Button>
+              ) : undefined
+            }
+          >
+            {!canSearchContacts ? (
+              <Notice tone="warn" title="Contacts access">
+                Grant Contacts on the phone (LinkPhone → Permissions), update the phone app to
+                v0.1.3, and reconnect. You can still dial numbers manually.
+              </Notice>
+            ) : (
+              <>
+                <input
+                  className="contact-search"
+                  type="search"
+                  placeholder="Search name, number or label"
+                  value={contactQuery}
+                  onChange={(event) => setContactQuery(event.target.value)}
+                />
+                {state.calls.contactsError && (
+                  <Notice tone="bad">{state.calls.contactsError}</Notice>
+                )}
+                {state.calls.contactsLoading && state.calls.contacts.length === 0 ? (
+                  <Spinner label="Loading contacts…" />
+                ) : filteredContacts.length === 0 ? (
+                  <p className="muted small">
+                    {state.calls.contacts.length === 0
+                      ? 'No contacts were shared. Check the Contacts permission on the phone.'
+                      : 'No contacts match this search.'}
+                  </p>
+                ) : (
+                  <div className="contact-list">
+                    {filteredContacts.map((contact) => (
+                      <button
+                        key={`${contact.id}-${contact.number}`}
+                        type="button"
+                        className="contact-item"
+                        onClick={() => pickContact(contact.number)}
+                      >
+                        <span className="contact-avatar">{initials(contact.name)}</span>
+                        <span className="contact-copy">
+                          <strong>{contact.name}</strong>
+                          <span>
+                            {contact.label ? `${contact.label} · ` : ''}
+                            {contact.number}
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <p className="muted small">
+                  Contacts are requested on demand and kept in memory only. Tap a contact to fill
+                  the dialer.
+                </p>
+              </>
+            )}
+          </Card>
+        </div>
       </div>
     </>
   );

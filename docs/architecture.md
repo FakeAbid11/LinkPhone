@@ -143,7 +143,7 @@ certificate is the PC's identity; the signature is the phone's identity.
 | PC `userData/state.json` | PC id/name, paired device public keys/fingerprints, settings, muted packages, per-device SMS read-state ids |
 | PC `userData/certs/` | PC private key and certificate |
 | PC `userData/logs/linkphone.log` | Connection/diagnostic events (no message bodies) |
-| PC memory | SMS cache, notification feed, photo list, handoff list, mirror state |
+| PC memory | SMS cache, notification feed, photo list, handoff list, contacts, mirror state |
 | PC user folders | Only files the user explicitly saves (`Pictures\LinkPhone`, `Downloads\LinkPhone`) |
 | Phone SharedPreferences | Phone id/name, paired PC details, auto-connect flag |
 | AndroidKeyStore | Non-exportable phone private key |

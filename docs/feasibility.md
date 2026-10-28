@@ -1,15 +1,15 @@
 # Feasibility, platform limits, and scope
 
-This document records what Android and Windows actually allow, what LinkPhone v0.1.2 implements, and
+This document records what Android and Windows actually allow, what LinkPhone v0.1.3 implements, and
 what would require a different product or system privileges.
 
 ## Summary
 
-| Requested feature | v0.1.2 | Honest limit |
+| Requested feature | v0.1.3 | Honest limit |
 |---|---|---|
 | Secure pair/reconnect | Implemented | QR + pinned TLS + ECDSA challenge; one phone at a time |
 | SMS view/send | Implemented | Sideload only; unread is PC-local; Open on phone hands the thread to the stock SMS app (one tap); no MMS/RCS; no default-SMS role, so sent items may not enter stock threads |
-| Calls from PC | Limited | Dial/answer/decline, caller state, and SIM choice on Android 11+ where OEM permits; **no call audio on PC**; caller ID needs call-log access |
+| Calls from PC | Limited | Dial/answer/decline, caller state, contact search, and SIM choice on Android 11+ where OEM permits; **no call audio on PC**; caller ID needs call-log access |
 | Photos | Implemented | Recent camera roll; JPEG transcode; Android 14 partial access respected |
 | Notification mirroring | Implemented | Per-app mute, dismiss; Android 15+ may redact sensitive content; no action buttons |
 | Apps streaming | Experimental substitute | Screen mirroring + tap/swipe only; no app virtualization; consent each session; stops on lock |
@@ -71,6 +71,9 @@ What works:
   `TelephonyManager.getSubscriptionId(handle)` and passes `EXTRA_PHONE_ACCOUNT_HANDLE` to
   `placeCall`. Android 10 has no reliable public subscription-to-account mapping, so the selector is
   hidden and calls use the system default. Some OEM dialers may ignore the requested account.
+- Searching contacts on the PC with `READ_CONTACTS`: the phone queries the contacts provider on
+  demand and returns names, labels, and dialable numbers. The PC filters them locally and fills the
+  dialer; no contact data is written to disk on either side.
 
 What does **not** work and cannot be fixed by a normal app:
 - **Call audio.** `AudioRecord` with `VOICE_CALL` requires the signature/privileged

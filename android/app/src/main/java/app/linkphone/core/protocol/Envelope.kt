@@ -47,6 +47,7 @@ object Types {
     const val SMS_SEND = "sms.send"
     const val SMS_OPEN_THREAD = "sms.openThread"
     const val SMS_CHANGED = "sms.changed"
+    const val CONTACTS_LIST = "contacts.list"
     const val NOTIF_POST = "notif.post"
     const val NOTIF_REMOVED = "notif.removed"
     const val NOTIF_DISMISS = "notif.dismiss"

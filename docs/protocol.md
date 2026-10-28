@@ -77,6 +77,7 @@ server verifies with Node `crypto.verify('sha256', payload, { key, dsaEncoding: 
 | `sms.send` | PC → phone | `address, body, subId?`; response `{accepted, parts, subId}` |
 | `sms.openThread` | PC → phone | `{address}` — posts a tappable notification that opens the conversation in the stock SMS app; it does not write the SMS provider |
 | `sms.changed` | phone → PC | `{timestamp}` — PC should refresh `sms.list` |
+| `contacts.list` | PC → phone | request `{limit}`; response `{contacts[]}` with `id, name, number, label?` — fetched on demand with `READ_CONTACTS` |
 | `notif.post` | phone → PC | `key, packageName, appName, title?, text?, subText?, category?, ongoing, time` |
 | `notif.removed` | phone → PC | `{key}` |
 | `notif.dismiss` | PC → phone | `{key}` |

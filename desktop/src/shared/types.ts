@@ -15,6 +15,7 @@ export const TYPES = {
   SMS_SEND: 'sms.send',
   SMS_OPEN_THREAD: 'sms.openThread',
   SMS_CHANGED: 'sms.changed',
+  CONTACTS_LIST: 'contacts.list',
   NOTIF_POST: 'notif.post',
   NOTIF_REMOVED: 'notif.removed',
   NOTIF_DISMISS: 'notif.dismiss',
@@ -56,6 +57,7 @@ export const ERROR_CODES = {
 export const CAPABILITIES = {
   SMS: 'sms',
   SMS_OPEN_THREAD: 'sms.openThread',
+  CONTACTS: 'contacts',
   NOTIFICATIONS: 'notifications',
   PHOTOS: 'photos',
   PHOTOS_PARTIAL: 'photos.partial',
@@ -126,6 +128,17 @@ export interface SmsSendResultWire {
   accepted: boolean;
   parts: number;
   subId?: number | null;
+}
+
+export interface ContactWire {
+  id: string;
+  name: string;
+  number: string;
+  label?: string | null;
+}
+
+export interface ContactListResultWire {
+  contacts: ContactWire[];
 }
 
 export interface NotificationWire {
@@ -354,6 +367,9 @@ export interface AppSnapshot {
     state: CallStateWire;
     error?: string;
     answerSupported: boolean;
+    contacts: ContactWire[];
+    contactsLoading: boolean;
+    contactsError?: string;
   };
   clipboard: {
     lastReceived?: string;
@@ -393,6 +409,7 @@ export interface LinkPhoneApi {
   savePhoto(id: string): Promise<string>;
   copyPhoto(id: string): Promise<void>;
   dial(number: string, subId?: number | null): Promise<void>;
+  refreshContacts(): Promise<void>;
   answerCall(): Promise<void>;
   declineCall(): Promise<void>;
   sendClipboard(text: string): Promise<void>;

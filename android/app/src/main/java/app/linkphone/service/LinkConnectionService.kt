@@ -29,6 +29,8 @@ import app.linkphone.core.crypto.DeviceIdentity
 import app.linkphone.core.crypto.normalizeFingerprint
 import app.linkphone.core.model.CallDialRequest
 import app.linkphone.core.model.CallState
+import app.linkphone.core.model.ContactListRequest
+import app.linkphone.core.model.ContactListResult
 import app.linkphone.core.model.ClipboardSetRequest
 import app.linkphone.core.model.HandoffOpenRequest
 import app.linkphone.core.model.MirrorState
@@ -68,6 +70,7 @@ import app.linkphone.features.Permissions
 import app.linkphone.features.PhoneInfoBuilder
 import app.linkphone.features.calls.CallController
 import app.linkphone.features.clipboard.ClipboardBridge
+import app.linkphone.features.contacts.ContactRepository
 import app.linkphone.features.mirror.LinkAccessibilityService
 import app.linkphone.features.mirror.MirrorController
 import app.linkphone.features.notifications.LinkNotificationListener
@@ -118,6 +121,7 @@ class LinkConnectionService : Service() {
 
     private val smsReader by lazy { SmsReader(this) }
     private val smsSender by lazy { SmsSender(this) }
+    private val contactRepository by lazy { ContactRepository(this) }
     private val photos by lazy { PhotoRepository(this) }
     private val calls by lazy { CallController(this) { state -> sendCallState(state) } }
     private val mirror by lazy {
@@ -499,6 +503,12 @@ class LinkConnectionService : Service() {
 
             Types.CALL_ANSWER -> resultReply(envelope, calls.answer())
             Types.CALL_DECLINE -> resultReply(envelope, calls.decline())
+
+            Types.CONTACTS_LIST -> {
+                val request = envelope.decodeData<ContactListRequest>()
+                val contacts = contactRepository.list(request.limit)
+                reply(envelope, ProtocolCodec.data(ContactListResult(contacts)))
+            }
 
             Types.CLIPBOARD_SET -> {
                 val request = envelope.decodeData<ClipboardSetRequest>()

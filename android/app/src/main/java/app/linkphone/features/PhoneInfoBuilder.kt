@@ -29,6 +29,7 @@ object PhoneInfoBuilder {
         }
         if (Permissions.canAnswerCalls(context)) capabilities += Capabilities.CALLS_ANSWER
         if (Permissions.callerId(context)) capabilities += Capabilities.CALLS_CALLER_ID
+        if (Permissions.contacts(context)) capabilities += Capabilities.CONTACTS
         capabilities += Capabilities.MIRROR
         if (Permissions.accessibility(context)) capabilities += Capabilities.MIRROR_INPUT
         capabilities += Capabilities.CLIPBOARD

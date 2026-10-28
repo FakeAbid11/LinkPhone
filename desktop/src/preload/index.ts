@@ -49,6 +49,7 @@ const api: LinkPhoneApi = {
   savePhoto: (id) => ipcRenderer.invoke('photos:save', id) as Promise<string>,
   copyPhoto: (id) => ipcRenderer.invoke('photos:copy', id),
   dial: (number, subId) => ipcRenderer.invoke('call:dial', number, subId),
+  refreshContacts: () => ipcRenderer.invoke('contacts:refresh'),
   answerCall: () => ipcRenderer.invoke('call:answer'),
   declineCall: () => ipcRenderer.invoke('call:decline'),
   sendClipboard: (text) => ipcRenderer.invoke('clipboard:send', text),
