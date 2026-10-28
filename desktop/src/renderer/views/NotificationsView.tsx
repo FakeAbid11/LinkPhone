@@ -27,6 +27,7 @@ export function NotificationsView({ state, ui }: { state: AppSnapshot; ui: Ui })
         <PageHeader title="Notifications" subtitle="Mirror phone notifications on the PC." />
         <Card>
           <EmptyState
+            icon="bell"
             title="Connect your phone first"
             body="Notification mirroring only works while LinkPhone is connected. Android also requires you to grant notification access on the phone."
           />
@@ -41,6 +42,7 @@ export function NotificationsView({ state, ui }: { state: AppSnapshot; ui: Ui })
         <PageHeader title="Notifications" subtitle="Mirror phone notifications on the PC." />
         <Card>
           <EmptyState
+            icon="bell"
             title="Notification access is not granted"
             body="On the phone, open LinkPhone, tap Notification access, and enable LinkPhone in the system list. Then return here."
           />
@@ -59,7 +61,7 @@ export function NotificationsView({ state, ui }: { state: AppSnapshot; ui: Ui })
         title="Notifications"
         subtitle="Live mirror with per-app controls. Dismissing here dismisses the phone notification."
         actions={
-          <Button variant="ghost" onClick={() => void ui.refresh()}>
+          <Button variant="ghost" icon="refresh" onClick={() => void ui.refresh()}>
             Refresh
           </Button>
         }
@@ -67,13 +69,16 @@ export function NotificationsView({ state, ui }: { state: AppSnapshot; ui: Ui })
 
       <div className="grid grid-2">
         <Card
+          icon="bell"
           title="Live feed"
           subtitle={`${state.notifications.length} notification${state.notifications.length === 1 ? '' : 's'}`}
         >
           {state.notifications.length === 0 ? (
-            <p className="muted">
-              Nothing yet. New notifications appear here while the phone is connected.
-            </p>
+            <EmptyState
+              icon="bell"
+              title="No notifications yet"
+              body="New notifications appear here while the phone is connected. Nothing is stored on the PC."
+            />
           ) : (
             <ul className="notification-list">
               {state.notifications.map((item) => (
@@ -91,6 +96,7 @@ export function NotificationsView({ state, ui }: { state: AppSnapshot; ui: Ui })
                       <Button
                         small
                         variant="ghost"
+                        icon="x"
                         onClick={() => void ui.run(() => api.dismissNotification(item.key))}
                       >
                         Dismiss
@@ -98,6 +104,7 @@ export function NotificationsView({ state, ui }: { state: AppSnapshot; ui: Ui })
                       <Button
                         small
                         variant="ghost"
+                        icon="bell"
                         onClick={() =>
                           void ui.run(
                             () => api.setPackageMuted(item.packageName, true),
@@ -115,7 +122,7 @@ export function NotificationsView({ state, ui }: { state: AppSnapshot; ui: Ui })
           )}
         </Card>
 
-        <Card title="App filters" subtitle="Muted apps are not mirrored at all.">
+        <Card icon="apps" title="App filters" subtitle="Muted apps are not mirrored at all.">
           {apps.length === 0 ? (
             <p className="muted">App names appear after the first notification arrives.</p>
           ) : (

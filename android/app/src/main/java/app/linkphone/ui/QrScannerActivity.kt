@@ -14,6 +14,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
@@ -26,11 +27,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.FlashOff
+import androidx.compose.material.icons.outlined.FlashOn
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -99,7 +108,9 @@ private fun ScannerScreen(onDecoded: (String) -> Unit, onClose: () -> Unit) {
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
         hasCamera = granted
-        if (!granted) permanentlyDenied = true
+        permanentlyDenied = !granted &&
+            context.findHostActivity()
+                ?.shouldShowRequestPermissionRationale(Manifest.permission.CAMERA) == false
     }
 
     LaunchedEffect(Unit) {
@@ -109,9 +120,40 @@ private fun ScannerScreen(onDecoded: (String) -> Unit, onClose: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize()) {
         if (hasCamera) {
             CameraScanner(onDecoded = onDecoded)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(24.dp)
+                    .background(
+                        Color(0xCC0B1018),
+                        RoundedCornerShape(18.dp),
+                    )
+                    .padding(16.dp),
+            ) {
+                Column {
+                    Text(
+                        "Scan the pairing QR on your PC",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White,
+                    )
+                    Text(
+                        "The code expires five minutes after you create it.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFFC3CEDD),
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                    OutlinedButton(onClick = onClose, modifier = Modifier.padding(top = 10.dp)) {
+                        Text("Cancel")
+                    }
+                }
+            }
         } else {
             Column(
-                modifier = Modifier.fillMaxSize().padding(28.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(28.dp),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -140,32 +182,7 @@ private fun ScannerScreen(onDecoded: (String) -> Unit, onClose: () -> Unit) {
                         Text("Open app settings")
                     }
                 }
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(24.dp)
-                .background(
-                    Color(0xCC0B1018),
-                    RoundedCornerShape(18.dp),
-                )
-                .padding(16.dp),
-        ) {
-            Column {
-                Text(
-                    "Scan the pairing QR on your PC",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.White,
-                )
-                Text(
-                    "The code expires five minutes after you create it.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFB8C4D4),
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-                OutlinedButton(onClick = onClose, modifier = Modifier.padding(top = 10.dp)) {
+                OutlinedButton(onClick = onClose, modifier = Modifier.padding(top = 8.dp)) {
                     Text("Cancel")
                 }
             }
@@ -178,13 +195,18 @@ private fun CameraScanner(onDecoded: (String) -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val previewView = remember { PreviewView(context).apply { scaleType = PreviewView.ScaleType.FILL_CENTER } }
-    val executor = remember { Executors.newSingleThreadExecutor() }
+    var retry by remember { mutableStateOf(0) }
+    val executor = remember(retry) { Executors.newSingleThreadExecutor() }
     val found = remember { AtomicBoolean(false) }
     val lastAnalysis = remember { AtomicLong(0L) }
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
     var cameraError by remember { mutableStateOf<String?>(null) }
+    var camera by remember { mutableStateOf<Camera?>(null) }
+    var hasFlash by remember { mutableStateOf(false) }
+    var torchOn by remember { mutableStateOf(false) }
 
-    DisposableEffect(lifecycleOwner) {
+    DisposableEffect(lifecycleOwner, retry) {
+        cameraError = null
         val providerFuture = ProcessCameraProvider.getInstance(context)
         providerFuture.addListener(
             {
@@ -217,12 +239,13 @@ private fun CameraScanner(onDecoded: (String) -> Unit) {
                         )
                     }
                     provider.unbindAll()
-                    provider.bindToLifecycle(
+                    camera = provider.bindToLifecycle(
                         lifecycleOwner,
                         CameraSelector.DEFAULT_BACK_CAMERA,
                         preview,
                         analysis,
                     )
+                    hasFlash = camera?.cameraInfo?.hasFlashUnit() == true
                 } catch (error: Exception) {
                     cameraError = error.message ?: "Camera could not be started"
                 }
@@ -232,19 +255,46 @@ private fun CameraScanner(onDecoded: (String) -> Unit) {
 
         onDispose {
             runCatching { if (providerFuture.isDone) providerFuture.get().unbindAll() }
+            camera = null
             executor.shutdownNow()
         }
     }
 
+    LaunchedEffect(torchOn, camera) {
+        camera?.cameraControl?.enableTorch(torchOn)
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+        if (hasFlash) {
+            IconButton(
+                onClick = { torchOn = !torchOn },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(16.dp)
+                    .background(Color(0xCC0B1018), RoundedCornerShape(12.dp)),
+            ) {
+                Icon(
+                    if (torchOn) Icons.Outlined.FlashOn else Icons.Outlined.FlashOff,
+                    contentDescription = if (torchOn) "Turn torch off" else "Turn torch on",
+                    tint = Color.White,
+                )
+            }
+        }
         cameraError?.let { message ->
             Column(
-                modifier = Modifier.fillMaxSize().padding(28.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(28.dp),
                 verticalArrangement = Arrangement.Center,
             ) {
                 Text("Camera error", style = MaterialTheme.typography.titleLarge)
                 Text(message, style = MaterialTheme.typography.bodyMedium)
+                Button(onClick = { retry += 1 }, modifier = Modifier.padding(top = 12.dp)) {
+                    Text("Try again")
+                }
             }
         }
     }

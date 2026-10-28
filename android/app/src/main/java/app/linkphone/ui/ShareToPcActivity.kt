@@ -9,8 +9,17 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -237,10 +246,17 @@ private fun ShareStatus(
     onClose: () -> Unit,
 ) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(28.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 28.dp, vertical = 32.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
         horizontalAlignment = Alignment.Start,
     ) {
+        IconBadge(
+            if (isError) Icons.Outlined.ErrorOutline else Icons.Outlined.CheckCircle,
+        )
         Text(
             if (isError) "Could not send" else "Continue on PC",
             style = MaterialTheme.typography.headlineSmall,
@@ -249,11 +265,14 @@ private fun ShareStatus(
         Text(
             status,
             style = MaterialTheme.typography.bodyLarge,
-            color = if (isError) MaterialTheme.colorScheme.error
-            else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (isError) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
         )
         if (finished) {
-            Button(onClick = onClose) { Text("Close") }
+            Button(onClick = onClose, modifier = Modifier.height(48.dp)) { Text("Close") }
         }
     }
 }

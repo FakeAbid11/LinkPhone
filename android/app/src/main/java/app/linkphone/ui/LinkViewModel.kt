@@ -28,12 +28,17 @@ sealed interface PairingUiState {
     data class Success(val pc: PairedPc) : PairingUiState
 }
 
+enum class Screen { Home, Onboarding, Pair }
+
 class LinkViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs = LinkPrefs(application)
     private val identity = DeviceIdentity()
 
     val state: StateFlow<LinkState> = LinkStatus.state
     val logs: StateFlow<List<String>> = LinkStatus.logs
+
+    private val _screen = MutableStateFlow(Screen.Home)
+    val screen: StateFlow<Screen> = _screen.asStateFlow()
 
     private val _paired = MutableStateFlow(prefs.pairedPc)
     val paired: StateFlow<PairedPc?> = _paired.asStateFlow()
@@ -47,6 +52,40 @@ class LinkViewModel(application: Application) : AndroidViewModel(application) {
     private var pairingJob: Job? = null
 
     val appVersion: String = BuildConfig.VERSION_NAME
+
+    init {
+        if (!prefs.onboardingDone) {
+            if (prefs.isPaired) {
+                prefs.onboardingDone = true
+            } else {
+                _screen.value = Screen.Onboarding
+            }
+        }
+    }
+
+    fun goHome() {
+        _screen.value = Screen.Home
+        refresh()
+    }
+
+    fun openPair() {
+        _screen.value = Screen.Pair
+    }
+
+    fun openOnboarding() {
+        _screen.value = Screen.Onboarding
+    }
+
+    fun completeOnboarding() {
+        prefs.onboardingDone = true
+        _screen.value = Screen.Home
+        refresh()
+    }
+
+    fun onScannedPair(raw: String) {
+        _screen.value = Screen.Pair
+        pair(raw)
+    }
 
     fun refresh() {
         _paired.value = prefs.pairedPc
@@ -75,6 +114,7 @@ class LinkViewModel(application: Application) : AndroidViewModel(application) {
         prefs.clearPairing()
         _paired.value = null
         _pairing.value = PairingUiState.Idle
+        _screen.value = Screen.Home
         refresh()
     }
 

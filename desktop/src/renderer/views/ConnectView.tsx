@@ -8,7 +8,6 @@ import {
   Modal,
   Notice,
   PageHeader,
-  Spinner,
 } from '../components';
 import type { Ui } from '../ui';
 import {
@@ -49,7 +48,7 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
         title="Connection"
         subtitle="Pair once over your own Wi-Fi. Everything stays on your local network."
         actions={
-          <Button onClick={() => void ui.refresh()} variant="ghost">
+          <Button onClick={() => void ui.refresh()} variant="ghost" icon="refresh">
             Refresh
           </Button>
         }
@@ -57,6 +56,7 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
 
       <div className="grid grid-2">
         <Card
+          icon="wifi"
           title="Your PC"
           actions={
             <Badge tone={connection.connected ? 'good' : 'neutral'}>
@@ -142,6 +142,7 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
         </Card>
 
         <Card
+          icon="qr"
           title="Pair a phone"
           subtitle="The code is single-use and expires after five minutes."
           actions={
@@ -177,6 +178,11 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
             </div>
           ) : (
             <>
+              {expired && (
+                <Notice tone="bad" title="Code expired">
+                  Create a new code to pair another phone.
+                </Notice>
+              )}
               <div className={`qr-frame ${expired ? 'is-expired' : ''}`}>
                 <img src={offer.qrDataUrl} alt="LinkPhone pairing QR code" />
               </div>
@@ -243,7 +249,7 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
       </div>
 
       <div className="grid grid-2">
-        <Card title="Paired phones" subtitle="Remove a device to revoke its access.">
+        <Card icon="phone" title="Paired phones" subtitle="Remove a device to revoke its access.">
           {state.devices.length === 0 ? (
             <p className="muted">No phones are paired yet.</p>
           ) : (
@@ -274,7 +280,7 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
           )}
         </Card>
 
-        <Card title="Network checklist" subtitle="Most pairing failures are firewall or Wi-Fi isolation.">
+        <Card icon="shield" title="Network checklist" subtitle="Most pairing failures are firewall or Wi-Fi isolation.">
           <ol className="checklist">
             <li>Both devices are on the same Wi-Fi and the network allows device-to-device traffic.</li>
             <li>
@@ -297,29 +303,33 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
         </Card>
       </div>
 
-      <Card title="What is not possible" subtitle="These limits come from Android, not from LinkPhone.">
-        <ul className="limit-list">
-          <li>
-            <strong>Call audio on the PC.</strong> Android reserves in-call audio for system
-            apps. LinkPhone controls the call, but audio stays on the phone.
-          </li>
-          <li>
-            <strong>True app streaming.</strong> There is no public API to run Android apps in a
-            Windows window. The Apps tab mirrors the screen and can send taps.
-          </li>
-          <li>
-            <strong>Silent clipboard sync.</strong> Android only lets the focused app read the
-            clipboard. Use the phone's Quick Settings tile or share action to send text here.
-          </li>
-        </ul>
+      <Card icon="alert" title="Platform limits" subtitle="These limits come from Android, not from LinkPhone.">
+        <details className="limit-details">
+          <summary>What LinkPhone cannot do</summary>
+          <ul className="limit-list">
+            <li>
+              <strong>Call audio on the PC.</strong> Android reserves in-call audio for system
+              apps. LinkPhone controls the call, but audio stays on the phone.
+            </li>
+            <li>
+              <strong>True app streaming.</strong> There is no public API to run Android apps in a
+              Windows window. The Apps tab mirrors the screen and can send taps.
+            </li>
+            <li>
+              <strong>Silent clipboard sync.</strong> Android only lets the focused app read the
+              clipboard. Use the phone's Quick Settings tile or share action to send text here.
+            </li>
+          </ul>
+        </details>
       </Card>
 
       <HandoffCard items={state.handoff} ui={ui} />
 
-      <Card title="Clipboard" subtitle="Text handoff in both directions, with Android's limits.">
+      <Card icon="clipboard" title="Clipboard" subtitle="Text handoff in both directions, with Android's limits.">
         <div className="clipboard-row">
           <Button
             variant="primary"
+            icon="send"
             disabled={!connection.connected}
             onClick={() =>
               void ui.run(() => api.sendPcClipboard(), 'PC clipboard sent to the phone')
@@ -383,6 +393,7 @@ function HandoffCard({ items, ui }: { items: HandoffUi[]; ui: Ui }) {
 
   return (
     <Card
+      icon="arrow"
       title="Continue on PC"
       subtitle="Links, text, and images sent from the phone's share sheet."
     >

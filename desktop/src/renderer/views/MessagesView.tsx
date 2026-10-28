@@ -1,8 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CAPABILITIES, type AppSnapshot } from '../../shared/types';
 import { api } from '../api';
-import { Button, Card, EmptyState, Notice, PageHeader, Spinner } from '../components';
+import {
+  Button,
+  Card,
+  EmptyState,
+  Notice,
+  PageHeader,
+  Spinner,
+  TextInput,
+} from '../components';
 import type { Ui } from '../ui';
+import { filterThreads } from '../thread-filter';
 import { formatDateTime, formatTime, initials, timeAgo } from '../utils';
 
 export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
@@ -17,8 +26,11 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   const [draft, setDraft] = useState('');
   const [subId, setSubId] = useState<number | null>(null);
   const [sending, setSending] = useState(false);
+  const [query, setQuery] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const loadedRef = useRef(false);
+
+  const filteredThreads = useMemo(() => filterThreads(threads, query), [threads, query]);
 
   const active = useMemo(
     () => threads.find((thread) => thread.address === selected) ?? threads[0],
@@ -104,6 +116,7 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
             {totalUnread > 0 && (
               <Button
                 variant="ghost"
+                icon="check"
                 onClick={() =>
                   void ui.run(
                     () => api.markAllSmsRead(),
@@ -116,26 +129,31 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
             )}
             <Button
               variant="ghost"
+              icon="refresh"
               onClick={() => void ui.run(() => api.refreshSms())}
-              disabled={state.sms.refreshing}
+              loading={state.sms.refreshing}
             >
-              {state.sms.refreshing ? 'Refreshing…' : 'Refresh'}
+              Refresh
             </Button>
           </>
         }
       />
 
-      {!canOpenOnPhone && (
-        <p className="muted small messages-hint">
-          Phone read sync needs the v0.1.2 phone app. Mark read still clears unread in
-          LinkPhone.
-        </p>
-      )}
+      {(!canOpenOnPhone || state.sms.error) && (
+        <div className="messages-banner">
+          {!canOpenOnPhone && (
+            <p className="muted small messages-hint">
+              Phone read sync needs the v0.1.2 phone app. Mark read still clears unread in
+              LinkPhone.
+            </p>
+          )}
 
-      {state.sms.error && (
-        <Notice tone="bad" title="Messages">
-          {state.sms.error}
-        </Notice>
+          {state.sms.error && (
+            <Notice tone="bad" title="Messages">
+              {state.sms.error}
+            </Notice>
+          )}
+        </div>
       )}
 
       {threads.length === 0 ? (
@@ -151,31 +169,54 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
         </Card>
       ) : (
         <div className="messages-layout">
-          <aside className="thread-list">
-            <div className="thread-list-head">
-              <span>Conversations</span>
-              {state.sms.refreshing && <span className="live-dot" />}
+          <aside className="thread-list" aria-label="Conversations">
+            <div className="thread-tools">
+              <div className="thread-list-head">
+                <span>Conversations</span>
+                {state.sms.refreshing && <span className="live-dot" aria-label="Refreshing" />}
+              </div>
+              <div className="thread-search">
+                <TextInput
+                  id="thread-search"
+                  type="search"
+                  placeholder="Search conversations"
+                  aria-label="Search conversations"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+              </div>
             </div>
-            {threads.map((thread) => (
-              <button
-                key={thread.address}
-                type="button"
-                className={`thread-item ${active?.address === thread.address ? 'is-active' : ''}`}
-                onClick={() => setSelected(thread.address)}
-              >
-                <span className="thread-avatar">{initials(thread.displayName)}</span>
-                <span className="thread-copy">
-                  <span className="thread-top">
-                    <strong>{thread.displayName}</strong>
-                    <span>{timeAgo(thread.latest)}</span>
+            {filteredThreads.length === 0 ? (
+              <p className="thread-search-empty">
+                No conversations match “{query.trim()}”.
+              </p>
+            ) : (
+              filteredThreads.map((thread) => (
+                <button
+                  key={thread.address}
+                  type="button"
+                  className={`thread-item ${active?.address === thread.address ? 'is-active' : ''}`}
+                  aria-current={active?.address === thread.address ? 'true' : undefined}
+                  onClick={() => setSelected(thread.address)}
+                >
+                  <span className="thread-avatar">{initials(thread.displayName)}</span>
+                  <span className="thread-copy">
+                    <span className="thread-top">
+                      <strong>{thread.displayName}</strong>
+                      <span>{timeAgo(thread.latest)}</span>
+                    </span>
+                    <span className="thread-preview">
+                      {thread.messages[thread.messages.length - 1]?.body ?? ''}
+                    </span>
                   </span>
-                  <span className="thread-preview">
-                    {thread.messages[thread.messages.length - 1]?.body ?? ''}
-                  </span>
-                </span>
-                {thread.unread > 0 && <span className="unread">{thread.unread}</span>}
-              </button>
-            ))}
+                  {thread.unread > 0 && (
+                    <span className="unread" aria-label={`${thread.unread} unread`}>
+                      {thread.unread}
+                    </span>
+                  )}
+                </button>
+              ))
+            )}
           </aside>
 
           <section className="chat-panel">
@@ -192,6 +233,7 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
                   <Button
                     small
                     variant="ghost"
+                    icon="check"
                     title="Clears unread in LinkPhone only."
                     onClick={() =>
                       void ui.run(
@@ -207,6 +249,7 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
                   <Button
                     small
                     variant="secondary"
+                    icon="arrow"
                     title="Opens this conversation in your phone's SMS app so that app can mark it read."
                     onClick={() =>
                       void ui.run(
@@ -221,7 +264,12 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
               </div>
             </header>
 
-            <div className="chat-scroll" ref={scrollRef}>
+            <div
+              className="chat-scroll"
+              ref={scrollRef}
+              role="log"
+              aria-label={`Conversation with ${active?.displayName ?? 'contact'}`}
+            >
               {active?.messages.map((message) => {
                 const outgoing = message.type === 2 || message.type === 4 || message.type === 6;
                 return (
@@ -284,10 +332,12 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
                 </div>
                 <Button
                   variant="primary"
+                  icon="send"
                   onClick={() => void send()}
-                  disabled={!draft.trim() || sending}
+                  loading={sending}
+                  disabled={!draft.trim()}
                 >
-                  {sending ? 'Sending…' : 'Send'}
+                  Send
                 </Button>
               </div>
             </footer>
