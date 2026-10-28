@@ -742,7 +742,7 @@ private fun QuickActionsCard(
                 modifier = Modifier.weight(1f),
             )
             QuickAction(
-                icon = Icons.Outlined.BatterySaver,
+                icon = Icons.Outlined.BatteryFull,
                 title = if (batteryExempt) "Battery allowed" else "Allow background",
                 subtitle = if (batteryExempt) {
                     "Service stays available"
