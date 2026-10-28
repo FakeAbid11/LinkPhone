@@ -43,7 +43,7 @@ object PinnedTls {
             .sslSocketFactory(context.socketFactory, trustManager)
             .hostnameVerifier { _, _ -> true }
             .connectTimeout(8, TimeUnit.SECONDS)
-            .readTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(0, TimeUnit.MILLISECONDS)
             .writeTimeout(20, TimeUnit.SECONDS)
             .pingInterval(20, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)

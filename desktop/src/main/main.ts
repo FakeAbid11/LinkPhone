@@ -122,6 +122,7 @@ app.whenReady().then(async () => {
 
   if (!isE2E) {
     tray = createTray();
+    refreshTray();
   }
 
   app.on('activate', () => {

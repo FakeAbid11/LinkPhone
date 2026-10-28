@@ -103,6 +103,7 @@ class LinkConnectionService : Service() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val reconnectSignal = Channel<Unit>(Channel.CONFLATED)
     private val streamCounter = AtomicLong(1)
+    private val photoGate = java.util.concurrent.Semaphore(2)
 
     private var loopJob: Job? = null
     private var currentConnector: PhoneConnector? = null
@@ -157,8 +158,20 @@ class LinkConnectionService : Service() {
 
             ACTION_MIRROR_START -> handleMirrorStart(intent)
             ACTION_MIRROR_STOP -> mirror.stop("Stopped from the PC")
-            ACTION_SYNC_SMS -> sendSmsChanged()
-            ACTION_REFRESH_INFO -> sendPhoneInfo()
+            ACTION_SYNC_SMS -> {
+                if (!prefs.isPaired) {
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
+                if (ConnectionHub.isConnected()) sendSmsChanged() else startLoop()
+            }
+            ACTION_REFRESH_INFO -> {
+                if (!prefs.isPaired) {
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
+                if (ConnectionHub.isConnected()) sendPhoneInfo() else startLoop()
+            }
             else -> {
                 if (!prefs.isPaired) {
                     LinkStatus.setState(LinkState.Stopped)
@@ -550,7 +563,12 @@ class LinkConnectionService : Service() {
             replyError(envelope, ErrorCodes.BAD_REQUEST, "Unknown photo kind")
             return
         }
-        val bytes = photos.loadJpeg(request.id, request.kind)
+        photoGate.acquireUninterruptibly()
+        val bytes = try {
+            photos.loadJpeg(request.id, request.kind)
+        } finally {
+            photoGate.release()
+        }
         if (bytes == null) {
             replyError(envelope, ErrorCodes.NOT_FOUND, "Photo not found or could not be decoded")
             return

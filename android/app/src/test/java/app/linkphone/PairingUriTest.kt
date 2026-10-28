@@ -15,11 +15,12 @@ class PairingUriTest {
 
     @Test
     fun parsesAValidPairingUri() {
-        val info = PairingUri.parse(
+        val parsed = PairingUri.parse(
             "linkphone://pair?h=192.168.1.20&p=48921&f=$fingerprint&t=$token&n=My%20PC",
         )
-        assertNotNull(info)
-        assertEquals("192.168.1.20", info!!.host)
+        assertNotNull(parsed)
+        val info = parsed!!
+        assertEquals("192.168.1.20", info.host)
         assertEquals(48921, info.port)
         assertEquals(fingerprint, info.fingerprint)
         assertEquals(token, info.token)
@@ -29,11 +30,12 @@ class PairingUriTest {
     @Test
     fun acceptsColonSeparatedFingerprints() {
         val formatted = fingerprint.chunked(2).joinToString(":")
-        val info = PairingUri.parse(
+        val parsed = PairingUri.parse(
             "linkphone://pair?h=192.168.1.20&p=48921&f=$formatted&t=$token",
         )
-        assertNotNull(info)
-        assertEquals(fingerprint, info!!.fingerprint)
+        assertNotNull(parsed)
+        val info = parsed!!
+        assertEquals(fingerprint, info.fingerprint)
         assertNull(info.pcName)
     }
 

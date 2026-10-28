@@ -13,8 +13,8 @@ object LogRing {
 
     fun add(tag: String, message: String) {
         val safeMessage = message.replace('\n', ' ').take(500)
-        val line = "${timeFormat.format(Date())} [$tag] $safeMessage"
         synchronized(lock) {
+            val line = "${timeFormat.format(Date())} [$tag] $safeMessage"
             buffer.addLast(line)
             while (buffer.size > MAX_LINES) buffer.removeFirst()
         }

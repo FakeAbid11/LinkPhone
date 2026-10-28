@@ -51,6 +51,9 @@ class LinkViewModel(application: Application) : AndroidViewModel(application) {
     fun refresh() {
         _paired.value = prefs.pairedPc
         _permissionRevision.value += 1
+        if (LinkStatus.state.value is LinkState.Connected) {
+            LinkConnectionService.refreshInfo(getApplication())
+        }
     }
 
     fun start() {

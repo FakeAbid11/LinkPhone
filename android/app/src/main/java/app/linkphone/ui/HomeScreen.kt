@@ -136,6 +136,27 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit) {
                 )
             }
             item {
+                LinkCard(title = "Clipboard") {
+                    Text(
+                        "Android only allows clipboard reads while an app is focused. Use this button, " +
+                            "the Quick Settings tile, or the notification action to send text to the PC.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Button(
+                        onClick = {
+                            context.startActivity(
+                                Intent(context, SendClipboardActivity::class.java)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                        },
+                        modifier = Modifier.padding(top = 12.dp),
+                    ) {
+                        Text("Send clipboard to PC")
+                    }
+                }
+            }
+            item {
                 PermissionsCard(
                     hasTelephony = hasTelephony,
                     smsGranted = smsGranted,

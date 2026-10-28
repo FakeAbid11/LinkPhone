@@ -102,7 +102,7 @@ Even with these steps, Android and OEM battery managers may stop the service. Li
 
 - All traffic is TLS on your LAN. The phone pins the PC's self-signed certificate fingerprint from the QR code; the PC verifies signed challenges from the phone's non-exportable EC key.
 - No cloud relay, no analytics, no accounts. Pairing tokens are single-use and expire.
-- Message bodies and notification text are not persisted by default on the PC; only settings, paired device public keys, and cached photo thumbnails are stored.
+- Message bodies and notification text are not persisted on the PC; only settings and paired device public keys are written to disk. Photo thumbnails live in memory, and photos are saved only when you ask.
 - The PC listens on the LAN. Anyone who can scan the pairing QR during its five-minute lifetime could attempt to pair, but must still be approved on the PC.
 
 See [SECURITY.md](SECURITY.md) for the threat model and reporting.

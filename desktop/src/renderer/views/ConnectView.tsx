@@ -316,6 +316,30 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
 
       <HandoffCard items={state.handoff} ui={ui} />
 
+      <Card title="Clipboard" subtitle="Text handoff in both directions, with Android's limits.">
+        <div className="clipboard-row">
+          <Button
+            variant="primary"
+            disabled={!connection.connected}
+            onClick={() =>
+              void ui.run(() => api.sendPcClipboard(), 'PC clipboard sent to the phone')
+            }
+          >
+            Send PC clipboard to phone
+          </Button>
+          <span className="muted small">
+            {state.clipboard.lastReceived
+              ? 'Text from the phone is on the PC clipboard.'
+              : 'Phone → PC requires the Quick Settings tile, the share action, or the phone button.'}
+          </span>
+        </div>
+        <p className="muted small">
+          Android blocks background clipboard reads on the phone, so the PC cannot pull text
+          silently. PC → phone writes are best-effort; the phone posts a “Copied from PC”
+          notification when the background write needs a tap to confirm.
+        </p>
+      </Card>
+
       <Modal
         open={confirmRemove !== null}
         title="Remove this phone?"

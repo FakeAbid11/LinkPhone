@@ -26,7 +26,8 @@ class CryptoTest {
     @Test
     fun formatsAndNormalizesFingerprints() {
         val hex = "ab".repeat(32)
-        assertEquals("AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB", formatFingerprint(hex))
+        val expected = hex.chunked(2).joinToString(":").uppercase()
+        assertEquals(expected, formatFingerprint(hex))
         assertEquals(hex, normalizeFingerprint(formatFingerprint(hex)))
         assertEquals(hex, normalizeFingerprint(hex.uppercase()))
         assertNull(normalizeFingerprint("not-a-fingerprint"))

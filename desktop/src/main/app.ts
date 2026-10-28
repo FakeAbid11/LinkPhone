@@ -106,17 +106,18 @@ export class AppController {
     try {
       this.cert = ensureCertificate(this.certDir);
       this.logger.log('TLS', `PC certificate ${this.cert.fingerprintHex.slice(0, 16)}…`);
-      this.server = new LinkServer({
+      const nextServer = new LinkServer({
         certificate: this.cert,
         store: this.store,
         pairings: this.pairings,
         logger: this.logger,
         callbacks: this.serverCallbacks(),
       });
-      const port = await this.server.start(
+      const port = await nextServer.start(
         this.e2e ? 0 : 48921,
         this.e2e ? '127.0.0.1' : '0.0.0.0',
       );
+      this.server = nextServer;
       this.serverError = undefined;
       this.logger.log('App', `Server listening on port ${port}`);
 
@@ -651,6 +652,7 @@ export class AppController {
         this.e2e ? 0 : 48921,
         this.e2e ? '127.0.0.1' : '0.0.0.0',
       );
+      this.server = nextServer;
       if (!this.e2e) {
         this.discovery = new DiscoveryPublisher(this.logger);
         this.discovery.start(port, this.store.pcId, this.cert.fingerprintHex);

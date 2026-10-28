@@ -3,7 +3,6 @@ name: Release
 on:
   push:
     tags: ['v*']
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -86,7 +85,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Align package version with tag
         shell: bash
@@ -101,6 +100,11 @@ jobs:
 
       - name: Package Windows app
         run: npm run dist:win
+
+      - name: Packaged app smoke test
+        env:
+          LINKPHONE_EXE: release/win-unpacked/LinkPhone.exe
+        run: npx playwright test e2e/packaged.spec.ts
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
