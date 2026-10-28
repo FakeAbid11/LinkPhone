@@ -323,7 +323,7 @@ export class LinkServer {
     for (const port of candidatePorts) {
       try {
         await new Promise<void>((resolve, reject) => {
-          const onError = (error: NodeJS.ErrnoException) => {
+          const onError = (error: Error) => {
             server.off('listening', onListening);
             reject(error);
           };

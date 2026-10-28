@@ -21,7 +21,8 @@ test('desktop app launches and renders the pairing screen', async () => {
   try {
     const window = await app.firstWindow();
     await expect(window).toHaveTitle('LinkPhone');
-    await expect(window.getByRole('heading', { name: 'LinkPhone' })).toBeVisible();
+    await expect(window.getByRole('heading', { name: 'Connection' })).toBeVisible();
+    await expect(window.getByText('LinkPhone', { exact: true }).first()).toBeVisible();
   } catch (error) {
     console.error('Electron stderr:\n' + output.join(''));
     throw error;

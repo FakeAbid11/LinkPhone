@@ -5,7 +5,7 @@ export function getLanAddresses(): string[] {
   const interfaces = os.networkInterfaces();
   for (const entries of Object.values(interfaces)) {
     for (const entry of entries ?? []) {
-      if (entry.family !== 'IPv4' && entry.family !== 4) continue;
+      if (entry.family !== 'IPv4') continue;
       if (entry.internal) continue;
       if (entry.address.startsWith('169.254.')) continue;
       if (!addresses.includes(entry.address)) addresses.push(entry.address);
