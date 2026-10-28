@@ -74,6 +74,7 @@ export function registerIpc(controller: AppController): void {
   });
   ipcMain.handle('call:answer', () => controller.answerCall());
   ipcMain.handle('call:decline', () => controller.declineCall());
+  ipcMain.handle('contacts:refresh', () => controller.refreshContacts());
 
   ipcMain.handle('clipboard:send', (_event, text: unknown) =>
     controller.sendClipboard(requireString(text, 'clipboard text', 32_000)),

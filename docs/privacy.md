@@ -8,6 +8,7 @@ and no cloud relay.
 Only to your PC, over the encrypted WebSocket on your local network:
 
 - SMS threads you request from the PC (and new-message hints).
+- Contacts you search for on the PC (names, labels, and dialable numbers), only after `READ_CONTACTS` is granted and only when the Calls tab requests them.
 - Notifications from apps you chose to mirror (and per-app mute state on the PC).
 - Photo thumbnails and full-size JPEGs you request.
 - Call state, and the number/contact name when permitted.
@@ -30,7 +31,7 @@ routing information, not message content.
 | SMS read-state message ids (no bodies), keyed by phone | PC `state.json` | Per-device; capped; cleared when the phone is removed or identity reset |
 | PC TLS key/certificate | PC `userData/certs` | Until reset/uninstall |
 | Connection logs (no content) | PC `userData/logs`, phone memory | Rotated/limited; PC log file rotates at 1 MB |
-| SMS cache, notification feed, photo list, handoff list | Memory only | Until app quits/disconnects |
+| SMS cache, notification feed, photo list, handoff list, contacts | Memory only | Until app quits/disconnects; contacts are fetched on demand and never written to disk |
 | Photo thumbnails | PC memory | Not written to disk |
 | Photos you save | `Pictures\LinkPhone` | Until you delete them |
 | Shared images | `Downloads\LinkPhone` | Until you delete them |

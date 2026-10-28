@@ -39,6 +39,8 @@ gradle -p android :app:testDebugUnitTest :app:lintDebug
   cross-device rejection.
 - `pairing.test.ts` — token single use, five-minute expiry, per-IP lockout, replacement.
 - `safety.test.ts` — dialing, URL allowlist, filename traversal, fingerprints, SMS grouping/merge.
+- `calls.test.ts` — dial payload with/without a SIM, validation, connected-session requirement, and
+  on-demand contact loading.
 - `server.test.ts` — **real TLS/WebSocket integration**: pair a phone, store its key, reject bad
   tokens/rejections, authenticate with a real ECDSA signature, reject a bad signature/unknown phone,
   reject pairing while busy, route a phone event.
@@ -79,6 +81,7 @@ The following require real hardware and are **not** verified by this repository'
 - OEM permission behavior (Xiaomi, Samsung, Oppo, Vivo, Huawei, Pixel, etc.)
 - Actual SMS arrival/sending, MMS behavior, dual-SIM selection, and whether the stock SMS app marks
   a conversation read when Open on phone opens it
+- Real contact-provider behavior across accounts/OEMs and the contact permission flow
 - Notification listener behavior on Android 15+ (redaction, rebind)
 - Call answer/decline and caller ID on a real carrier
 - MediaProjection consent, secure-window blacking, lock/rotation behavior
@@ -148,6 +151,7 @@ Use two devices on the same Wi-Fi. Check each item and keep the diagnostics log 
 - [ ] Grant phone + answer permissions.
 - [ ] Incoming call shows on the PC with number/contact if call-log/contacts granted.
 - [ ] Answer from the PC where supported; decline on a second call.
+- [ ] Grant Contacts; search by name/number; tap a contact and confirm the number fills the dialer.
 - [ ] Dial a number; the phone places the call.
 - [ ] Dual SIM on Android 11+: select each SIM in the Calls tab and confirm the phone's in-call UI
       uses the selected SIM. Select **Default SIM** and confirm the system default is used.

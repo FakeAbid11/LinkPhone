@@ -137,6 +137,9 @@ no hidden or battery-exempt API that does better without system privileges.
   so it refreshes `phone.info`, and reconnect. On Android 10 the official public mapping is
   unavailable; calls use the system default SIM. Some OEM dialers ignore the requested account even
   on Android 11+; the PC surfaces an error rather than silently choosing another SIM.
+- **No contacts in the picker:** grant Contacts (READ_CONTACTS) on the phone, update the phone app
+  to v0.1.3, reopen LinkPhone, and reconnect so it reports the `contacts` capability. Contacts with
+  no phone number are not listed. The list is requested on demand and is not stored on the PC.
 
 ## Clipboard and Continue on PC
 

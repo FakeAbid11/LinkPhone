@@ -75,6 +75,7 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit) {
     val smsGranted = remember(revision) { Permissions.sms(context) }
     val notificationsGranted = remember(revision) { Permissions.notifications(context) }
     val callsGranted = remember(revision) { Permissions.calls(context) }
+    val contactsGranted = remember(revision) { Permissions.contacts(context) }
     val photosGranted = remember(revision) { Permissions.photos(context) }
     val photosPartial = remember(revision) { Permissions.photosPartial(context) }
     val listenerGranted = remember(revision) { Permissions.notificationAccess(context) }
@@ -86,6 +87,9 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit) {
     ) { vm.refresh() }
     val callLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
+    ) { vm.refresh() }
+    val contactsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
     ) { vm.refresh() }
     val photoLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -163,6 +167,7 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit) {
                     notificationsGranted = notificationsGranted,
                     notificationsRuntimeRequired = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU,
                     callsGranted = callsGranted,
+                    contactsGranted = contactsGranted,
                     photosGranted = photosGranted,
                     photosPartial = photosPartial,
                     listenerGranted = listenerGranted,
@@ -177,6 +182,9 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit) {
                         callLauncher.launch(
                             Permissions.callPermissions() + Permissions.optionalCallPermissions(),
                         )
+                    },
+                    onRequestContacts = {
+                        contactsLauncher.launch(Manifest.permission.READ_CONTACTS)
                     },
                     onRequestPhotos = { photoLauncher.launch(Permissions.photoPermissions()) },
                     onOpenListenerSettings = {
@@ -328,6 +336,7 @@ private fun PermissionsCard(
     notificationsGranted: Boolean,
     notificationsRuntimeRequired: Boolean,
     callsGranted: Boolean,
+    contactsGranted: Boolean,
     photosGranted: Boolean,
     photosPartial: Boolean,
     listenerGranted: Boolean,
@@ -335,6 +344,7 @@ private fun PermissionsCard(
     onRequestSms: () -> Unit,
     onRequestNotifications: () -> Unit,
     onRequestCalls: () -> Unit,
+    onRequestContacts: () -> Unit,
     onRequestPhotos: () -> Unit,
     onOpenListenerSettings: () -> Unit,
     onOpenAccessibility: () -> Unit,
@@ -371,6 +381,15 @@ private fun PermissionsCard(
                 granted = callsGranted,
                 action = "Grant",
                 onAction = onRequestCalls,
+            )
+        }
+        if (hasTelephony) {
+            PermissionRow(
+                title = "Contacts",
+                detail = "Search contacts on the PC and fill the dialer. Also enables caller names.",
+                granted = contactsGranted,
+                action = "Grant",
+                onAction = onRequestContacts,
             )
         }
         PermissionRow(
