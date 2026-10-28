@@ -29,12 +29,12 @@ export class DiscoveryPublisher {
 
   stop(): void {
     try {
-      this.service?.stop(() => undefined);
+      this.service?.stop?.(() => undefined);
     } catch {
       // Ignore shutdown races.
     }
     try {
-      this.bonjour?.destroy();
+      this.bonjour?.destroy?.();
     } catch {
       // Ignore shutdown races.
     }

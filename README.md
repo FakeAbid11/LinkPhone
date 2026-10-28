@@ -4,7 +4,7 @@
 
 Your Android phone and Windows PC, connected directly over your own Wi-Fi. Messages, notifications, photos, call control, clipboard handoff, and experimental screen mirroring — encrypted, LAN-only, no cloud account.
 
-> **Status:** v0.1.0. Built and unit-tested in GitHub Actions; device behavior still needs acceptance testing on real hardware. See the feature/limitations tables before installing.
+> **Status:** v0.1.0. The Android and Windows apps compile, pass their unit/integration tests, and are packaged in GitHub Actions. They have **not** been tested on a physical phone in this environment; OEM permissions, calls, notifications, MediaProjection, and background behavior require the device acceptance checklist. See [testing.md](docs/testing.md#device-acceptance-checklist) and the limitations below before installing.
 
 Documentation: [feasibility & limits](docs/feasibility.md) · [architecture](docs/architecture.md) · [protocol](docs/protocol.md) · [permissions](docs/permissions.md) · [security](docs/security.md) · [troubleshooting](docs/troubleshooting.md) · [building](docs/building.md).
 
@@ -29,7 +29,32 @@ The Windows binaries are unsigned, so SmartScreen may warn. The APK is signed wi
 4. Approve the pairing prompt on the PC.
 5. Grant the feature permissions you want on the phone. The PC can only use features you explicitly enable.
 
-Full setup, permission explanations, battery guidance, and a device acceptance checklist are in the [README sections below](#phone-permissions) and in [docs/permissions.md](docs/permissions.md).
+If the PC shows no LAN address or the phone cannot connect, allow LinkPhone through Windows Firewall on **Private** networks (TCP port 48921, or the port shown in Settings) and check that the Wi-Fi is not a guest network with client isolation. Full permission explanations are in [permissions.md](docs/permissions.md); the device acceptance checklist is in [testing.md](docs/testing.md#device-acceptance-checklist).
+
+## What is verified, and what is not
+
+**Verified in CI on every pull request:**
+
+- Android compiles, lint passes, JVM unit tests pass, and a signed release APK is produced and verified with `apksigner`.
+- Desktop typechecks, Vitest unit tests pass, the TLS/WebSocket server is exercised by a real pairing + ECDSA authentication integration test, the certificate pinning behavior is tested, the Electron app launches and renders in a Playwright smoke test, and NSIS/portable EXEs are built.
+
+**Not verified in CI (requires hardware):**
+
+- Real SMS/MMS, carrier calls, caller ID, OEM answer/decline restrictions
+- Notification-listener behavior on Android 15+ and OEM skins
+- MediaProjection consent, secure-window blacking, lock/rotation, Accessibility gestures
+- Background survival under Doze and OEM task killers
+- Wi-Fi AP isolation, VPNs, Windows Firewall prompts, SmartScreen
+
+Do not interpret a green CI run as proof that those device-specific paths work. Run the checklist and report results.
+
+## Uninstall and revoke
+
+- PC: Connection → Paired phones → Remove, or Settings → Reset PC identity to revoke every phone and replace the certificates.
+- Phone: Diagnostics → Forget PC, or revoke permissions in Android settings.
+- Uninstalling the PC app leaves the Windows Firewall rule behind; remove it with
+  `Remove-NetFirewallRule -DisplayName "LinkPhone"`.
+- The PC app lives in the tray. Closing the window keeps the server running; choose Quit from the tray menu to stop it.
 
 ## What works
 
@@ -81,6 +106,15 @@ Even with these steps, Android and OEM battery managers may stop the service. Li
 - The PC listens on the LAN. Anyone who can scan the pairing QR during its five-minute lifetime could attempt to pair, but must still be approved on the PC.
 
 See [SECURITY.md](SECURITY.md) for the threat model and reporting.
+
+## Repository layout
+
+```
+android/   Kotlin + Jetpack Compose app, Gradle build, JVM unit tests
+desktop/   Electron main/preload, React renderer, Vitest tests, Playwright E2E
+docs/      architecture, protocol, feasibility, permissions, security, testing, troubleshooting, building, privacy
+.github/   CI and tagged release workflows
+```
 
 ## Architecture
 

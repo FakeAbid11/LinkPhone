@@ -1,0 +1,159 @@
+# Feasibility, platform limits, and scope
+
+This document records what Android and Windows actually allow, what LinkPhone v0.1.0 implements, and
+what would require a different product or system privileges.
+
+## Summary
+
+| Requested feature | v0.1.0 | Honest limit |
+|---|---|---|
+| Secure pair/reconnect | Implemented | QR + pinned TLS + ECDSA challenge; one phone at a time |
+| SMS view/send | Implemented | Sideload only; no MMS/RCS; no default-SMS role, so sent items may not enter stock threads |
+| Calls from PC | Limited | Dial/answer/decline and caller state where OEM permits; **no call audio on PC**; caller ID needs call-log access |
+| Photos | Implemented | Recent camera roll; JPEG transcode; Android 14 partial access respected |
+| Notification mirroring | Implemented | Per-app mute, dismiss; Android 15+ may redact sensitive content; no action buttons |
+| Apps streaming | Experimental substitute | Screen mirroring + tap/swipe only; no app virtualization; consent each session; stops on lock |
+| Clipboard/handoff | Limited | PC→phone works; phone→PC explicit; “Continue on PC” via share sheet |
+| Background operation | Best effort | Foreground service, boot restart, locks; OEM/Doze/force-stop can still stop it |
+
+## Android version requirements
+
+- **Minimum:** Android 10 (API 29). This gives scoped MediaStore, `loadThumbnail`, and a modern
+  foreground-service model.
+- **Target/compile:** API 35 (Android 15).
+- **Tested in CI:** compilation, JVM unit tests, lint. **Not tested on a physical device** in this
+  environment; see [testing.md](testing.md) for the acceptance checklist.
+- **Android 6–9:** not supported. Some APIs (foreground-service types, scoped storage behavior) and
+  the Compose/AndroidX baseline assume API 29+.
+
+## Feature-by-feature
+
+### Secure pairing and reconnection — implemented
+
+A phone and PC on the same LAN can pair with a QR code. The phone pins the PC's self-signed
+certificate from the QR; the PC stores the phone's P-256 public key and verifies a signed nonce on
+every reconnect. There is no cloud dependency. One-time tokens, rate limits, and explicit PC
+approval prevent unsolicited pairing.
+
+Limits: mDNS can be blocked by AP isolation or some VPNs; QR/manual entry is the fallback. A lost
+phone should be removed on the PC. A compromised PC can use whatever the phone granted.
+
+### SMS — implemented, with Android constraints
+
+`READ_SMS` gives access to the standard `content://sms` provider for a sideloaded app. `SmsManager`
+sends single- and multi-part SMS. `SMS_RECEIVED` is used only as a refresh hint; the provider is the
+source of truth.
+
+Limits:
+- Google Play restricts SMS permissions; this app is distributed outside Play.
+- Without the default-SMS role, sent messages are not written into the stock app's thread. The PC
+  keeps a local sent copy; the phone's provider does not.
+- MMS and RCS require a default messaging app and additional APIs; out of scope.
+- Dual-SIM sending uses `createForSubscriptionId` on Android 12+; older versions use the default
+  SIM.
+- Group MMS threads are not supported (they appear as individual MMS messages, which are not read).
+
+### Calls — control only
+
+What works:
+- Call state (`idle`, `ringing`, `offhook`) via `PhoneStateListener`.
+- Incoming number when `READ_CALL_LOG` is granted; contact name when `READ_CONTACTS` is granted.
+- Placing a call with `TelecomManager.placeCall()` and `CALL_PHONE` (works from a service; unlike
+  `ACTION_CALL`, which is subject to background activity-start restrictions).
+- Answer/decline with `ANSWER_PHONE_CALLS` and `TelecomManager.acceptRingingCall()`/`endCall()`.
+
+What does **not** work and cannot be fixed by a normal app:
+- **Call audio.** `AudioRecord` with `VOICE_CALL` requires the signature/privileged
+  `CAPTURE_AUDIO_OUTPUT`. `AudioPlaybackCapture` captures only `USAGE_MEDIA`/`GAME`/`UNKNOWN` and
+  excludes `VOICE_COMMUNICATION`. VoLTE/VoWiFi audio is also protected. The PC cannot be a
+  speakerphone for a cellular call.
+- Answer/decline reliability. These APIs are deprecated; OEMs vary. Some devices require the
+  default-dialer role for full in-call control. LinkPhone does not take that role because a buggy
+  `InCallService` would break the user's ability to answer calls at all.
+- Caller ID without call-log access. Android 10+ blanked the incoming number for ordinary listeners.
+
+Alternative considered: implement a full `InCallService` and ask for the default-dialer role. That
+is a much larger product with a high risk of breaking calls; rejected for v1.
+
+### Photos — implemented
+
+MediaStore gives recent camera images. Thumbnails use `ContentResolver.loadThumbnail`; full images
+are decoded with a sample size and transcoded to JPEG (max 2048 px) so the PC does not need HEIC
+support and memory stays bounded. “Save to PC” writes to `Pictures\LinkPhone`; “Copy image” writes
+to the PC clipboard.
+
+Limits: Android 14 partial access limits the list to selected photos. Very large images are sampled.
+The PC's image list is a snapshot; pull to refresh.
+
+### Notifications — implemented
+
+A `NotificationListenerService` receives posted/removed notifications and forwards title, text, app
+label, category, and time. The PC can mute an app or dismiss a notification (`cancelNotification`).
+
+Limits: Android 15+ hides sensitive content (OTP codes) from listeners. Action buttons are not
+mirrored because firing another app's `PendingIntent` can be blocked by trampoline restrictions and
+is not reliably representable. Ongoing/system notifications may not be dismissible. Notifications
+posted while the service is dead are lost; reconnect and new notifications work.
+
+### Apps — experimental screen mirroring, not app streaming
+
+There is no public Android API that runs arbitrary apps inside a Windows window. Microsoft's Phone
+Link app streaming relies on device-vendor integration and special privileges. LinkPhone uses
+`MediaProjection` to mirror the display and an Accessibility service to inject taps/swipes.
+
+Limits:
+- Consent for every session; the service must be foreground with the `mediaProjection` type.
+- Capture stops on screen lock, on a new capture, or when the projection is revoked.
+- One virtual display per token; rotation ends the session.
+- `FLAG_SECURE`/DRM windows are black.
+- Low frame rate (≤5 fps, JPEG, 1280 px) to keep CPU/battery use sane.
+- No audio, no keyboard input, no clipboard inside the mirrored app beyond normal phone behavior.
+- Accessibility gestures are single strokes; the service must be manually enabled.
+
+This is labeled **Experimental** everywhere. A proper scrcpy-like product needs ADB or root; that
+would violate the request to avoid hidden APIs and elevated system access.
+
+### Clipboard and Continue on PC — explicit, not silent
+
+- **PC → phone:** the PC sends text; the phone writes it and posts a “Copied from PC” notification
+  that can re-copy it while the app is focused.
+- **Phone → PC:** Android 10+ allows clipboard reads only for the focused app or default IME, so
+  LinkPhone provides a Quick Settings tile, a share target, and an in-app action. There is no
+  silent background clipboard sync in this direction.
+- **Continue on PC:** the phone share sheet sends links, text, or images to the PC. The PC shows them
+  in Connection → Continue on PC; links open only after a click. “Send back” posts a tappable link
+  notification on the phone. This is an explicit handoff, not automatic app continuity.
+
+### Background operation — best effort
+
+Android's supported mechanism for an ongoing LAN connection is a foreground service. LinkPhone uses
+the `connectedDevice` type, an ongoing notification, `START_STICKY`, boot restart, and Wi-Fi/multicast
+locks. It does not use a periodic WorkManager watchdog because Android 12+ blocks starting a
+foreground service from background workers; a “watchdog” would look useful but fail when needed.
+
+OEM task killers, Doze, data-saver, and force-stop can still stop the service. Force-stop disables
+restart until the user opens the app. The app shows “Disconnected” rather than pretending. Users can
+grant the battery exemption and OEM autostart settings; see [permissions.md](permissions.md).
+
+## Rejected approaches
+
+| Approach | Why not |
+|---|---|
+| Cloud relay / Firebase | The request requires LAN-only with no third-party servers; also adds account and privacy surface |
+| ADB / scrcpy integration | Requires USB debugging or wireless debugging and ADB; not a normal permission-granted app |
+| Root / Shizuku / hidden APIs | Violates the explicit no-hidden-APIs constraint |
+| Full default SMS/dialer app | Would require a complete MMS/RCS/InCallService implementation and replace the user's apps |
+| Capturing call audio | Signature/privileged permission; impossible for a sideloaded ordinary app |
+| In-app VM for Android apps | Requires system virtualization/vendor integration; impossible as a third-party app |
+| Silent phone→PC clipboard | Android 10+ focus restriction; a background read is blocked, and workarounds would be evasions |
+
+## Sources
+
+- Foreground service types and boot restrictions: <https://developer.android.com/develop/background-work/services/fgs/service-types>
+- Foreground service changes in Android 15: <https://developer.android.com/about/versions/15/changes/foreground-service-types>
+- Media projection consent, FGS type, stop-on-lock: <https://developer.android.com/media/grow/media-projection>
+- Partial photo/video access: <https://developer.android.com/about/versions/14/changes/partial-photo-video-access>
+- Android 10 privacy changes (clipboard, incoming number): <https://developer.android.com/about/versions/10/privacy/changes>
+- Audio playback capture usages: <https://developer.android.com/media/platform/av-capture>
+- SMS provider/default role background: <https://android-developers.googleblog.com/2013/10/getting-your-sms-apps-ready-for-kitkat.html>
+- `TelecomManager.placeCall` / `acceptRingingCall`: <https://developer.android.com/reference/android/telecom/TelecomManager>

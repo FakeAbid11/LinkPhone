@@ -18,7 +18,7 @@ class Backoff(
         val jitter = (ceiling * jitterRatio).toLong()
         if (jitter <= 0) return ceiling
         val low = (ceiling - jitter).coerceAtLeast(baseMs)
-        val high = (ceiling + jitter).coerceAtMost(maxMs + jitter)
+        val high = (ceiling + jitter).coerceAtMost(maxMs)
         return low + random.nextLong(high - low + 1)
     }
 

@@ -34,7 +34,7 @@ export class PairingManager {
   }
 
   current(): PairingSession | undefined {
-    if (!this.session) return undefined;
+    if (!this.session || this.session.used) return undefined;
     if (this.session.expiresAt <= Date.now()) return undefined;
     return this.session;
   }

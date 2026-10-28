@@ -61,7 +61,6 @@
         <activity
             android:name=".ui.QrScannerActivity"
             android:exported="false"
-            android:screenOrientation="portrait"
             android:theme="@style/Theme.LinkPhone" />
 
         <activity
