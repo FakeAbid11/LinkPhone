@@ -4,9 +4,11 @@ import { api } from './api';
 import {
   Badge,
   Button,
+  Icon,
   Logo,
   Modal,
   ToastStack,
+  type IconName,
   type ToastItem,
 } from './components';
 import type { Ui } from './ui';
@@ -21,14 +23,28 @@ import { SettingsView } from './views/SettingsView';
 
 type ViewKey = 'connect' | 'messages' | 'notifications' | 'photos' | 'calls' | 'apps' | 'settings';
 
-const NAV: Array<{ key: ViewKey; label: string }> = [
-  { key: 'connect', label: 'Connection' },
-  { key: 'messages', label: 'Messages' },
-  { key: 'notifications', label: 'Notifications' },
-  { key: 'photos', label: 'Photos' },
-  { key: 'calls', label: 'Calls' },
-  { key: 'apps', label: 'Apps' },
-  { key: 'settings', label: 'Settings' },
+const NAV_GROUPS: Array<{
+  label: string;
+  items: Array<{ key: ViewKey; label: string; icon: IconName }>;
+}> = [
+  {
+    label: 'Overview',
+    items: [{ key: 'connect', label: 'Connection', icon: 'link' }],
+  },
+  {
+    label: 'Phone',
+    items: [
+      { key: 'messages', label: 'Messages', icon: 'message' },
+      { key: 'notifications', label: 'Notifications', icon: 'bell' },
+      { key: 'photos', label: 'Photos', icon: 'image' },
+      { key: 'calls', label: 'Calls', icon: 'phone' },
+      { key: 'apps', label: 'Apps', icon: 'apps' },
+    ],
+  },
+  {
+    label: 'App',
+    items: [{ key: 'settings', label: 'Settings', icon: 'settings' }],
+  },
 ];
 
 export function App() {
@@ -37,6 +53,7 @@ export function App() {
   const [view, setView] = useState<ViewKey>('connect');
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const toastId = useRef(1);
+  const mainRef = useRef<HTMLElement>(null);
 
   const dismissToast = useCallback((id: number) => {
     setToasts((current) => current.filter((toast) => toast.id !== id));
@@ -106,6 +123,11 @@ export function App() {
     };
   }, [pushToast]);
 
+  const navigate = useCallback((next: ViewKey) => {
+    setView(next);
+    window.requestAnimationFrame(() => mainRef.current?.focus());
+  }, []);
+
   if (fatal) {
     return (
       <div className="fatal">
@@ -140,9 +162,14 @@ export function App() {
   const handoffCount = state.handoff.length;
   const request = state.pairing.request;
   const ringing = state.calls.state.state === 'ringing';
+  const offline = !state.connection.connected && state.devices.length > 0;
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main">
+        Skip to main content
+      </a>
+
       <aside className="sidebar">
         <div className="brand">
           <Logo />
@@ -153,28 +180,40 @@ export function App() {
         </div>
 
         <nav className="nav" aria-label="Sections">
-          {NAV.map((item) => {
-            const badge =
-              item.key === 'messages' && unread > 0
-                ? unread
-                : item.key === 'notifications' && notificationCount > 0
-                  ? notificationCount
-                  : item.key === 'connect' && handoffCount > 0
-                    ? handoffCount
-                    : null;
-            return (
-              <button
-                key={item.key}
-                type="button"
-                className={`nav-item ${view === item.key ? 'is-active' : ''}`}
-                onClick={() => setView(item.key)}
-              >
-                <span className="nav-dot" />
-                <span>{item.label}</span>
-                {badge !== null && <span className="nav-badge">{badge > 99 ? '99+' : badge}</span>}
-              </button>
-            );
-          })}
+          {NAV_GROUPS.map((group) => (
+            <div className="nav-group" key={group.label}>
+              <span className="nav-group-label" aria-hidden="true">
+                {group.label}
+              </span>
+              {group.items.map((item) => {
+                const badge =
+                  item.key === 'messages' && unread > 0
+                    ? unread
+                    : item.key === 'notifications' && notificationCount > 0
+                      ? notificationCount
+                      : item.key === 'connect' && handoffCount > 0
+                        ? handoffCount
+                        : null;
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    className={`nav-item ${view === item.key ? 'is-active' : ''}`}
+                    aria-current={view === item.key ? 'page' : undefined}
+                    onClick={() => navigate(item.key)}
+                  >
+                    <Icon name={item.icon} size={18} />
+                    <span className="nav-label">{item.label}</span>
+                    {badge !== null && (
+                      <span className="nav-badge" aria-label={`${badge} new`}>
+                        {badge > 99 ? '99+' : badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         <div className="sidebar-foot">
@@ -183,7 +222,7 @@ export function App() {
             <div>
               <strong>
                 {state.connection.connected
-                  ? state.connection.deviceName ?? 'Phone connected'
+                  ? (state.connection.deviceName ?? 'Phone connected')
                   : 'Not connected'}
               </strong>
               <span>
@@ -194,17 +233,36 @@ export function App() {
             </div>
           </div>
           <span className="sidebar-note">
-            {state.server.running
-              ? `Port ${state.server.port} · TLS pinning`
-              : 'Server stopped'}
+            {state.server.running ? `Port ${state.server.port} · TLS pinning` : 'Server stopped'}
           </span>
         </div>
       </aside>
 
-      <main className="content">
-        {ringing && (
+      <main className="content" id="main" ref={mainRef} tabIndex={-1}>
+        {offline && (
+          <div className="offline-banner" role="status">
+            <span className="banner-icon">
+              <Icon name="wifi" size={18} />
+            </span>
+            <div className="banner-copy">
+              <strong>Phone offline</strong>
+              <span>
+                {state.devices[0]?.name ?? 'Your paired phone'} is not connected. Keep LinkPhone
+                open on the phone and stay on the same Wi-Fi.
+              </span>
+            </div>
+            <Button small variant="secondary" icon="link" onClick={() => navigate('connect')}>
+              Connection
+            </Button>
+          </div>
+        )}
+
+        {ringing && view !== 'calls' && (
           <div className="incoming-call" role="alert">
-            <div>
+            <span className="incoming-icon">
+              <Icon name="phone" size={20} />
+            </span>
+            <div className="incoming-copy">
               <strong>Incoming call</strong>
               <span>
                 {state.calls.state.contactName ||

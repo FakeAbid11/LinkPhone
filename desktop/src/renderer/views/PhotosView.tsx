@@ -59,6 +59,7 @@ export function PhotosView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
         <PageHeader title="Photos" subtitle="Browse recent camera photos and save them to the PC." />
         <Card>
           <EmptyState
+            icon="image"
             title="Connect your phone first"
             body="Photos are requested on demand from the phone. Nothing is uploaded anywhere."
           />
@@ -73,6 +74,7 @@ export function PhotosView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
         <PageHeader title="Photos" subtitle="Browse recent camera photos and save them to the PC." />
         <Card>
           <EmptyState
+            icon="image"
             title="Photo access is not granted"
             body="On the phone, grant Photos permission in LinkPhone. On Android 14 you can still choose to share only selected photos."
           />
@@ -116,10 +118,11 @@ export function PhotosView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
         actions={
           <Button
             variant="ghost"
+            icon="refresh"
             onClick={() => void ui.run(() => api.refreshPhotos())}
-            disabled={state.photos.loading}
+            loading={state.photos.loading}
           >
-            {state.photos.loading ? 'Loading…' : 'Refresh'}
+            Refresh
           </Button>
         }
       />
@@ -143,6 +146,7 @@ export function PhotosView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
       ) : state.photos.items.length === 0 ? (
         <Card>
           <EmptyState
+            icon="image"
             title="No photos found"
             body="LinkPhone shows the most recent 200 images from the shared camera roll."
           />
@@ -173,11 +177,11 @@ export function PhotosView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
                 Show in folder
               </Button>
             )}
-            <Button variant="secondary" onClick={() => void copy()} disabled={busy}>
+            <Button variant="secondary" icon="copy" onClick={() => void copy()} disabled={busy}>
               Copy image
             </Button>
-            <Button variant="primary" onClick={() => void save()} disabled={busy}>
-              {busy ? 'Working…' : 'Save to PC'}
+            <Button variant="primary" icon="download" onClick={() => void save()} loading={busy}>
+              Save to PC
             </Button>
           </>
         }

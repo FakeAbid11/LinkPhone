@@ -72,6 +72,7 @@ export function AppsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
         <PageHeader title="Apps" subtitle="Experimental screen mirroring and remote taps." />
         <Card>
           <EmptyState
+            icon="monitor"
             title="Connect your phone first"
             body="Screen mirroring needs an active LinkPhone connection and a fresh screen-capture approval on the phone for every session."
           />
@@ -86,6 +87,7 @@ export function AppsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
         <PageHeader title="Apps" subtitle="Experimental screen mirroring and remote taps." />
         <Card>
           <EmptyState
+            icon="monitor"
             title="Mirroring is unavailable"
             body="This phone did not report mirroring support. Update the phone app and reconnect."
           />
@@ -101,12 +103,17 @@ export function AppsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
         subtitle="Screen mirroring, not app virtualization. Android does not expose a public API for running apps on the PC."
         actions={
           active ? (
-            <Button variant="danger" onClick={() => void stop()}>
+            <Button variant="danger" icon="x" onClick={() => void stop()}>
               Stop mirroring
             </Button>
           ) : (
-            <Button variant="primary" onClick={() => void start()} disabled={requested}>
-              {requested ? 'Waiting for phone…' : 'Start mirroring'}
+            <Button
+              variant="primary"
+              icon="monitor"
+              onClick={() => void start()}
+              loading={requested}
+            >
+              Start mirroring
             </Button>
           )
         }
@@ -123,6 +130,8 @@ export function AppsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
           <canvas
             ref={canvasRef}
             className="mirror-canvas"
+            role="img"
+            aria-label="Mirrored phone screen"
             onPointerDown={(event) => {
               if (!active || !state.mirror.inputEnabled) return;
               const rect = event.currentTarget.getBoundingClientRect();
@@ -162,10 +171,11 @@ export function AppsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
               <div className="mirror-overlay-actions">
                 <Button
                   variant="primary"
+                  icon="monitor"
                   onClick={() => void start()}
-                  disabled={requested}
+                  loading={requested}
                 >
-                  {requested ? 'Waiting for approval…' : 'Start mirroring'}
+                  Start mirroring
                 </Button>
                 {requested && (
                   <Button variant="ghost" onClick={() => setRequested(false)}>
@@ -177,7 +187,7 @@ export function AppsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
           )}
         </div>
         <div className="mirror-side">
-          <Card title="Session">
+          <Card icon="monitor" title="Session">
             <div className="mirror-status">
               <Badge tone={active ? 'good' : 'neutral'}>
                 {active ? 'Live' : requested ? 'Awaiting phone' : 'Idle'}
@@ -198,7 +208,7 @@ export function AppsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
             </p>
           </Card>
 
-          <Card title="Remote input">
+          <Card icon="phone" title="Remote input">
             <div className="input-status">
               <Badge tone={state.mirror.inputEnabled ? 'good' : 'warn'}>
                 {state.mirror.inputEnabled ? 'Taps enabled' : 'View only'}
@@ -216,7 +226,7 @@ export function AppsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
             )}
           </Card>
 
-          <Card title="Why this is not app streaming">
+          <Card icon="shield" title="Why this is not app streaming">
             <p className="muted small">
               Running arbitrary Android apps in a Windows window requires privileged system
               integration. LinkPhone mirrors the display instead, which works with any app you

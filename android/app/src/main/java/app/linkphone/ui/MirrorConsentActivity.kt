@@ -11,20 +11,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ScreenShare
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import app.linkphone.core.net.ConnectionHub
 import app.linkphone.service.LinkConnectionService
@@ -89,26 +82,16 @@ class MirrorConsentActivity : ComponentActivity() {
 
 @Composable
 private fun MirrorConsentContent(onAllow: () -> Unit, onCancel: () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(28.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Text("Allow screen sharing", style = MaterialTheme.typography.headlineSmall)
-        Text(
-            "Your PC asked to view this screen. Android requires your approval for every session. " +
-                "You can choose a single app on Android 14 and later.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            "Screen capture stops when the phone locks. Secure windows and DRM content appear black. " +
-                "Audio is never captured.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(onClick = onAllow) { Text("Choose what to share") }
-            OutlinedButton(onClick = onCancel) { Text("Cancel") }
-        }
-    }
+    ConsentScaffold(
+        title = "Allow screen sharing",
+        message = "Your PC asked to view this screen. Android requires your approval for every " +
+            "session. You can choose a single app on Android 14 and later.",
+        detail = "Screen capture stops when the phone locks. Secure windows and DRM content " +
+            "appear black. Audio is never captured.",
+        icon = Icons.Outlined.ScreenShare,
+        primaryLabel = "Choose what to share",
+        onPrimary = onAllow,
+        secondaryLabel = "Cancel",
+        onSecondary = onCancel,
+    )
 }

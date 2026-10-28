@@ -82,7 +82,6 @@ object Permissions {
     fun optionalCallPermissions(): Array<String> = arrayOf(
         Manifest.permission.ANSWER_PHONE_CALLS,
         Manifest.permission.READ_CALL_LOG,
-        Manifest.permission.READ_CONTACTS,
     )
 
     fun photoPermissions(): Array<String> =

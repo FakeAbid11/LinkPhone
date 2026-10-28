@@ -20,8 +20,6 @@ export function SettingsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   const update = (patch: Parameters<typeof api.updateSettings>[0]) =>
     void ui.run(() => api.updateSettings(patch));
 
-  const firewallCommand = `New-NetFirewallRule -DisplayName "LinkPhone" -Direction Inbound -Protocol TCP -LocalPort ${state.server.port || 48921} -Action Allow -Profile Private`;
-
   return (
     <>
       <PageHeader
@@ -30,7 +28,7 @@ export function SettingsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
       />
 
       <div className="grid grid-2">
-        <Card title="Behavior">
+        <Card icon="settings" title="Behavior">
           <Toggle
             checked={state.settings.notificationsToasts}
             onChange={(value) => update({ notificationsToasts: value })}
@@ -55,7 +53,7 @@ export function SettingsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
           </p>
         </Card>
 
-        <Card title="Server & security">
+        <Card icon="shield" title="Server & security">
           <div className="settings-facts">
             <div>
               <span className="meta-label">Status</span>
@@ -82,13 +80,17 @@ export function SettingsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
           </div>
           {state.server.error && <Notice tone="bad">{state.server.error}</Notice>}
           <div className="settings-actions">
-            <Button variant="ghost" onClick={() => void ui.run(() => api.openLogs())}>
+            <Button variant="ghost" icon="clipboard" onClick={() => void ui.run(() => api.openLogs())}>
               Open logs
             </Button>
-            <Button variant="ghost" onClick={() => void ui.run(() => api.openDocs())}>
+            <Button variant="ghost" icon="arrow" onClick={() => void ui.run(() => api.openDocs())}>
               Documentation
             </Button>
-            <Button variant="danger" onClick={() => setConfirmReset(true)}>
+            <Button
+              variant="danger"
+              icon="shield"
+              onClick={() => setConfirmReset(true)}
+            >
               Reset PC identity
             </Button>
           </div>
@@ -96,7 +98,7 @@ export function SettingsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
       </div>
 
       <div className="grid grid-2">
-        <Card title="Paired phones" subtitle="Only one phone can be connected at a time.">
+        <Card icon="phone" title="Paired phones" subtitle="Only one phone can be connected at a time.">
           {state.devices.length === 0 ? (
             <p className="muted">No phones are paired.</p>
           ) : (
@@ -129,43 +131,18 @@ export function SettingsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
           </p>
         </Card>
 
-        <Card title="Firewall and network">
+        <Card icon="wifi" title="Firewall and network">
           <p className="muted small">
-            Allow inbound TCP {state.server.port || 48921} on Private networks. If the PC and phone
-            are on different VLANs or guest Wi-Fi, direct LAN connections may be blocked.
+            Allow inbound TCP {state.server.port || 48921} on Private networks. The full checklist
+            and the PowerShell command are on the Connection tab. If the PC and phone are on
+            different VLANs or guest Wi-Fi, direct LAN connections may be blocked.
           </p>
-          <div className="code-block">
-            <code>{firewallCommand}</code>
-            <Button
-              small
-              variant="ghost"
-              onClick={() => {
-                void navigator.clipboard
-                  .writeText(firewallCommand)
-                  .then(() => ui.toast('success', 'Firewall command copied'))
-                  .catch(() => ui.toast('error', 'Could not copy the command'));
-              }}
-            >
-              Copy
-            </Button>
-          </div>
           <Notice tone="neutral" title="Unsigned app">
             The Windows build is not code-signed. SmartScreen may warn the first time you run it.
             Verify the SHA-256 checksum from the release page.
           </Notice>
         </Card>
       </div>
-
-      <Card title="Known limitations" subtitle="These are platform constraints, not unfinished features.">
-        <ul className="limit-list">
-          <li>Cellular and VoIP call audio cannot be captured by a third-party Android app.</li>
-          <li>True Android app streaming requires system privileges; Apps uses screen mirroring.</li>
-          <li>SMS is sideload-only, has no MMS/RCS, and sent items may not appear in the stock SMS app.</li>
-          <li>Android 15+ may hide sensitive notification content from listeners.</li>
-          <li>Background operation depends on the ongoing notification, battery settings, and OEM policy.</li>
-          <li>Mirroring needs consent every session and stops on screen lock or rotation.</li>
-        </ul>
-      </Card>
 
       <Modal
         open={confirmReset}

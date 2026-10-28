@@ -7,17 +7,13 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import app.linkphone.core.model.ClipboardFromPhone
 import app.linkphone.core.net.ConnectionHub
 import app.linkphone.core.protocol.ProtocolCodec
@@ -70,17 +66,9 @@ class SendClipboardActivity : ComponentActivity() {
 
 @Composable
 private fun SendingClipboard() {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(28.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text("Sending clipboard", style = MaterialTheme.typography.headlineSmall)
-        Text(
-            "Reading the clipboard while this screen is focused, then sending it to your PC.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 10.dp),
-        )
-    }
+    ProgressScaffold(
+        title = "Sending clipboard",
+        message = "Reading the clipboard while this screen is focused, then sending it to your PC.",
+        icon = Icons.Outlined.ContentPaste,
+    )
 }

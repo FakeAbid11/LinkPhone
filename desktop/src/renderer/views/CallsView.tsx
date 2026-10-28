@@ -1,7 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CAPABILITIES, type AppSnapshot } from '../../shared/types';
 import { api } from '../api';
-import { Badge, Button, Card, EmptyState, Notice, PageHeader, Spinner } from '../components';
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  Notice,
+  PageHeader,
+  Select,
+  Spinner,
+  TextInput,
+} from '../components';
 import type { Ui } from '../ui';
 import { initials } from '../utils';
 
@@ -11,6 +22,7 @@ export function CallsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   const call = state.calls.state;
   const ringing = call.state === 'ringing';
   const inCall = call.state === 'offhook';
+  const activeCall = ringing || inCall;
   const subscriptions = state.connection.subscriptions;
   const simSelectionSupported = state.connection.capabilities.includes(
     CAPABILITIES.CALLS_SIM_SELECTION,
@@ -63,6 +75,7 @@ export function CallsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
         <PageHeader title="Calls" subtitle="Control calls from the PC. Audio stays on the phone." />
         <Card>
           <EmptyState
+            icon="phone"
             title="Connect your phone first"
             body="LinkPhone can show call state, place calls, and answer or decline where Android and the device manufacturer allow it."
           />
@@ -77,6 +90,7 @@ export function CallsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
         <PageHeader title="Calls" subtitle="Control calls from the PC. Audio stays on the phone." />
         <Card>
           <EmptyState
+            icon="phone"
             title="Call permission is not granted"
             body="On the phone, grant Phone permission in LinkPhone. Answer/decline also needs the separate Answer calls permission; caller ID needs call-log access."
           />
@@ -96,34 +110,26 @@ export function CallsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
         subtitle="Call control only. Android does not allow a companion app to route call audio to the PC."
       />
 
-      <Notice tone="warn" title="Audio stays on the phone">
-        Use the phone's speakerphone or a Bluetooth headset. This is a platform restriction, not
-        a missing feature.
-      </Notice>
+      {!activeCall && state.calls.error && <Notice tone="bad">{state.calls.error}</Notice>}
 
-      <div className="grid grid-2">
+      {activeCall && (
         <Card
+          icon="phone"
           title="Current call"
           actions={
-            <Badge tone={ringing ? 'warn' : inCall ? 'good' : 'neutral'}>
-              {ringing ? 'Incoming' : inCall ? 'In progress' : 'Idle'}
-            </Badge>
+            <Badge tone={ringing ? 'warn' : 'good'}>{ringing ? 'Incoming' : 'In progress'}</Badge>
           }
         >
           <div className={`call-hero ${ringing ? 'is-ringing' : ''}`}>
             <span className="call-pulse" />
             <div>
-              <strong>
-                {call.contactName || call.number || (ringing ? 'Incoming call' : 'No active call')}
-              </strong>
+              <strong>{call.contactName || call.number || 'Active call'}</strong>
               <span>
                 {call.contactName && call.number
                   ? call.number
                   : ringing
                     ? 'Your phone is ringing'
-                    : inCall
-                      ? 'The call is active on your phone'
-                      : 'Dial a number or wait for an incoming call'}
+                    : 'The call is active on your phone'}
               </span>
             </div>
           </div>
@@ -156,11 +162,6 @@ export function CallsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
                 End call
               </Button>
             )}
-            {!ringing && !inCall && (
-              <p className="muted small">
-                Incoming calls appear here and as a PC notification while LinkPhone is connected.
-              </p>
-            )}
           </div>
 
           {ringing && !state.calls.answerSupported && (
@@ -171,11 +172,16 @@ export function CallsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
           )}
           {state.calls.error && <Notice tone="bad">{state.calls.error}</Notice>}
         </Card>
+      )}
 
-        <div className="calls-right">
-          <Card title="Dial a call" subtitle="The call is placed by the phone's dialer/telecom service.">
-            <form
-              className="dialer"
+      <div className="grid grid-2">
+        <Card
+          icon="phone"
+          title="Dial a call"
+          subtitle="The call is placed by the phone's dialer/telecom service."
+        >
+          <form
+            className="dialer"
             onSubmit={(event) => {
               event.preventDefault();
               if (!number.trim()) return;
@@ -187,23 +193,20 @@ export function CallsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
               );
             }}
           >
-            <label className="field-label" htmlFor="dial-number">
-              Phone number
-            </label>
-            <input
-              id="dial-number"
-              type="tel"
-              inputMode="tel"
-              placeholder="+1 555 0100"
-              value={number}
-              onChange={(event) => setNumber(event.target.value)}
-            />
+            <Field id="dial-number" label="Phone number" hint="Audio stays on the phone.">
+              <TextInput
+                id="dial-number"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder="+1 555 0100"
+                value={number}
+                onChange={(event) => setNumber(event.target.value)}
+              />
+            </Field>
             {subscriptions.length > 1 && simSelectionSupported && (
-              <>
-                <label className="field-label" htmlFor="dial-sim">
-                  SIM for this call
-                </label>
-                <select
+              <Field id="dial-sim" label="SIM for this call">
+                <Select
                   id="dial-sim"
                   value={subId ?? ''}
                   onChange={(event) =>
@@ -216,8 +219,8 @@ export function CallsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
                       {sim.label} · SIM {sim.slotIndex + 1}
                     </option>
                   ))}
-                </select>
-              </>
+                </Select>
+              </Field>
             )}
             {subscriptions.length > 1 && !simSelectionSupported && (
               <p className="muted small">
@@ -225,86 +228,86 @@ export function CallsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
                 SIM.
               </p>
             )}
-            <Button variant="primary" type="submit" disabled={!number.trim()}>
+            <Button variant="primary" type="submit" icon="phone" disabled={!number.trim()}>
               Call from phone
             </Button>
           </form>
-          <p className="muted small">
+          <p className="muted small dialer-note">
             Emergency calls are handled by Android's telecom stack. LinkPhone does not place
             emergency calls itself.
           </p>
-          </Card>
+        </Card>
 
-          <Card
-            title="Contacts"
-            subtitle="Tap a contact to fill the dialer, then choose a SIM and call."
-            actions={
-              canSearchContacts ? (
-                <Button
-                  small
-                  variant="ghost"
-                  onClick={() => void api.refreshContacts().catch(() => undefined)}
-                  disabled={state.calls.contactsLoading}
-                >
-                  {state.calls.contactsLoading ? 'Loading…' : 'Refresh'}
-                </Button>
-              ) : undefined
-            }
-          >
-            {!canSearchContacts ? (
-              <Notice tone="warn" title="Contacts access">
-                Grant Contacts on the phone (LinkPhone → Permissions), update the phone app to
-                v0.1.3, and reconnect. You can still dial numbers manually.
-              </Notice>
-            ) : (
-              <>
-                <input
-                  className="contact-search"
+        <Card
+          icon="users"
+          title="Contacts"
+          subtitle="Tap a contact to fill the dialer, then choose a SIM and call."
+          actions={
+            canSearchContacts ? (
+              <Button
+                small
+                variant="ghost"
+                icon="refresh"
+                onClick={() => void api.refreshContacts().catch(() => undefined)}
+                loading={state.calls.contactsLoading}
+              >
+                Refresh
+              </Button>
+            ) : undefined
+          }
+        >
+          {!canSearchContacts ? (
+            <Notice tone="warn" title="Contacts access">
+              Grant Contacts on the phone (LinkPhone → Permissions), update the phone app to
+              v0.1.3, and reconnect. You can still dial numbers manually.
+            </Notice>
+          ) : (
+            <>
+              <div className="contact-search-row">
+                <TextInput
                   type="search"
+                  aria-label="Search contacts"
                   placeholder="Search name, number or label"
                   value={contactQuery}
                   onChange={(event) => setContactQuery(event.target.value)}
                 />
-                {state.calls.contactsError && (
-                  <Notice tone="bad">{state.calls.contactsError}</Notice>
-                )}
-                {state.calls.contactsLoading && state.calls.contacts.length === 0 ? (
-                  <Spinner label="Loading contacts…" />
-                ) : filteredContacts.length === 0 ? (
-                  <p className="muted small">
-                    {state.calls.contacts.length === 0
-                      ? 'No contacts were shared. Check the Contacts permission on the phone.'
-                      : 'No contacts match this search.'}
-                  </p>
-                ) : (
-                  <div className="contact-list">
-                    {filteredContacts.map((contact) => (
-                      <button
-                        key={`${contact.id}-${contact.number}`}
-                        type="button"
-                        className="contact-item"
-                        onClick={() => pickContact(contact.number)}
-                      >
-                        <span className="contact-avatar">{initials(contact.name)}</span>
-                        <span className="contact-copy">
-                          <strong>{contact.name}</strong>
-                          <span>
-                            {contact.label ? `${contact.label} · ` : ''}
-                            {contact.number}
-                          </span>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+              </div>
+              {state.calls.contactsError && <Notice tone="bad">{state.calls.contactsError}</Notice>}
+              {state.calls.contactsLoading && state.calls.contacts.length === 0 ? (
+                <Spinner label="Loading contacts…" />
+              ) : filteredContacts.length === 0 ? (
                 <p className="muted small">
-                  Contacts are requested on demand and kept in memory only. Tap a contact to fill
-                  the dialer.
+                  {state.calls.contacts.length === 0
+                    ? 'No contacts were shared. Check the Contacts permission on the phone.'
+                    : 'No contacts match this search.'}
                 </p>
-              </>
-            )}
-          </Card>
-        </div>
+              ) : (
+                <div className="contact-list">
+                  {filteredContacts.map((contact) => (
+                    <button
+                      key={`${contact.id}-${contact.number}`}
+                      type="button"
+                      className="contact-item"
+                      onClick={() => pickContact(contact.number)}
+                    >
+                      <span className="contact-avatar">{initials(contact.name)}</span>
+                      <span className="contact-copy">
+                        <strong>{contact.name}</strong>
+                        <span>
+                          {contact.label ? `${contact.label} · ` : ''}
+                          {contact.number}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <p className="muted small">
+                Contacts are requested on demand and kept in memory only.
+              </p>
+            </>
+          )}
+        </Card>
       </div>
     </>
   );

@@ -22,6 +22,8 @@ locally.
 - `BackoffTest` — reconnect delay bounds, growth, reset, deterministic seed.
 - `SafeInputTest` — dial numbers, URL scheme allowlist, filename sanitization, clipboard cap,
   normalized gesture coordinates.
+- `ThemeContrastTest` — WCAG contrast for the light and dark palette's body text, secondary text,
+  primary text, button labels, and outlines.
 
 Run in CI:
 
@@ -50,6 +52,8 @@ gradle -p android :app:testDebugUnitTest :app:lintDebug
   per-device SMS read-state ids (cap/remove/reset).
 - `sms-service.test.ts` — local read marking, per-device persistence, mark-all, and the
   `sms.openThread` request payload.
+- `thread-filter.test.ts` — conversation search by name, address, and latest message, including
+  case/whitespace handling and no-match results.
 - `e2e/messages-layout.spec.ts` — the conversation list and message history scroll independently at
   1180×780 and 960×640, and the composer stays in view.
 
@@ -64,9 +68,12 @@ npm test
 
 ### Desktop E2E
 
-`desktop/e2e/smoke.spec.ts` launches the built Electron app with an isolated `userData` directory,
-waits for the Connection view and the LinkPhone brand, and fails with the main-process stderr on
-error. It runs against the unpacked build before packaging.
+`desktop/e2e/smoke.spec.ts` launches the built Electron app with an isolated `userData` directory
+and checks the Connection view, brand, skip link, `aria-current` navigation, one `<h1>`, modal focus
+trapping/Escape/focus restore, and that no console errors were logged. `ui-quality.spec.ts` checks
+two-column layout at 1440 and 1180, single-column at 960, no horizontal overflow, no text below
+11 px, a visible keyboard focus ring, and every view's heading. It fails with the main-process
+stderr on error. Both run against the unpacked build before packaging.
 
 ```bash
 cd desktop
@@ -101,7 +108,25 @@ Use two devices on the same Wi-Fi. Check each item and keep the diagnostics log 
 - [ ] Windows app starts, shows Connection, and does not prompt for admin rights.
 - [ ] Windows Firewall prompts; allow **Private** networks.
 - [ ] APK installs from the release (unknown sources allowed for the file manager).
+- [ ] Phone app opens; a fresh install shows the three-step setup guide, and an already-paired
+      phone skips it.
 - [ ] Phone app opens; version and identity fingerprint are visible.
+- [ ] Switch Android between light and dark mode; every screen remains readable.
+
+### Interface and accessibility
+
+- [ ] PC: Tab reaches the skip link first; each nav item shows a focus ring and `aria-current`.
+- [ ] PC: the Connection and Calls pages show two columns at the default window size and one column
+      when the window is narrowed below 1040 px.
+- [ ] PC: opening Reset PC identity and pressing Tab keeps focus inside the dialog; Escape closes it
+      and returns focus to the button.
+- [ ] PC: conversation search filters by name, number, and message text.
+- [ ] Phone: rotate on Home, Pair, and a consent screen; the screen and entered text are retained.
+- [ ] Phone: open Pair and focus a text field; the keyboard does not cover the field or the Pair
+      button.
+- [ ] Phone: deny a runtime permission once; the rationale appears again. Deny permanently and
+      confirm the action changes to **Open settings**.
+- [ ] Phone: TalkBack announces status as text, not color alone; touch targets are at least 48 dp.
 
 ### Pairing and reconnection
 
