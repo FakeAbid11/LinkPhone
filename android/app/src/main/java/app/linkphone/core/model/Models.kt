@@ -146,7 +146,10 @@ data class CallState(
 )
 
 @Serializable
-data class CallDialRequest(val number: String)
+data class CallDialRequest(
+    val number: String,
+    val subId: Int? = null,
+)
 
 @Serializable
 data class ClipboardSetRequest(val text: String)
@@ -217,6 +220,7 @@ object Capabilities {
     const val CALLS = "calls"
     const val CALLS_ANSWER = "calls.answer"
     const val CALLS_CALLER_ID = "calls.callerId"
+    const val CALLS_SIM_SELECTION = "calls.simSelection"
     const val MIRROR = "mirror"
     const val MIRROR_INPUT = "mirror.input"
     const val CLIPBOARD = "clipboard"

@@ -12,7 +12,7 @@ next time the feature is used (reconnect to refresh the capability list).
 | `READ_SMS` | all | Read SMS threads | Messages card | The PC cannot list messages |
 | `RECEIVE_SMS` | all | New-SMS hint broadcast | Messages card | The PC still refreshes on connect and via the provider observer, but live hints stop |
 | `SEND_SMS` | all | Send SMS | Messages card | Sending is refused |
-| `READ_PHONE_STATE` | all | Call state and SIM list | Calls card | No call-state events, caller SIM info, or answer support checks |
+| `READ_PHONE_STATE` | all | Call state, SIM list, and mapping a selected SIM to a call account | Calls card | No call-state events, caller SIM info, answer support checks, or SIM selection |
 | `CALL_PHONE` | all | Place a call | Calls card | Dialing is refused |
 | `ANSWER_PHONE_CALLS` | 26+ | Answer/decline and end a call | Calls card (optional group) | Answer/decline buttons are disabled |
 | `READ_CALL_LOG` | all | Caller number on incoming calls | Calls card (optional) | Android 10+ hides the incoming number; the PC shows “Incoming call” |
@@ -49,6 +49,10 @@ existing messaging app. LinkPhone deliberately does not do that.
   default dialer. Some devices require settings changes or simply refuse; the PC reports the error.
 - Caller ID is unavailable on Android 10+ without `READ_CALL_LOG` (or a call-screening role, which
   is not used).
+- **SIM selection:** the PC can ask the phone to dial on a specific SIM on Android 11+. It uses
+  `READ_PHONE_STATE` to map the chosen subscription to a call-capable Telecom `PhoneAccount` and
+  passes the account to `placeCall`. Android 10 has no reliable public mapping, so calls use the
+  system default and the selector is hidden. Some OEM dialers may ignore the requested account.
 - Emergency calls are handled by Android's telecom stack; LinkPhone does not implement emergency
   dialing.
 - Call **audio** cannot be captured by an ordinary app. See [feasibility.md](feasibility.md).

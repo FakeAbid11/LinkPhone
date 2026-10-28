@@ -82,7 +82,7 @@ server verifies with Node `crypto.verify('sha256', payload, { key, dsaEncoding: 
 | `photo.list` | PC → phone | request `{limit}`; response `{photos[]}` |
 | `photo.fetch` | PC → phone | `{id, kind: "thumb"\|"full"}`; response `PhotoStreamMeta` then binary type 1 |
 | `call.state` | phone → PC | `state (idle\|ringing\|offhook\|unknown), number?, contactName?, timestamp` |
-| `call.dial` | PC → phone | `{number}` |
+| `call.dial` | PC → phone | `{number, subId?}` |
 | `call.answer` | PC → phone | none |
 | `call.decline` | PC → phone | none — declines a ringing call or ends an active one |
 | `clipboard.set` | PC → phone | `{text}` |
@@ -98,6 +98,11 @@ server verifies with Node `crypto.verify('sha256', payload, { key, dsaEncoding: 
 | `ping` / `pong` | both | `{timestamp}` (WebSocket pings are also used) |
 
 `subscriptions[]` entries: `subscriptionId, label, slotIndex`.
+
+`call.dial.subId` is the subscription to use for the outgoing call. Omit it to use the phone's
+system-default SIM. A specific SIM requires Android 11+; the phone resolves the id to a call-capable
+Telecom `PhoneAccount` and never silently falls back to a different SIM. Android 10 ignores the
+selector at the UI level because the public subscription-to-account mapping does not exist there.
 
 `photos[]` entries: `id, name, mime, size, date, width, height, bucket?`.
 

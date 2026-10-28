@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import type { AppSnapshot } from '../../shared/types';
+import { useEffect, useState } from 'react';
+import { CAPABILITIES, type AppSnapshot } from '../../shared/types';
 import { api } from '../api';
 import { Badge, Button, Card, EmptyState, Notice, PageHeader } from '../components';
 import type { Ui } from '../ui';
@@ -10,7 +10,19 @@ export function CallsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   const call = state.calls.state;
   const ringing = call.state === 'ringing';
   const inCall = call.state === 'offhook';
+  const subscriptions = state.connection.subscriptions;
+  const simSelectionSupported = state.connection.capabilities.includes(
+    CAPABILITIES.CALLS_SIM_SELECTION,
+  );
   const [number, setNumber] = useState('');
+  const [subId, setSubId] = useState<number | null>(null);
+  const selectedSim = subscriptions.find((sim) => sim.subscriptionId === subId);
+
+  useEffect(() => {
+    if (subId !== null && !subscriptions.some((sim) => sim.subscriptionId === subId)) {
+      setSubId(null);
+    }
+  }, [subscriptions, subId]);
 
   if (!connected) {
     return (
@@ -133,7 +145,12 @@ export function CallsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
             onSubmit={(event) => {
               event.preventDefault();
               if (!number.trim()) return;
-              void ui.run(() => api.dial(number), 'Calling from your phone');
+              void ui.run(
+                () => api.dial(number, subId),
+                selectedSim
+                  ? `Calling on ${selectedSim.label}`
+                  : 'Calling on the default SIM',
+              );
             }}
           >
             <label className="field-label" htmlFor="dial-number">
@@ -147,6 +164,33 @@ export function CallsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
               value={number}
               onChange={(event) => setNumber(event.target.value)}
             />
+            {subscriptions.length > 1 && simSelectionSupported && (
+              <>
+                <label className="field-label" htmlFor="dial-sim">
+                  SIM for this call
+                </label>
+                <select
+                  id="dial-sim"
+                  value={subId ?? ''}
+                  onChange={(event) =>
+                    setSubId(event.target.value ? Number(event.target.value) : null)
+                  }
+                >
+                  <option value="">Default SIM</option>
+                  {subscriptions.map((sim) => (
+                    <option key={sim.subscriptionId} value={sim.subscriptionId}>
+                      {sim.label} · SIM {sim.slotIndex + 1}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
+            {subscriptions.length > 1 && !simSelectionSupported && (
+              <p className="muted small">
+                SIM selection requires Android 11 or newer. This call uses the phone's default
+                SIM.
+              </p>
+            )}
             <Button variant="primary" type="submit" disabled={!number.trim()}>
               Call from phone
             </Button>

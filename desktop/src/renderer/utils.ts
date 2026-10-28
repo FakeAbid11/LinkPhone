@@ -61,6 +61,7 @@ export function capabilityLabel(capability: string): string {
     calls: 'Calls',
     'calls.answer': 'Answer calls',
     'calls.callerId': 'Caller ID',
+    'calls.simSelection': 'SIM selection',
     mirror: 'Mirroring',
     'mirror.input': 'Remote taps',
     clipboard: 'Clipboard',

@@ -474,7 +474,7 @@ class LinkConnectionService : Service() {
 
             Types.CALL_DIAL -> {
                 val request = envelope.decodeData<CallDialRequest>()
-                resultReply(envelope, calls.placeCall(request.number))
+                resultReply(envelope, calls.placeCall(request.number, request.subId))
             }
 
             Types.CALL_ANSWER -> resultReply(envelope, calls.answer())

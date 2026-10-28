@@ -47,12 +47,21 @@ export class CallService {
     }
   }
 
-  async dial(number: string): Promise<void> {
+  async dial(number: string, subId?: number | null): Promise<void> {
     const session = this.requireSession();
     const destination = normalizeDialNumber(number);
     if (!destination) throw new Error('Enter a valid phone number');
-    await session.request(TYPES.CALL_DIAL, { number: destination }, 15_000);
-    this.logger.log('Calls', 'Asked the phone to place a call');
+    const payload: { number: string; subId?: number } = { number: destination };
+    if (typeof subId === 'number' && Number.isInteger(subId) && subId > 0) {
+      payload.subId = subId;
+    }
+    await session.request(TYPES.CALL_DIAL, payload, 15_000);
+    this.logger.log(
+      'Calls',
+      payload.subId
+        ? `Asked the phone to place a call on SIM ${payload.subId}`
+        : 'Asked the phone to place a call on the default SIM',
+    );
   }
 
   async answer(): Promise<void> {

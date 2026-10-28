@@ -138,6 +138,9 @@ Use two devices on the same Wi-Fi. Check each item and keep the diagnostics log 
 - [ ] Incoming call shows on the PC with number/contact if call-log/contacts granted.
 - [ ] Answer from the PC where supported; decline on a second call.
 - [ ] Dial a number; the phone places the call.
+- [ ] Dual SIM on Android 11+: select each SIM in the Calls tab and confirm the phone's in-call UI
+      uses the selected SIM. Select **Default SIM** and confirm the system default is used.
+- [ ] Single SIM: no selector is shown. Android 10: the explanatory note is shown.
 - [ ] Confirm there is **no PC audio** (expected; use the phone speaker/headset).
 - [ ] Note OEM-specific failures.
 

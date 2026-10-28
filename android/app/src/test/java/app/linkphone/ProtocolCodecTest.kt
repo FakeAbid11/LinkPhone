@@ -1,11 +1,14 @@
 package app.linkphone
 
+import app.linkphone.core.model.CallDialRequest
 import app.linkphone.core.model.Pong
 import app.linkphone.core.protocol.BinaryCodec
 import app.linkphone.core.protocol.Envelope
 import app.linkphone.core.protocol.ProtocolCodec
 import app.linkphone.core.protocol.Types
 import app.linkphone.core.protocol.decodeData
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -77,6 +80,23 @@ class ProtocolCodecTest {
                 ByteArray(BinaryCodec.MAX_PAYLOAD + 1),
             )
         }
+    }
+
+    @Test
+    fun callDialRequestCarriesAnOptionalSim() {
+        val encoded = ProtocolCodec.json.encodeToString(
+            CallDialRequest.serializer(),
+            CallDialRequest("+15550101000", 2),
+        )
+        assertTrue(encoded.contains("\"subId\":2"))
+        val decoded = ProtocolCodec.json.decodeFromString(CallDialRequest.serializer(), encoded)
+        assertEquals(2, decoded.subId)
+
+        val defaultEncoded = ProtocolCodec.json.encodeToString(
+            CallDialRequest.serializer(),
+            CallDialRequest("+15550101000"),
+        )
+        assertFalse(defaultEncoded.contains("subId"))
     }
 
     @Test

@@ -1,15 +1,15 @@
 # Feasibility, platform limits, and scope
 
-This document records what Android and Windows actually allow, what LinkPhone v0.1.0 implements, and
+This document records what Android and Windows actually allow, what LinkPhone v0.1.1 implements, and
 what would require a different product or system privileges.
 
 ## Summary
 
-| Requested feature | v0.1.0 | Honest limit |
+| Requested feature | v0.1.1 | Honest limit |
 |---|---|---|
 | Secure pair/reconnect | Implemented | QR + pinned TLS + ECDSA challenge; one phone at a time |
 | SMS view/send | Implemented | Sideload only; no MMS/RCS; no default-SMS role, so sent items may not enter stock threads |
-| Calls from PC | Limited | Dial/answer/decline and caller state where OEM permits; **no call audio on PC**; caller ID needs call-log access |
+| Calls from PC | Limited | Dial/answer/decline, caller state, and SIM choice on Android 11+ where OEM permits; **no call audio on PC**; caller ID needs call-log access |
 | Photos | Implemented | Recent camera roll; JPEG transcode; Android 14 partial access respected |
 | Notification mirroring | Implemented | Per-app mute, dismiss; Android 15+ may redact sensitive content; no action buttons |
 | Apps streaming | Experimental substitute | Screen mirroring + tap/swipe only; no app virtualization; consent each session; stops on lock |
@@ -61,6 +61,11 @@ What works:
 - Placing a call with `TelecomManager.placeCall()` and `CALL_PHONE` (works from a service; unlike
   `ACTION_CALL`, which is subject to background activity-start restrictions).
 - Answer/decline with `ANSWER_PHONE_CALLS` and `TelecomManager.acceptRingingCall()`/`endCall()`.
+- Choosing a SIM for an outgoing call on Android 11+: the PC sends the subscription id; the phone
+  finds the matching call-capable Telecom `PhoneAccount` using
+  `TelephonyManager.getSubscriptionId(handle)` and passes `EXTRA_PHONE_ACCOUNT_HANDLE` to
+  `placeCall`. Android 10 has no reliable public subscription-to-account mapping, so the selector is
+  hidden and calls use the system default. Some OEM dialers may ignore the requested account.
 
 What does **not** work and cannot be fixed by a normal app:
 - **Call audio.** `AudioRecord` with `VOICE_CALL` requires the signature/privileged
