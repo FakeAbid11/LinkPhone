@@ -5,11 +5,15 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.ContactsContract
+import android.telecom.PhoneAccount
+import android.telecom.PhoneAccountHandle
 import android.telecom.TelecomManager
 import android.telephony.PhoneStateListener
 import android.telephony.TelephonyManager
+import androidx.annotation.RequiresApi
 import app.linkphone.core.model.CallState
 import app.linkphone.core.util.FeaturePermissionException
 import app.linkphone.core.util.LinkStatus
@@ -70,16 +74,57 @@ class CallController(
     }
 
     @SuppressLint("MissingPermission")
-    fun placeCall(numberRaw: String): Result<Unit> {
+    @Suppress("DEPRECATION")
+    fun placeCall(numberRaw: String, subscriptionId: Int? = null): Result<Unit> {
         if (!Permissions.has(context, Manifest.permission.CALL_PHONE)) {
             return Result.failure(FeaturePermissionException("CALL_PHONE permission is not granted"))
         }
         val number = SafeInput.normalizeDialNumber(numberRaw)
             ?: return Result.failure(IllegalArgumentException("Invalid phone number"))
-        val manager = telecom ?: return Result.failure(IllegalStateException("Telecom is unavailable"))
-        return runCatching {
-            manager.placeCall(Uri.fromParts("tel", number, null), Bundle())
+        if (subscriptionId != null && subscriptionId <= 0) {
+            return Result.failure(IllegalArgumentException("Invalid SIM selection"))
         }
+        val manager = telecom ?: return Result.failure(IllegalStateException("Telecom is unavailable"))
+
+        val extras = Bundle()
+        if (subscriptionId != null) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                return Result.failure(
+                    IllegalStateException("Choosing a SIM requires Android 11 or later"),
+                )
+            }
+            val handle = findPhoneAccountForSubscription(subscriptionId)
+                ?: return Result.failure(
+                    IllegalStateException(
+                        "That SIM is not available for calls. Reconnect and try again.",
+                    ),
+                )
+            extras.putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, handle)
+        }
+
+        return runCatching {
+            manager.placeCall(Uri.fromParts("tel", number, null), extras)
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    @SuppressLint("MissingPermission")
+    private fun findPhoneAccountForSubscription(subscriptionId: Int): PhoneAccountHandle? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+        val manager = telecom ?: return null
+        val telephonyManager = telephony ?: return null
+        return runCatching {
+            val handles = manager.callCapablePhoneAccounts.orEmpty()
+            val simHandle = handles.firstOrNull { handle ->
+                val account = runCatching { manager.getPhoneAccount(handle) }.getOrNull()
+                val isSim = account != null &&
+                    (account.capabilities and PhoneAccount.CAPABILITY_SIM_SUBSCRIPTION) != 0
+                isSim && telephonyManager.getSubscriptionId(handle) == subscriptionId
+            }
+            simHandle ?: handles.firstOrNull { handle ->
+                telephonyManager.getSubscriptionId(handle) == subscriptionId
+            }
+        }.getOrNull()
     }
 
     @SuppressLint("MissingPermission")

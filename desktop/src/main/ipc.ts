@@ -58,9 +58,11 @@ export function registerIpc(controller: AppController): void {
     controller.copyPhoto(requireString(id, 'photo id', 80)),
   );
 
-  ipcMain.handle('call:dial', (_event, number: unknown) =>
-    controller.dial(requireString(number, 'phone number', 30)),
-  );
+  ipcMain.handle('call:dial', (_event, number: unknown, subId: unknown) => {
+    const sim =
+      typeof subId === 'number' && Number.isInteger(subId) && subId > 0 ? subId : null;
+    return controller.dial(requireString(number, 'phone number', 30), sim);
+  });
   ipcMain.handle('call:answer', () => controller.answerCall());
   ipcMain.handle('call:decline', () => controller.declineCall());
 

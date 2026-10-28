@@ -18,7 +18,12 @@ object PhoneInfoBuilder {
             capabilities += Capabilities.PHOTOS
             if (Permissions.photosPartial(context)) capabilities += Capabilities.PHOTOS_PARTIAL
         }
-        if (Permissions.calls(context) && hasTelephony(context)) capabilities += Capabilities.CALLS
+        if (Permissions.calls(context) && hasTelephony(context)) {
+            capabilities += Capabilities.CALLS
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                capabilities += Capabilities.CALLS_SIM_SELECTION
+            }
+        }
         if (Permissions.canAnswerCalls(context)) capabilities += Capabilities.CALLS_ANSWER
         if (Permissions.callerId(context)) capabilities += Capabilities.CALLS_CALLER_ID
         capabilities += Capabilities.MIRROR

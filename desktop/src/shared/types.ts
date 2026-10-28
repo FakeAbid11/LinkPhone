@@ -60,6 +60,7 @@ export const CAPABILITIES = {
   CALLS: 'calls',
   CALLS_ANSWER: 'calls.answer',
   CALLS_CALLER_ID: 'calls.callerId',
+  CALLS_SIM_SELECTION: 'calls.simSelection',
   MIRROR: 'mirror',
   MIRROR_INPUT: 'mirror.input',
   CLIPBOARD: 'clipboard',
@@ -386,7 +387,7 @@ export interface LinkPhoneApi {
   getThumbnail(id: string): Promise<string | null>;
   savePhoto(id: string): Promise<string>;
   copyPhoto(id: string): Promise<void>;
-  dial(number: string): Promise<void>;
+  dial(number: string, subId?: number | null): Promise<void>;
   answerCall(): Promise<void>;
   declineCall(): Promise<void>;
   sendClipboard(text: string): Promise<void>;

@@ -124,6 +124,11 @@ no hidden or battery-exempt API that does better without system privileges.
   speakerphone or a headset. See [feasibility.md](feasibility.md).
 - **Dial fails:** grant CALL_PHONE and ensure a SIM is active. Emergency calls are handled by
   Android's telecom stack.
+- **No SIM selector when dialing:** the selector only appears when the phone reports two or more
+  active SIMs **and** `calls.simSelection` (Android 11+). Grant Phone permission, reopen LinkPhone
+  so it refreshes `phone.info`, and reconnect. On Android 10 the official public mapping is
+  unavailable; calls use the system default SIM. Some OEM dialers ignore the requested account even
+  on Android 11+; the PC surfaces an error rather than silently choosing another SIM.
 
 ## Clipboard and Continue on PC
 

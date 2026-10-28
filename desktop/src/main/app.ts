@@ -575,8 +575,8 @@ export class AppController {
     this.notify('Photo copied', 'The image is on your clipboard.');
   }
 
-  async dial(number: string): Promise<void> {
-    await this.calls.dial(number);
+  async dial(number: string, subId?: number | null): Promise<void> {
+    await this.calls.dial(number, subId);
   }
 
   async answerCall(): Promise<void> {
