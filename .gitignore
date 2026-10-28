@@ -1,0 +1,31 @@
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.kotlin/
+*.apk
+*.aab
+
+# Signing material (never commit)
+*.jks
+*.keystore
+.env
+.env.*
+
+# Node / desktop
+desktop/node_modules/
+desktop/dist/
+desktop/release/
+desktop/test-results/
+desktop/playwright-report/
+desktop/.vite/
+npm-debug.log*
+*.log
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+vibe_images/
