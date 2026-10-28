@@ -28,8 +28,9 @@ compilation, tests, packaging, and release artifacts.
 - **android** (`ubuntu-latest`): decodes the signing keystore if configured, runs
   `:app:testDebugUnitTest`, `:app:lintDebug`, `:app:assembleRelease`, verifies the APK with
   `apksigner`, and uploads it as `LinkPhone-Android`.
-- **desktop** (`windows-2022`): `npm install`, `npm run typecheck`, `npm test`, `npm run build`,
-  `npx playwright test`, `npm run dist:win`, writes `SHA256SUMS.txt`, and uploads the EXE files.
+- **desktop** (`windows-2022`): `npm ci` (from the committed `package-lock.json`),
+  `npm run typecheck`, `npm test`, `npm run build`, `npx playwright test`, `npm run dist:win`,
+  a packaged-EXE smoke test, checksums, and artifact upload.
 
 Failure reports (test/lint/Playwright) are uploaded for seven days when a job fails.
 
@@ -107,13 +108,16 @@ debug APK. Do not commit `local.properties`.
 
 ```bash
 cd desktop
-npm install
+npm ci
 npm run typecheck
 npm test
 npm run build
 npx playwright test
 npm run start
 ```
+
+The npm lockfile is committed; use `npm install` only when deliberately changing dependencies,
+then commit the updated lockfile.
 
 `npm run dist:win` packages the app into `desktop/release/`. The Windows build is unsigned.
 
@@ -125,7 +129,7 @@ gradle -p android :app:testDebugUnitTest :app:lintDebug :app:assembleRelease
 
 # Desktop
 cd desktop
-npm install && npm run typecheck && npm test && npm run build && npx playwright test
+npm ci && npm run typecheck && npm test && npm run build && npx playwright test
 ```
 
 ## Artifacts

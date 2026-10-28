@@ -50,7 +50,7 @@ Run:
 
 ```bash
 cd desktop
-npm install
+npm ci
 npm run typecheck
 npm test
 ```

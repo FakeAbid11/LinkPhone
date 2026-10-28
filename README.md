@@ -141,7 +141,7 @@ CI builds everything; no local Android SDK is required. See [docs/building.md](d
 gradle -p android :app:testDebugUnitTest :app:lintDebug :app:assembleRelease
 
 # Desktop (CI, Windows)
-cd desktop && npm install && npm run typecheck && npm test && npm run build
+cd desktop && npm ci && npm run typecheck && npm test && npm run build
 ```
 
 ## Privacy
