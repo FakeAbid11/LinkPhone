@@ -77,6 +77,9 @@ data class SmsSendResult(
 )
 
 @Serializable
+data class SmsOpenThreadRequest(val address: String)
+
+@Serializable
 data class SmsChanged(val timestamp: Long)
 
 @Serializable
@@ -214,6 +217,7 @@ data class Pong(val timestamp: Long)
 
 object Capabilities {
     const val SMS = "sms"
+    const val SMS_OPEN_THREAD = "sms.openThread"
     const val NOTIFICATIONS = "notifications"
     const val PHOTOS = "photos"
     const val PHOTOS_PARTIAL = "photos.partial"

@@ -20,7 +20,11 @@ interface AppData {
   pcName: string;
   devices: DeviceRecord[];
   settings: Settings;
+  /** Message ids marked read locally, keyed by paired phone device id. */
+  readSms: Record<string, string[]>;
 }
+
+const MAX_READ_SMS_IDS_PER_DEVICE = 5_000;
 
 const DEFAULT_SETTINGS: Settings = {
   notificationsToasts: true,
@@ -78,6 +82,26 @@ export class Store {
 
   removeDevice(id: string): void {
     this.data.devices = this.data.devices.filter((device) => device.id !== id);
+    delete this.data.readSms[id];
+    this.save();
+  }
+
+  readSmsFor(deviceId: string): string[] {
+    return [...(this.data.readSms[deviceId] ?? [])];
+  }
+
+  addReadSms(deviceId: string, ids: string[]): void {
+    const valid = ids.filter((id) => typeof id === 'string' && id.length > 0);
+    if (!deviceId || valid.length === 0) return;
+    const set = new Set(this.data.readSms[deviceId] ?? []);
+    for (const id of valid) set.add(id);
+    this.data.readSms[deviceId] = [...set].slice(-MAX_READ_SMS_IDS_PER_DEVICE);
+    this.save();
+  }
+
+  removeReadSms(deviceId: string): void {
+    if (!this.data.readSms[deviceId]) return;
+    delete this.data.readSms[deviceId];
     this.save();
   }
 
@@ -102,6 +126,7 @@ export class Store {
   resetIdentity(): void {
     this.data.pcId = randomUUID();
     this.data.devices = [];
+    this.data.readSms = {};
     this.save();
   }
 
@@ -121,6 +146,7 @@ function loadData(filePath: string): AppData {
     pcName: defaultPcName(),
     devices: [],
     settings: { ...DEFAULT_SETTINGS, mutePackages: [] },
+    readSms: {},
   });
 
   if (!fs.existsSync(filePath)) {
@@ -151,6 +177,15 @@ function loadData(filePath: string): AppData {
         ? parsed.settings.mutePackages.filter((item): item is string => typeof item === 'string')
         : [],
     };
+    const readSms: Record<string, string[]> = {};
+    if (parsed.readSms && typeof parsed.readSms === 'object') {
+      for (const [deviceId, value] of Object.entries(parsed.readSms)) {
+        if (!deviceId || !Array.isArray(value)) continue;
+        readSms[deviceId] = value
+          .filter((id): id is string => typeof id === 'string' && id.length > 0)
+          .slice(-MAX_READ_SMS_IDS_PER_DEVICE);
+      }
+    }
     return {
       version: 1,
       pcId: parsed.pcId,
@@ -159,6 +194,7 @@ function loadData(filePath: string): AppData {
         : defaultPcName(),
       devices,
       settings,
+      readSms,
     };
   } catch {
     const backup = `${filePath}.corrupt-${Date.now()}`;

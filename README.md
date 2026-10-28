@@ -4,7 +4,7 @@
 
 Your Android phone and Windows PC, connected directly over your own Wi-Fi. Messages, notifications, photos, call control, clipboard handoff, and experimental screen mirroring — encrypted, LAN-only, no cloud account.
 
-> **Status:** v0.1.1. The Android and Windows apps compile, pass their unit/integration tests, and are packaged in GitHub Actions. They have **not** been tested on a physical phone in this environment; OEM permissions, calls, notifications, MediaProjection, and background behavior require the device acceptance checklist. See [testing.md](docs/testing.md#device-acceptance-checklist) and the limitations below before installing.
+> **Status:** v0.1.2. The Android and Windows apps compile, pass their unit/integration tests, and are packaged in GitHub Actions. They have **not** been tested on a physical phone in this environment; OEM permissions, calls, notifications, MediaProjection, and background behavior require the device acceptance checklist. See [testing.md](docs/testing.md#device-acceptance-checklist) and the limitations below before installing.
 
 Documentation: [feasibility & limits](docs/feasibility.md) · [architecture](docs/architecture.md) · [protocol](docs/protocol.md) · [permissions](docs/permissions.md) · [security](docs/security.md) · [troubleshooting](docs/troubleshooting.md) · [building](docs/building.md).
 
@@ -61,7 +61,7 @@ Do not interpret a green CI run as proof that those device-specific paths work. 
 | Feature | Status | Notes |
 |---|---|---|
 | Secure pairing and reconnect | Implemented | QR pairing, pinned TLS, ECDSA device authentication, automatic reconnect |
-| SMS read/send/receive | Implemented | Requires `READ_SMS`/`SEND_SMS`/`RECEIVE_SMS`; no MMS/RCS |
+| SMS read/send/receive | Implemented | Requires `READ_SMS`/`SEND_SMS`/`RECEIVE_SMS`; unread is tracked on the PC; **Open on phone** syncs the stock SMS app; no MMS/RCS |
 | Notification mirroring | Implemented | Per-app mute and dismiss; Android 15+ may redact sensitive content |
 | Photos | Implemented | Recent camera roll, save to PC, copy image to clipboard |
 | Call control | Limited | Dial/answer/decline, caller state, and SIM selection on Android 11+; **call audio stays on the phone** |
@@ -74,6 +74,7 @@ Do not interpret a green CI run as proof that those device-specific paths work. 
 - **Call audio on the PC.** Android reserves in-call audio capture for privileged/system apps. LinkPhone controls the call but cannot route the audio.
 - **True Android app streaming.** There is no third-party API to run arbitrary apps on the PC. LinkPhone mirrors the phone screen and can inject taps/swipes.
 - **Silent background clipboard sync from phone to PC.** Android 10+ only lets the focused app read the clipboard.
+- **Silent phone-side SMS read sync.** Android only lets the default SMS app write the SMS provider's read flag. LinkPhone tracks read locally and offers **Open on phone**, which posts a notification; tapping it opens the conversation in the stock SMS app, which marks it read. LinkPhone does not take over your SMS app.
 - **MMS/RCS, notification action buttons, mirrored calls on every OEM.** These are outside the supported surface.
 
 ## Phone permissions
@@ -81,7 +82,7 @@ Do not interpret a green CI run as proof that those device-specific paths work. 
 Each feature is opt-in. LinkPhone asks at the point of use and explains why.
 
 - **Notifications:** `POST_NOTIFICATIONS` (Android 13+) for the ongoing connection notification.
-- **SMS:** `READ_SMS`, `RECEIVE_SMS`, `SEND_SMS`. These are restricted for Play Store distribution, so the app is sideloaded.
+- **SMS:** `READ_SMS`, `RECEIVE_SMS`, `SEND_SMS`. These are restricted for Play Store distribution, so the app is sideloaded. LinkPhone does not take the default-SMS role; read state is tracked locally on the PC, and **Open on phone** uses a notification (requires `POST_NOTIFICATIONS`) to open the thread in your stock SMS app.
 - **Calls:** `READ_PHONE_STATE`, `CALL_PHONE`, `ANSWER_PHONE_CALLS`; optional `READ_CALL_LOG` for caller ID, `READ_CONTACTS` for contact names.
 - **Photos:** `READ_MEDIA_IMAGES` (Android 13+) or `READ_EXTERNAL_STORAGE` (Android 10–12). Android 14 may grant only selected photos.
 - **Notification mirroring:** Notification access (special settings screen).
@@ -102,7 +103,7 @@ Even with these steps, Android and OEM battery managers may stop the service. Li
 
 - All traffic is TLS on your LAN. The phone pins the PC's self-signed certificate fingerprint from the QR code; the PC verifies signed challenges from the phone's non-exportable EC key.
 - No cloud relay, no analytics, no accounts. Pairing tokens are single-use and expire.
-- Message bodies and notification text are not persisted on the PC; only settings and paired device public keys are written to disk. Photo thumbnails live in memory, and photos are saved only when you ask.
+- Message bodies and notification text are not persisted on the PC; only settings, paired device public keys, and SMS read-state message ids (no bodies) are written to disk. Photo thumbnails live in memory, and photos are saved only when you ask.
 - The PC listens on the LAN. Anyone who can scan the pairing QR during its five-minute lifetime could attempt to pair, but must still be approved on the PC.
 
 See [SECURITY.md](SECURITY.md) for the threat model and reporting.

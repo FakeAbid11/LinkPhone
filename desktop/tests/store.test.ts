@@ -61,6 +61,50 @@ describe('settings store', () => {
     expect(store.devices).toHaveLength(0);
   });
 
+  it('persists per-device SMS read ids and clears them with the device', () => {
+    const file = tempFile();
+    const store = new Store(file);
+    store.addDevice({
+      id: 'phone-1',
+      name: 'Pixel',
+      platform: 'android',
+      publicKeyPem: 'pem',
+      fingerprint: 'ab'.repeat(32),
+      pairedAt: Date.now(),
+    });
+    store.addReadSms('phone-1', ['m1', 'm2', 'm1']);
+    store.addReadSms('phone-2', ['m3']);
+
+    expect(store.readSmsFor('phone-1')).toEqual(['m1', 'm2']);
+    const reloaded = new Store(file);
+    expect(reloaded.readSmsFor('phone-1')).toEqual(['m1', 'm2']);
+    expect(reloaded.readSmsFor('phone-2')).toEqual(['m3']);
+
+    reloaded.removeDevice('phone-1');
+    expect(reloaded.readSmsFor('phone-1')).toEqual([]);
+    expect(new Store(file).readSmsFor('phone-1')).toEqual([]);
+
+    reloaded.removeReadSms('phone-2');
+    expect(reloaded.readSmsFor('phone-2')).toEqual([]);
+  });
+
+  it('caps stored read ids per device', () => {
+    const store = new Store(tempFile());
+    const ids = Array.from({ length: 5_005 }, (_, index) => `id-${index}`);
+    store.addReadSms('phone-1', ids);
+    const stored = store.readSmsFor('phone-1');
+    expect(stored).toHaveLength(5_000);
+    expect(stored[0]).toBe('id-5');
+    expect(stored[stored.length - 1]).toBe('id-5004');
+  });
+
+  it('clears read ids on identity reset', () => {
+    const store = new Store(tempFile());
+    store.addReadSms('phone-1', ['a', 'b']);
+    store.resetIdentity();
+    expect(store.readSmsFor('phone-1')).toEqual([]);
+  });
+
   it('backs up a corrupt store and starts fresh', () => {
     const file = tempFile();
     fs.writeFileSync(file, 'not json at all');

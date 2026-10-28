@@ -1,14 +1,14 @@
 # Feasibility, platform limits, and scope
 
-This document records what Android and Windows actually allow, what LinkPhone v0.1.1 implements, and
+This document records what Android and Windows actually allow, what LinkPhone v0.1.2 implements, and
 what would require a different product or system privileges.
 
 ## Summary
 
-| Requested feature | v0.1.1 | Honest limit |
+| Requested feature | v0.1.2 | Honest limit |
 |---|---|---|
 | Secure pair/reconnect | Implemented | QR + pinned TLS + ECDSA challenge; one phone at a time |
-| SMS view/send | Implemented | Sideload only; no MMS/RCS; no default-SMS role, so sent items may not enter stock threads |
+| SMS view/send | Implemented | Sideload only; unread is PC-local; Open on phone hands the thread to the stock SMS app (one tap); no MMS/RCS; no default-SMS role, so sent items may not enter stock threads |
 | Calls from PC | Limited | Dial/answer/decline, caller state, and SIM choice on Android 11+ where OEM permits; **no call audio on PC**; caller ID needs call-log access |
 | Photos | Implemented | Recent camera roll; JPEG transcode; Android 14 partial access respected |
 | Notification mirroring | Implemented | Per-app mute, dismiss; Android 15+ may redact sensitive content; no action buttons |
@@ -48,6 +48,11 @@ Limits:
 - Google Play restricts SMS permissions; this app is distributed outside Play.
 - Without the default-SMS role, sent messages are not written into the stock app's thread. The PC
   keeps a local sent copy; the phone's provider does not.
+- **Read state:** only the app receiving `SMS_DELIVER_ACTION` (the default SMS app) may write the
+  provider's read flag. LinkPhone keeps a per-device read-state set on the PC and offers **Open on
+  phone**, which posts a notification; tapping it opens the conversation in the stock SMS app,
+  which marks it read. This is a one-tap handoff, not a silent write, and LinkPhone does not take
+  the default-SMS role.
 - MMS and RCS require a default messaging app and additional APIs; out of scope.
 - Dual-SIM sending uses `createForSubscriptionId` on Android 12+; older versions use the default
   SIM.

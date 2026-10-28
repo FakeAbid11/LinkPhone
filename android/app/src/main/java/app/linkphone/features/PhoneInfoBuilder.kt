@@ -12,7 +12,10 @@ import app.linkphone.core.util.LinkStatus
 object PhoneInfoBuilder {
     fun build(context: Context, appVersion: String): PhoneInfo {
         val capabilities = mutableListOf<String>()
-        if (Permissions.sms(context)) capabilities += Capabilities.SMS
+        if (Permissions.sms(context)) {
+            capabilities += Capabilities.SMS
+            capabilities += Capabilities.SMS_OPEN_THREAD
+        }
         if (Permissions.notificationAccess(context)) capabilities += Capabilities.NOTIFICATIONS
         if (Permissions.photos(context)) {
             capabilities += Capabilities.PHOTOS

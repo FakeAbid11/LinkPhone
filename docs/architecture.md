@@ -140,7 +140,7 @@ certificate is the PC's identity; the signature is the phone's identity.
 
 | Location | Contents |
 |---|---|
-| PC `userData/state.json` | PC id/name, paired device public keys/fingerprints, settings, muted packages |
+| PC `userData/state.json` | PC id/name, paired device public keys/fingerprints, settings, muted packages, per-device SMS read-state ids |
 | PC `userData/certs/` | PC private key and certificate |
 | PC `userData/logs/linkphone.log` | Connection/diagnostic events (no message bodies) |
 | PC memory | SMS cache, notification feed, photo list, handoff list, mirror state |

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { AppSnapshot } from '../../shared/types';
+import { CAPABILITIES, type AppSnapshot } from '../../shared/types';
 import { api } from '../api';
 import { Button, Card, EmptyState, Notice, PageHeader, Spinner } from '../components';
 import type { Ui } from '../ui';
@@ -9,6 +9,10 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   const connected = state.connection.connected;
   const supported = state.connection.capabilities.includes('sms');
   const threads = state.sms.threads;
+  const totalUnread = threads.reduce((sum, thread) => sum + thread.unread, 0);
+  const canOpenOnPhone = state.connection.capabilities.includes(
+    CAPABILITIES.SMS_OPEN_THREAD,
+  );
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [subId, setSubId] = useState<number | null>(null);
@@ -94,17 +98,39 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
     <>
       <PageHeader
         title="Messages"
-        subtitle={`${threads.length} conversation${threads.length === 1 ? '' : 's'} on your phone`}
+        subtitle={`${threads.length} conversation${threads.length === 1 ? '' : 's'} on your phone · unread tracked on this PC`}
         actions={
-          <Button
-            variant="ghost"
-            onClick={() => void ui.run(() => api.refreshSms())}
-            disabled={state.sms.refreshing}
-          >
-            {state.sms.refreshing ? 'Refreshing…' : 'Refresh'}
-          </Button>
+          <>
+            {totalUnread > 0 && (
+              <Button
+                variant="ghost"
+                onClick={() =>
+                  void ui.run(
+                    () => api.markAllSmsRead(),
+                    'All conversations marked read on this PC',
+                  )
+                }
+              >
+                Mark all read
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              onClick={() => void ui.run(() => api.refreshSms())}
+              disabled={state.sms.refreshing}
+            >
+              {state.sms.refreshing ? 'Refreshing…' : 'Refresh'}
+            </Button>
+          </>
         }
       />
+
+      {!canOpenOnPhone && (
+        <p className="muted small messages-hint">
+          Phone read sync needs the v0.1.2 phone app. Mark read still clears unread in
+          LinkPhone.
+        </p>
+      )}
 
       {state.sms.error && (
         <Notice tone="bad" title="Messages">
@@ -158,9 +184,41 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
                 <strong>{active?.displayName}</strong>
                 <span>{active?.messages.length ?? 0} messages</span>
               </div>
-              <span className="muted small">
-                {active ? formatDateTime(active.latest) : ''}
-              </span>
+              <div className="chat-head-actions">
+                <span className="muted small">
+                  {active ? formatDateTime(active.latest) : ''}
+                </span>
+                {active && active.unread > 0 && (
+                  <Button
+                    small
+                    variant="ghost"
+                    title="Clears unread in LinkPhone only."
+                    onClick={() =>
+                      void ui.run(
+                        () => api.markSmsRead(active.address),
+                        'Marked read on this PC',
+                      )
+                    }
+                  >
+                    Mark read
+                  </Button>
+                )}
+                {active && canOpenOnPhone && (
+                  <Button
+                    small
+                    variant="secondary"
+                    title="Opens this conversation in your phone's SMS app so that app can mark it read."
+                    onClick={() =>
+                      void ui.run(
+                        () => api.openSmsThreadOnPhone(active.address),
+                        'Tap the LinkPhone notification on your phone to open the SMS app',
+                      )
+                    }
+                  >
+                    Open on phone
+                  </Button>
+                )}
+              </div>
             </header>
 
             <div className="chat-scroll" ref={scrollRef}>

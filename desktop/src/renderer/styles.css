@@ -993,6 +993,7 @@ button {
 .messages-layout {
   display: grid;
   grid-template-columns: 310px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: 0;
   height: calc(100vh - 172px);
   min-height: 440px;
@@ -1005,7 +1006,9 @@ button {
 
 .thread-list {
   border-right: 1px solid var(--border-soft);
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   background: rgba(9, 14, 21, 0.5);
 }
 
@@ -1120,6 +1123,7 @@ button {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
   height: 100%;
 }
 
@@ -1150,11 +1154,25 @@ button {
 
 .chat-scroll {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 18px;
   display: flex;
   flex-direction: column;
   gap: 7px;
+}
+
+.chat-head-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.messages-hint {
+  margin: -6px 0 10px;
 }
 
 .msg-row {

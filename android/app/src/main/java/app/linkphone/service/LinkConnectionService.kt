@@ -43,6 +43,7 @@ import app.linkphone.core.model.Pong
 import app.linkphone.core.model.SmsChanged
 import app.linkphone.core.model.SmsListRequest
 import app.linkphone.core.model.SmsListResult
+import app.linkphone.core.model.SmsOpenThreadRequest
 import app.linkphone.core.model.SmsSendRequest
 import app.linkphone.core.model.StreamEnd
 import app.linkphone.core.net.ConnectionHub
@@ -451,6 +452,25 @@ class LinkConnectionService : Service() {
                 reply(envelope, ProtocolCodec.data(result))
             }
 
+            Types.SMS_OPEN_THREAD -> {
+                val request = envelope.decodeData<SmsOpenThreadRequest>()
+                val address = SafeInput.normalizeSmsAddress(request.address)
+                if (address == null) {
+                    replyError(envelope, ErrorCodes.BAD_REQUEST, "Invalid conversation address")
+                    return
+                }
+                if (!Permissions.notifications(this)) {
+                    replyError(
+                        envelope,
+                        ErrorCodes.PERMISSION_DENIED,
+                        "Allow notifications on the phone to show the open-conversation prompt",
+                    )
+                    return
+                }
+                postOpenSmsNotification(address)
+                replyOk(envelope)
+            }
+
             Types.NOTIF_DISMISS -> {
                 val request = envelope.decodeData<NotificationDismissRequest>()
                 if (LinkNotificationListener.dismiss(request.key)) {
@@ -778,6 +798,32 @@ class LinkConnectionService : Service() {
         notifySafely(CLIPBOARD_NOTIFICATION_ID, notification)
     }
 
+    private fun postOpenSmsNotification(address: String) {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.fromParts("sms", address, null))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val pending = PendingIntent.getActivity(
+            this,
+            204,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val builder = NotificationCompat.Builder(this, CHANNEL_ALERTS)
+            .setSmallIcon(R.drawable.ic_stat_link)
+            .setContentTitle("Open conversation on phone")
+            .setContentText("Tap to open the conversation with $address in your SMS app")
+            .setStyle(
+                NotificationCompat.BigTextStyle().bigText(
+                    "Tap to open the conversation with $address in your default SMS app. " +
+                        "That app marks it read; LinkPhone does not modify your messages.",
+                ),
+            )
+            .setContentIntent(pending)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .build()
+        notifySafely(SMS_OPEN_NOTIFICATION_ID, builder.build())
+    }
+
     private fun postOpenLinkNotification(url: String) {
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -940,6 +986,7 @@ class LinkConnectionService : Service() {
         const val CLIPBOARD_NOTIFICATION_ID = 1003
         const val LINK_NOTIFICATION_ID = 1004
         const val ALERT_NOTIFICATION_ID = 1005
+        const val SMS_OPEN_NOTIFICATION_ID = 1006
 
         private const val MAX_TRANSFER_BYTES = 8 * 1024 * 1024
 

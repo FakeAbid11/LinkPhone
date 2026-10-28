@@ -44,7 +44,12 @@ gradle -p android :app:testDebugUnitTest :app:lintDebug
   reject pairing while busy, route a phone event.
 - `tls.test.ts` — certificate stability, exact pinned-certificate fingerprint, rejection of an
   untrusted self-signed certificate.
-- `store.test.ts` — persistence, dedupe of muted packages, remove/reset, corrupt-file recovery.
+- `store.test.ts` — persistence, dedupe of muted packages, remove/reset, corrupt-file recovery,
+  per-device SMS read-state ids (cap/remove/reset).
+- `sms-service.test.ts` — local read marking, per-device persistence, mark-all, and the
+  `sms.openThread` request payload.
+- `e2e/messages-layout.spec.ts` — the conversation list and message history scroll independently at
+  1180×780 and 960×640, and the composer stays in view.
 
 Run:
 
@@ -72,7 +77,8 @@ npx playwright test
 The following require real hardware and are **not** verified by this repository's CI:
 
 - OEM permission behavior (Xiaomi, Samsung, Oppo, Vivo, Huawei, Pixel, etc.)
-- Actual SMS arrival/sending, MMS behavior, dual-SIM selection
+- Actual SMS arrival/sending, MMS behavior, dual-SIM selection, and whether the stock SMS app marks
+  a conversation read when Open on phone opens it
 - Notification listener behavior on Android 15+ (redaction, rebind)
 - Call answer/decline and caller ID on a real carrier
 - MediaProjection consent, secure-window blacking, lock/rotation behavior
@@ -109,6 +115,11 @@ Use two devices on the same Wi-Fi. Check each item and keep the diagnostics log 
 ### SMS
 
 - [ ] Grant SMS; recent threads load.
+- [ ] With 30+ conversations, the conversation list scrolls independently of the message history.
+- [ ] Mark one thread read; its unread badge and the nav count clear. Mark all; all clear. Restart
+      the PC app; the read state persists. A new incoming SMS becomes unread again.
+- [ ] Open on phone: a notification appears on the phone; tapping it opens the stock SMS app and
+      that app marks the conversation read. Denying notifications returns a clear error.
 - [ ] Send a short message; it arrives on the recipient.
 - [ ] Send a multi-part (>160 char) message; it arrives intact.
 - [ ] Receive an SMS while connected; the PC refreshes.

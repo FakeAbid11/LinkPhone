@@ -75,6 +75,7 @@ server verifies with Node `crypto.verify('sha256', payload, { key, dsaEncoding: 
 | `phone.info` | phone → PC | `model, androidVersion, appVersion, capabilities[], subscriptions[]` |
 | `sms.list` | PC → phone | request `{limit}`; response `{messages[]}` |
 | `sms.send` | PC → phone | `address, body, subId?`; response `{accepted, parts, subId}` |
+| `sms.openThread` | PC → phone | `{address}` — posts a tappable notification that opens the conversation in the stock SMS app; it does not write the SMS provider |
 | `sms.changed` | phone → PC | `{timestamp}` — PC should refresh `sms.list` |
 | `notif.post` | phone → PC | `key, packageName, appName, title?, text?, subText?, category?, ongoing, time` |
 | `notif.removed` | phone → PC | `{key}` |
