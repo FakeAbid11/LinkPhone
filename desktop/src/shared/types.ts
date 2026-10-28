@@ -13,6 +13,7 @@ export const TYPES = {
   PHONE_INFO: 'phone.info',
   SMS_LIST: 'sms.list',
   SMS_SEND: 'sms.send',
+  SMS_OPEN_THREAD: 'sms.openThread',
   SMS_CHANGED: 'sms.changed',
   NOTIF_POST: 'notif.post',
   NOTIF_REMOVED: 'notif.removed',
@@ -54,6 +55,7 @@ export const ERROR_CODES = {
 
 export const CAPABILITIES = {
   SMS: 'sms',
+  SMS_OPEN_THREAD: 'sms.openThread',
   NOTIFICATIONS: 'notifications',
   PHOTOS: 'photos',
   PHOTOS_PARTIAL: 'photos.partial',
@@ -381,6 +383,9 @@ export interface LinkPhoneApi {
   updateSettings(patch: Partial<Settings>): Promise<void>;
   refreshSms(): Promise<void>;
   sendSms(address: string, body: string, subId?: number | null): Promise<void>;
+  markSmsRead(address: string): Promise<void>;
+  markAllSmsRead(): Promise<void>;
+  openSmsThreadOnPhone(address: string): Promise<void>;
   dismissNotification(key: string): Promise<void>;
   setPackageMuted(pkg: string, muted: boolean): Promise<void>;
   refreshPhotos(): Promise<void>;

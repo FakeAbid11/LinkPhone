@@ -2,8 +2,9 @@ import type { PeerSession } from '../server';
 import type { SmsListResultWire, SmsMessageUi, SmsThreadUi } from '../../shared/types';
 import { TYPES } from '../../shared/types';
 import { groupSmsThreads, mergeLocalSms } from '../core/sms';
-import { normalizeDialNumber } from '../core/safety';
+import { normalizeAddress, normalizeDialNumber } from '../core/safety';
 import type { Logger } from '../core/logger';
+import type { Store } from '../core/store';
 
 export interface SmsStatus {
   threads: SmsThreadUi[];
@@ -20,9 +21,12 @@ export class SmsService {
   private error: string | undefined;
   private session: PeerSession | undefined;
   private debounce: NodeJS.Timeout | undefined;
+  private deviceId: string | undefined;
+  private readonly readIds = new Set<string>();
 
   constructor(
     private readonly logger: Logger,
+    private readonly store: Store,
     private readonly onChange: () => void,
   ) {}
 
@@ -32,12 +36,19 @@ export class SmsService {
     this.local = [];
     this.error = undefined;
     this.loading = false;
+    this.deviceId = session.device?.id;
+    this.readIds.clear();
+    if (this.deviceId) {
+      for (const id of this.store.readSmsFor(this.deviceId)) this.readIds.add(id);
+    }
     this.onChange();
   }
 
   onDisconnected(): void {
     this.session = undefined;
     this.loading = false;
+    this.deviceId = undefined;
+    this.readIds.clear();
     if (this.debounce) clearTimeout(this.debounce);
     this.debounce = undefined;
     this.onChange();
@@ -123,12 +134,65 @@ export class SmsService {
     this.onChange();
   }
 
+  markThreadRead(address: string): void {
+    const normalized = normalizeAddress(address);
+    if (!normalized) return;
+    this.applyRead(
+      this.messages
+        .filter(
+          (message) =>
+            message.type === 1 &&
+            !message.read &&
+            !this.readIds.has(message.id) &&
+            normalizeAddress(message.address) === normalized,
+        )
+        .map((message) => message.id),
+    );
+  }
+
+  markAllRead(): void {
+    this.applyRead(
+      this.messages
+        .filter(
+          (message) =>
+            message.type === 1 && !message.read && !this.readIds.has(message.id),
+        )
+        .map((message) => message.id),
+    );
+  }
+
+  async openThreadOnPhone(address: string): Promise<void> {
+    const session = this.session;
+    if (!session) throw new Error('Connect to your phone first');
+    const normalized = normalizeAddress(address);
+    if (!normalized) throw new Error('Invalid conversation address');
+
+    this.markThreadRead(address);
+    await session.request(TYPES.SMS_OPEN_THREAD, { address: normalized }, 8_000);
+    this.logger.log('Sms', 'Asked the phone to open the conversation');
+  }
+
   status(): SmsStatus {
+    const merged = mergeLocalSms(this.messages, this.local);
+    const withLocalRead = merged.map((message) =>
+      this.readIds.has(message.id) ? { ...message, read: true } : message,
+    );
     return {
-      threads: groupSmsThreads(mergeLocalSms(this.messages, this.local)),
+      threads: groupSmsThreads(withLocalRead),
       loading: this.loading,
       error: this.error,
       refreshing: this.loading,
     };
+  }
+
+  private applyRead(ids: string[]): void {
+    if (ids.length === 0) return;
+    for (const id of ids) this.readIds.add(id);
+    if (this.deviceId) this.store.addReadSms(this.deviceId, ids);
+    this.logger.log(
+      'Sms',
+      `Marked ${ids.length} message${ids.length === 1 ? '' : 's'} read on this PC`,
+    );
+    this.onChange();
   }
 }

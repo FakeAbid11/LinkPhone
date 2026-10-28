@@ -232,7 +232,7 @@ export class AppController {
 
   private createServices(): void {
     const onChange = () => this.scheduleBroadcast();
-    this.sms = new SmsService(this.logger, onChange);
+    this.sms = new SmsService(this.logger, this.store, onChange);
     this.notifications = new NotificationService(
       this.store,
       this.logger,
@@ -550,6 +550,18 @@ export class AppController {
 
   async sendSms(address: string, body: string, subId?: number | null): Promise<void> {
     await this.sms.send(address, body, subId);
+  }
+
+  markSmsRead(address: string): void {
+    this.sms.markThreadRead(address);
+  }
+
+  markAllSmsRead(): void {
+    this.sms.markAllRead();
+  }
+
+  async openSmsThreadOnPhone(address: string): Promise<void> {
+    await this.sms.openThreadOnPhone(address);
   }
 
   async dismissNotification(key: string): Promise<void> {

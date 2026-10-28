@@ -2,6 +2,7 @@ package app.linkphone
 
 import app.linkphone.core.model.CallDialRequest
 import app.linkphone.core.model.Pong
+import app.linkphone.core.model.SmsOpenThreadRequest
 import app.linkphone.core.protocol.BinaryCodec
 import app.linkphone.core.protocol.Envelope
 import app.linkphone.core.protocol.ProtocolCodec
@@ -97,6 +98,20 @@ class ProtocolCodecTest {
             CallDialRequest("+15550101000"),
         )
         assertFalse(defaultEncoded.contains("subId"))
+    }
+
+    @Test
+    fun smsOpenThreadRequestRoundTrips() {
+        val encoded = ProtocolCodec.json.encodeToString(
+            SmsOpenThreadRequest.serializer(),
+            SmsOpenThreadRequest("+15550101000"),
+        )
+        assertTrue(encoded.contains("+15550101000"))
+        val decoded = ProtocolCodec.json.decodeFromString(
+            SmsOpenThreadRequest.serializer(),
+            encoded,
+        )
+        assertEquals("+15550101000", decoded.address)
     }
 
     @Test

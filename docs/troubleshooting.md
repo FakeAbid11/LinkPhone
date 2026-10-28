@@ -83,7 +83,15 @@ no hidden or battery-exempt API that does better without system privileges.
 
 ## SMS
 
+- **Conversation list does not scroll:** fixed in v0.1.2; update the PC app. The conversation list
+  and message history now have independent scroll areas.
 - **No threads:** grant READ_SMS, then reconnect or reopen Messages. The provider may be empty.
+- **Mark read only clears LinkPhone:** expected. Android only lets the default SMS app write the
+  phone's read flag. Use **Open on phone**; a notification appears on the phone, and tapping it
+  opens the conversation in your stock SMS app, which marks it read. Allow notifications on the
+  phone, and note that OEM SMS apps may behave differently.
+- **Open on phone is missing:** update the phone app to v0.1.2 and grant SMS. The PC hides the button
+  when the phone does not advertise `sms.openThread`; the PC can still mark read locally.
 - **Sent but not in the stock app:** expected without the default-SMS role. LinkPhone reports what
   it handed to the phone; delivery reports are not implemented.
 - **Sending fails:** check SEND_SMS, network/carrier service, and the destination format. Short

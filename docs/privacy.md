@@ -27,6 +27,7 @@ routing information, not message content.
 | Paired PC address, id, certificate fingerprint, name | Phone app-private preferences | Until Forget PC or uninstall |
 | Phone P-256 private key | AndroidKeyStore | Until app data is cleared/uninstalled |
 | PC id/name, paired phone public keys, settings, muted apps | PC `state.json` | Until removed/reset/uninstall |
+| SMS read-state message ids (no bodies), keyed by phone | PC `state.json` | Per-device; capped; cleared when the phone is removed or identity reset |
 | PC TLS key/certificate | PC `userData/certs` | Until reset/uninstall |
 | Connection logs (no content) | PC `userData/logs`, phone memory | Rotated/limited; PC log file rotates at 1 MB |
 | SMS cache, notification feed, photo list, handoff list | Memory only | Until app quits/disconnects |
@@ -36,7 +37,9 @@ routing information, not message content.
 | Clipboard | OS clipboard | Controlled by Android/Windows |
 
 LinkPhone does not write SMS bodies or notification text to disk. The PC's `state.json` contains no
-message history. The phone does not cache messages; it reads the system provider on request.
+message history; it keeps only the ids of messages you marked read locally so unread badges survive
+a restart. The phone does not cache messages; it reads the system provider on request. The Open on
+phone notification contains only the conversation address, not message text.
 
 ## Permission use
 

@@ -39,6 +39,15 @@ export function registerIpc(controller: AppController): void {
       typeof subId === 'number' ? subId : null,
     ),
   );
+  ipcMain.handle('sms:markRead', (_event, address: unknown) =>
+    controller.markSmsRead(requireString(address, 'conversation address', 64)),
+  );
+  ipcMain.handle('sms:markAllRead', () => controller.markAllSmsRead());
+  ipcMain.handle('sms:openOnPhone', (_event, address: unknown) =>
+    controller.openSmsThreadOnPhone(
+      requireString(address, 'conversation address', 64),
+    ),
+  );
 
   ipcMain.handle('notif:dismiss', (_event, key: unknown) =>
     controller.dismissNotification(requireString(key, 'notification key', 512)),

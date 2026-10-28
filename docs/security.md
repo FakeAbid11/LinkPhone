@@ -72,7 +72,7 @@
 | Phone private key | AndroidKeyStore | Hardware-backed where available; non-exportable |
 | Paired PC details | Phone SharedPreferences | App-private; device encryption |
 | PC private key | `userData/certs/pc-key.pem` | File mode 0600; OS account encryption recommended |
-| Paired phones and settings | `userData/state.json` | File mode 0600; contains public keys only |
+| Paired phones, settings, SMS read-state ids | `userData/state.json` | File mode 0600; public keys plus message ids (no SMS bodies) |
 | Message/notification caches | PC memory | Not persisted by LinkPhone |
 | Photo thumbnails | PC memory | Not persisted |
 | Saved photos/files | User-selected folders | Normal OS file permissions |

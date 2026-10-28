@@ -8,7 +8,7 @@ next time the feature is used (reconnect to refresh the capability list).
 
 | Permission | Android | Feature | When it is requested | If denied |
 |---|---|---|---|---|
-| `POST_NOTIFICATIONS` | 13+ | The required ongoing connection notification | Onboarding / permission card | The service still runs, but Android may hide its notification; Android 33+ also needs this for alerts |
+| `POST_NOTIFICATIONS` | 13+ | The required ongoing connection notification and the Open on phone prompt | Onboarding / permission card | The service still runs, but Android may hide its notification; Android 33+ also needs this for alerts and the Open on phone prompt |
 | `READ_SMS` | all | Read SMS threads | Messages card | The PC cannot list messages |
 | `RECEIVE_SMS` | all | New-SMS hint broadcast | Messages card | The PC still refreshes on connect and via the provider observer, but live hints stop |
 | `SEND_SMS` | all | Send SMS | Messages card | Sending is refused |
@@ -38,6 +38,9 @@ LinkPhone does **not** request the default-SMS role (`ROLE_SMS`). That means:
 
 - It can read the provider and send through `SmsManager`.
 - Messages sent from the PC may not appear in the phone's stock SMS app or in LinkPhone's own list.
+- It cannot write the provider's read flag. **Mark read** clears unread in LinkPhone on the PC;
+  **Open on phone** posts a notification whose tap opens the conversation in the stock SMS app, so
+  that app can mark it read. `POST_NOTIFICATIONS` is required for the prompt.
 - MMS/RCS are not supported.
 
 Taking the default-SMS role would require a complete SMS/MMS client and would replace the user's

@@ -81,8 +81,8 @@ gh secret set ANDROID_KEY_PASSWORD --repo FakeAbid11/LinkPhone --body "$YOUR_PAS
    `gh release create`.
 
 ```bash
-git tag v0.1.1
-git push origin v0.1.1
+git tag v0.1.2
+git push origin v0.1.2
 ```
 
 The tag must be `v` + the semantic version used for the desktop package. The release notes live in
