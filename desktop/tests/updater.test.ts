@@ -11,9 +11,18 @@ import type { ReleaseInfo, UpdateClient } from '../src/main/updater/github';
 
 const dirs: string[] = [];
 
-afterEach(() => {
+afterEach(async () => {
   vi.useRealTimers();
-  for (const dir of dirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
+  for (const dir of dirs.splice(0)) {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        fs.rmSync(dir, { recursive: true, force: true });
+        break;
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    }
+  }
 });
 
 function tempDir(): string {
@@ -155,6 +164,7 @@ describe('update service', () => {
     const { instance } = service(client, { autoCheck: true });
     instance.start();
     await vi.advanceTimersByTimeAsync(15_000);
+    await instance.whenIdle();
     expect(latestRelease).toHaveBeenCalledTimes(1);
     instance.stop();
     await vi.advanceTimersByTimeAsync(6 * 60 * 60 * 1_000);
