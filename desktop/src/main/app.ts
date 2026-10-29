@@ -41,6 +41,7 @@ import {
   type Envelope,
   type HandoffFileMetaWire,
   type HandoffShareWire,
+  type MirrorCodec,
   type MirrorTouchWire,
   type NotificationRemovedWire,
   type NotificationWire,
@@ -280,7 +281,7 @@ export class AppController {
     this.mirrorService = new MirrorService(
       this.logger,
       onChange,
-      (payload, seq) => this.sendMirrorFrame(payload, seq),
+      (frame) => this.sendMirrorFrame(frame),
     );
     const mode: UpdateMode = this.e2e
       ? 'disabled'
@@ -446,16 +447,21 @@ export class AppController {
 
   private handleBinary(session: PeerSession, frame: BinaryFrame): void {
     if (session !== this.session) return;
-    if (frame.type === 2) {
+    if (frame.type === 2 || frame.type === 4) {
       this.mirrorService.onBinaryFrame(frame);
       return;
     }
     this.streams.add(frame);
   }
 
-  private sendMirrorFrame(payload: Buffer, seq: number): void {
+  private sendMirrorFrame(frame: BinaryFrame): void {
     if (!this.window || this.window.isDestroyed()) return;
-    this.window.webContents.send('mirror:frame', { seq, data: payload });
+    this.window.webContents.send('mirror:frame', {
+      type: frame.type,
+      seq: frame.seq,
+      flags: frame.flags,
+      data: frame.payload,
+    });
   }
 
   async createPairingOffer(): Promise<void> {
@@ -678,8 +684,8 @@ export class AppController {
     await this.handoff.openOnPhone(url);
   }
 
-  async startMirror(): Promise<void> {
-    await this.mirrorService.start();
+  async startMirror(codec: MirrorCodec = 'jpeg'): Promise<void> {
+    await this.mirrorService.start(codec);
   }
 
   async stopMirror(): Promise<void> {
@@ -688,6 +694,10 @@ export class AppController {
 
   async mirrorTouch(touch: MirrorTouchWire): Promise<void> {
     await this.mirrorService.touch(touch);
+  }
+
+  async requestMirrorKeyframe(): Promise<void> {
+    await this.mirrorService.requestKeyframe();
   }
 
   async resetIdentity(): Promise<void> {

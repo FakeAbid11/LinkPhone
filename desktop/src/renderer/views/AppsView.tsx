@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import type { AppSnapshot } from '../../shared/types';
+import { CAPABILITIES, type AppSnapshot, type MirrorCodec } from '../../shared/types';
 import { api } from '../api';
-import { Badge, Button, Card, EmptyState, Notice, PageHeader } from '../components';
+import { Badge, Button, Card, EmptyState, Field, Notice, PageHeader, Select } from '../components';
+import { H264StreamDecoder } from '../mirror/decoder';
+import { createWebCodecsBackend, h264Supported } from '../mirror/webcodecs';
 import type { Ui } from '../ui';
+
+type CodecPreference = 'auto' | 'jpeg';
 
 export function AppsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   const connected = state.connection.connected;
@@ -11,8 +15,18 @@ export function AppsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
     state.connection.capabilities.length === 0;
   const active = state.mirror.state.active;
   const [requested, setRequested] = useState(false);
+  const [preference, setPreference] = useState<CodecPreference>('auto');
+  const [fps, setFps] = useState(0);
+  const [notice, setNotice] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const decoderRef = useRef<H264StreamDecoder | null>(null);
+  const framesRef = useRef(0);
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
+
+  const canH264 =
+    state.connection.capabilities.includes(CAPABILITIES.MIRROR_H264) && h264Supported();
+  const requestedCodec: MirrorCodec = preference === 'auto' && canH264 ? 'h264' : 'jpeg';
+  const phoneCodec = state.mirror.state.codec ?? 'jpeg';
 
   useEffect(() => {
     if (active || state.mirror.error) setRequested(false);
@@ -28,8 +42,67 @@ export function AppsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   }, [requested, ui]);
 
   useEffect(() => {
-    const unsubscribe = api.onMirrorFrame(({ data }) => {
-      const blob = new Blob([new Uint8Array(data)], { type: 'image/jpeg' });
+    const timer = window.setInterval(() => {
+      setFps(framesRef.current);
+      framesRef.current = 0;
+    }, 1_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!active) {
+      framesRef.current = 0;
+      setFps(0);
+    }
+  }, [active]);
+
+  useEffect(() => {
+    if (!active || phoneCodec !== 'h264') {
+      decoderRef.current?.close();
+      decoderRef.current = null;
+      return;
+    }
+    const decoder = new H264StreamDecoder({
+      width: state.mirror.state.width,
+      height: state.mirror.state.height,
+      createBackend: createWebCodecsBackend,
+      draw: (frame) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const width = frame.displayWidth || state.mirror.state.width;
+        const height = frame.displayHeight || state.mirror.state.height;
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width;
+          canvas.height = height;
+        }
+        canvas.getContext('2d')?.drawImage(frame as unknown as CanvasImageSource, 0, 0);
+      },
+      requestKeyframe: () => {
+        void api.requestMirrorKeyframe().catch(() => undefined);
+      },
+      onFatal: (message) => {
+        setPreference('jpeg');
+        setNotice(`${message} Restart mirroring in Compatible mode.`);
+        void api.stopMirror().catch(() => undefined);
+      },
+    });
+    decoderRef.current = decoder;
+    void api.requestMirrorKeyframe().catch(() => undefined);
+    return () => {
+      decoder.close();
+      if (decoderRef.current === decoder) decoderRef.current = null;
+    };
+  }, [active, phoneCodec, state.mirror.state.height, state.mirror.state.width]);
+
+  useEffect(() => {
+    const unsubscribe = api.onMirrorFrame((frame) => {
+      framesRef.current += 1;
+      if (frame.type === 4) {
+        decoderRef.current?.push(frame);
+        return;
+      }
+      if (frame.type !== 2) return;
+      const blob = new Blob([new Uint8Array(frame.data)], { type: 'image/jpeg' });
       void createImageBitmap(blob)
         .then((bitmap) => {
           const canvas = canvasRef.current;
@@ -51,9 +124,10 @@ export function AppsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   }, []);
 
   const start = async () => {
+    setNotice(null);
     setRequested(true);
     try {
-      await api.startMirror();
+      await api.startMirror(requestedCodec);
     } catch (error) {
       setRequested(false);
       ui.toast('error', error instanceof Error ? error.message : String(error));
@@ -62,6 +136,8 @@ export function AppsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
 
   const stop = async () => {
     setRequested(false);
+    decoderRef.current?.close();
+    decoderRef.current = null;
     await ui.run(() => api.stopMirror(), 'Mirroring stopped');
   };
 
@@ -208,10 +284,41 @@ export function AppsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
               </Badge>
               {active && (
                 <span className="muted small">
-                  {state.mirror.state.width} × {state.mirror.state.height} · low frame rate
+                  {phoneCodec === 'h264' ? 'H.264' : 'JPEG'} · {state.mirror.state.width} ×{' '}
+                  {state.mirror.state.height}
+                  {fps > 0 ? ` · ~${fps} fps` : ''}
                 </span>
               )}
             </div>
+            {!active && (
+              <Field
+                id="mirror-codec"
+                label="Codec"
+                hint={
+                  canH264
+                    ? 'Auto uses hardware H.264 when both apps support it.'
+                    : 'H.264 is unavailable on this phone or PC; JPEG will be used.'
+                }
+              >
+                <Select
+                  id="mirror-codec"
+                  value={preference}
+                  disabled={requested}
+                  onChange={(event) =>
+                    setPreference(event.target.value === 'jpeg' ? 'jpeg' : 'auto')
+                  }
+                >
+                  <option value="auto">Auto (H.264)</option>
+                  <option value="jpeg">Compatible (JPEG)</option>
+                </Select>
+              </Field>
+            )}
+            {active && requestedCodec === 'h264' && phoneCodec === 'jpeg' && (
+              <Notice tone="warn">
+                The phone did not start H.264; this session is using JPEG.
+              </Notice>
+            )}
+            {notice && <Notice tone="bad">{notice}</Notice>}
             {state.mirror.state.message && (
               <Notice tone="warn">{state.mirror.state.message}</Notice>
             )}

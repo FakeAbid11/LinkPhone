@@ -132,9 +132,10 @@ certificate is the PC's identity; the signature is the phone's identity.
   stream-end event. The phone transcodes to JPEG (thumbnail 512 px, full 2048 px max) to keep
   HEIC and extreme sizes off the PC.
 - **Handoff images**: same mechanism with frame type 3 and a 20 MB cap.
-- **Mirroring**: the phone captures with MediaProjection, downscales to a 1280 px longest side,
-  JPEG-compresses at ≤5 fps, and sends each frame as binary type 2. The PC draws frames to a
-  canvas and sends normalized tap/swipe coordinates back.
+- **Mirroring**: the phone captures with MediaProjection. When both sides support it, a hardware AVC
+  encoder writes ~720×1600/30 fps/6 Mbps access units (binary type 4) that the PC decodes with
+  WebCodecs; otherwise it falls back to ≤1280 px/≤5 fps JPEG (type 2). The PC draws frames to a canvas
+  and sends normalized tap/swipe coordinates back.
 
 ## Persistence
 

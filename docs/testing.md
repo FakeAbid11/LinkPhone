@@ -28,6 +28,9 @@ locally.
 - `PhotoQueryTest` — MediaStore bucket ids, keyset args, zero-date fallback, and valid-row paging.
 - `PhotoRepositoryTest` — sampling for large images and invalid dimensions.
 - `ConnectionPolicyTest` — auto-start/boot gating on paired, auto-connect, and persisted intent.
+- `AvcConfigTest` / `MirrorSizingTest` / `MirrorCodecChoiceTest` / `VideoFrameCodecTest` — Annex B
+  SPS/PPS parsing, codec strings, 720×1600 sizing/step-down, codec negotiation, and type-4
+  flags/timestamps.
 
 Run in CI:
 
@@ -62,8 +65,10 @@ gradle -p android :app:testDebugUnitTest :app:lintDebug
   muted, caption, primary, secondary, and primary-button text.
 - `photos.test.ts` — first page and album requests, selecting an album, keyset `beforeDate/beforeId`,
   paging/dedupe, unsupported phones, invalid responses, and thumbnail single-flight.
-- `mirror.test.ts` — start/stop requests, denial/error state propagation, binary-frame gating, and
-  touch validation.
+- `mirror.test.ts` — start/stop requests, codec payloads, denial/error state propagation, binary-frame
+  gating, keyframe requests, and touch validation.
+- `h264.test.ts` / `decoder.test.ts` — Annex B/SPS parsing, codec strings, keyframe gating, decode
+  backlog recovery, and error fallback.
 - `updater.test.ts` — version comparison, tag/checksum parsing, check/download/ready phases, progress
   and checksum rejection, portable/disabled no-ops, install gating, and auto-check timers.
 - `e2e/messages-layout.spec.ts` — the conversation list and message history scroll independently at
@@ -225,20 +230,25 @@ Use two devices on the same Wi-Fi. Check each item and keep the diagnostics log 
 
 ### Apps / mirroring
 
-- [ ] Start mirroring; approve the notification; choose full screen or one app.
+- [ ] Start mirroring with **Auto (H.264)**; approve the notification; choose full screen or one app.
 - [ ] Confirm it does **not** fail with “Must register a callback before starting capture.”
+- [ ] H.264: the Session card shows **H.264**, roughly 720×1600, and about 30 fps; text is sharp.
+- [ ] Switch to **Compatible (JPEG)** and start again: the Session card shows **JPEG** and ≤5 fps.
+- [ ] Confirm the phone falls back to JPEG if H.264 is unavailable (Session card shows JPEG).
 - [ ] Deny the capture prompt: the PC shows an error and returns to **Start mirroring**.
 - [ ] Tap the consent notification, then press Back/Cancel: the PC shows a cancellation, not
       “Awaiting phone.”
 - [ ] Dismiss the consent notification: the PC reports that consent was not approved.
 - [ ] Ignore the consent notification: the PC clears the request after 90 seconds.
 - [ ] Start while notifications are denied: the PC shows an immediate error, not “Awaiting phone.”
-- [ ] Frames render at a usable rate.
-- [ ] Tap/swipe with Accessibility enabled.
+- [ ] Tap/swipe with Accessibility enabled; verify taps track the picture in both codecs.
 - [ ] Disable Accessibility: view-only mode, no remote input.
 - [ ] Lock the phone: capture stops.
 - [ ] Rotate the phone: the session stops with a restart message.
 - [ ] Open a banking/DRM app: black window (expected).
+- [ ] Stall Wi-Fi briefly during H.264: the picture recovers after a fresh key frame.
+- [ ] Old Windows build + new APK: mirroring still works in JPEG mode.
+- [ ] New Windows build + v0.5.3 APK: the phone falls back to JPEG without errors.
 - [ ] Stop mirroring from the PC and from the phone notification.
 
 ### Background

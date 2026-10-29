@@ -16,6 +16,8 @@ class PhoneSession internal constructor(
     fun send(text: String): Boolean = socket.send(text)
 
     fun sendBinary(bytes: ByteArray): Boolean = socket.send(bytes.toByteString())
+
+    fun queueSize(): Long = socket.queueSize()
 }
 
 /**
@@ -47,6 +49,8 @@ object ConnectionHub {
         val active = session.get() ?: return false
         return runCatching { active.sendBinary(bytes) }.getOrDefault(false)
     }
+
+    fun queueSize(): Long = session.get()?.queueSize() ?: 0L
 
     fun sendPing() {
         sendEvent(Types.PING)

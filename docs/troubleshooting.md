@@ -193,7 +193,14 @@ override the platform; there is no public API that prevents that.
   consent token. Start mirroring again from the Apps tab.
 - **No tap/swipe:** enable the LinkPhone Accessibility service (phone → Permissions → Remote taps).
   The PC shows “View only” until it is enabled.
-- **Low frame rate:** expected; the phone sends ≤5 fps at ≤1280 px to limit CPU/battery use.
+- **Choppy or soft picture:** check the Session card. **H.264** should show roughly 30 fps; if it
+  shows **JPEG**, the phone or PC fell back to the old ≤5 fps path. Select **Compatible (JPEG)** only
+  when H.264 fails; restart mirroring after changing the codec.
+- **H.264 does not start / “Restart in Compatible mode”:** the phone may lack a hardware AVC
+  encoder or the PC may not decode the stream. Choose Compatible (JPEG), or update the phone app.
+  H.264 is still consent-gated and stops on lock/rotation just like JPEG.
+- **H.264 freezes after a Wi-Fi stall:** the PC requests a fresh key frame automatically; if the
+  picture does not return after a few seconds, stop and restart mirroring.
 - **Consent notification never appears:** allow notifications on the phone. The consent must be
   given for every session; there is no persistent capture permission.
 - **Mirroring stops when the PC window is in the background:** the phone keeps capturing until you
@@ -213,7 +220,14 @@ override the platform; there is no public API that prevents that.
   consent token. Start mirroring again from the Apps tab.
 - **No tap/swipe:** enable the LinkPhone Accessibility service (phone → Permissions → Remote taps).
   The PC shows “View only” until it is enabled.
-- **Low frame rate:** expected; the phone sends ≤5 fps at ≤1280 px to limit CPU/battery use.
+- **Choppy or soft picture:** check the Session card. **H.264** should show roughly 30 fps; if it
+  shows **JPEG**, the phone or PC fell back to the old ≤5 fps path. Select **Compatible (JPEG)** only
+  when H.264 fails; restart mirroring after changing the codec.
+- **H.264 does not start / “Restart in Compatible mode”:** the phone may lack a hardware AVC
+  encoder or the PC may not decode the stream. Choose Compatible (JPEG), or update the phone app.
+  H.264 is still consent-gated and stops on lock/rotation just like JPEG.
+- **H.264 freezes after a Wi-Fi stall:** the PC requests a fresh key frame automatically; if the
+  picture does not return after a few seconds, stop and restart mirroring.
 - **Taps land in the wrong place:** the mirrored portrait video can be letterboxed in the PC canvas;
   this is a known issue separate from the consent-state fix.
 - **Single-app capture:** on Android 14, choosing one app can make full-screen tap coordinates

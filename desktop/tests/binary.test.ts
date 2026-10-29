@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  FLAG_CODEC_CONFIG,
+  FLAG_KEY_FRAME,
   HEADER_SIZE,
   TYPE_FILE,
   TYPE_MIRROR,
   TYPE_PHOTO,
+  TYPE_VIDEO,
   decodeBinaryFrame,
   encodeBinaryFrame,
 } from '../src/main/core/binary';
@@ -31,6 +34,36 @@ describe('binary frames', () => {
       encodeBinaryFrame(TYPE_FILE, 99, 1, false, Buffer.from([4, 5])),
     );
     expect(file?.type).toBe(TYPE_FILE);
+  });
+
+  it('carries H.264 keyframe and codec-config flags', () => {
+    const key = decodeBinaryFrame(
+      encodeBinaryFrame(
+        TYPE_VIDEO,
+        0,
+        5,
+        false,
+        Buffer.from('access-unit'),
+        FLAG_KEY_FRAME,
+      ),
+    );
+    expect(key?.type).toBe(TYPE_VIDEO);
+    expect(key?.keyframe).toBe(true);
+    expect(key?.codecConfig).toBe(false);
+    expect(key?.last).toBe(false);
+
+    const config = decodeBinaryFrame(
+      encodeBinaryFrame(
+        TYPE_VIDEO,
+        0,
+        4,
+        false,
+        Buffer.from('sps-pps'),
+        FLAG_CODEC_CONFIG,
+      ),
+    );
+    expect(config?.codecConfig).toBe(true);
+    expect(config?.keyframe).toBe(false);
   });
 
   it('rejects invalid headers and types', () => {

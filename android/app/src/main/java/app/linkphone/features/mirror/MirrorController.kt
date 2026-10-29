@@ -3,32 +3,30 @@ package app.linkphone.features.mirror
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
-import android.graphics.Bitmap
-import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
-import android.media.Image
-import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
-import android.os.SystemClock
+import android.os.Looper
 import android.view.Display
 import android.view.WindowManager
 import app.linkphone.core.model.MirrorState
-import app.linkphone.core.protocol.BinaryCodec
+import app.linkphone.core.net.ConnectionHub
 import app.linkphone.core.util.LinkStatus
-import java.io.ByteArrayOutputStream
-import kotlin.math.max
-import kotlin.math.min
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /**
  * Screen mirroring is intentionally best-effort: Android grants one virtual
  * display per consent token, stops capture when the screen locks, and requires
  * a new consent after rotation. LinkPhone surfaces those limits instead of
  * hiding them.
+ *
+ * H.264 is preferred when both the phone and the PC support it; the JPEG sink
+ * remains the fallback and the PC's Compatible mode.
  */
 class MirrorController(
     private val context: Context,
@@ -38,18 +36,20 @@ class MirrorController(
 ) {
     private var projection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
-    private var imageReader: ImageReader? = null
+    private var sink: MirrorSink? = null
     private var handlerThread: HandlerThread? = null
     private var handler: Handler? = null
     private var displayListener: DisplayManager.DisplayListener? = null
     private var initialRotation = -1
-    private var sequence = 0
-    private var lastFrameAt = 0L
+
+    @Volatile
     private var stopping = false
+    @Volatile
+    private var suppressProjectionStop = false
 
     fun isActive(): Boolean = projection != null
 
-    fun start(resultCode: Int, data: Intent) {
+    fun start(resultCode: Int, data: Intent, requestedCodec: String = MirrorCodecChoice.JPEG) {
         if (isActive()) stop("Restarting screen mirroring")
         val manager = context.getSystemService(MediaProjectionManager::class.java)
             ?: throw IllegalStateException("MediaProjection is unavailable")
@@ -57,6 +57,7 @@ class MirrorController(
             ?: throw IllegalStateException("Screen capture consent was not granted")
 
         projection = newProjection
+        suppressProjectionStop = false
         try {
             val thread = HandlerThread("LinkPhoneMirror").also { it.start() }
             handlerThread = thread
@@ -68,32 +69,72 @@ class MirrorController(
             newProjection.registerCallback(
                 object : MediaProjection.Callback() {
                     override fun onStop() {
-                        stopInternal("Screen sharing was stopped on the phone")
+                        if (!suppressProjectionStop) {
+                            stopInternal("Screen sharing was stopped on the phone")
+                        }
                     }
                 },
                 workHandler,
             )
 
-            val (width, height) = scaledScreenSize()
-            val density = context.resources.displayMetrics.densityDpi
-            val reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
-            imageReader = reader
+            val screen = screenSize()
+            val codec = MirrorCodecChoice.resolve(
+                requestedCodec,
+                MirrorEncoderSelector.avcEncoderAvailable(),
+            )
+            var selected: MirrorSink? = null
+            if (codec == MirrorCodecChoice.H264) {
+                selected = runCatching {
+                    onHandler {
+                        H264Sink.create(
+                            handler = workHandler,
+                            screenWidth = screen.first,
+                            screenHeight = screen.second,
+                            onFrame = onFrame,
+                            onFatal = { message -> workHandler.post { stopInternal(message) } },
+                            queueSize = ConnectionHub::queueSize,
+                        )
+                    }
+                }.getOrNull()
+                if (selected == null) {
+                    LinkStatus.log("Mirror", "No usable hardware AVC encoder; using JPEG")
+                }
+            }
+            if (selected == null) {
+                val (width, height) = MirrorSizing.jpegSize(screen.first, screen.second)
+                selected = onHandler {
+                    JpegSink(width, height, workHandler, onFrame)
+                }
+            }
+
+            val activeSink = selected ?: error("No mirror sink available")
+            sink = activeSink
+            activeSink.start()
             virtualDisplay = newProjection.createVirtualDisplay(
                 "LinkPhone",
-                width,
-                height,
-                density,
+                activeSink.width,
+                activeSink.height,
+                context.resources.displayMetrics.densityDpi,
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                reader.surface,
+                activeSink.surface,
                 null,
                 workHandler,
             )
-            reader.setOnImageAvailableListener({ source -> handleImage(source) }, workHandler)
 
             initialRotation = currentRotation()
             registerDisplayListener(workHandler)
-            LinkStatus.log("Mirror", "Mirroring started at ${width}x$height")
-            onState(MirrorState(active = true, width = width, height = height))
+            LinkStatus.log(
+                "Mirror",
+                "Mirroring started at ${activeSink.width}x${activeSink.height} (${activeSink.kind})",
+            )
+            onState(
+                MirrorState(
+                    active = true,
+                    width = activeSink.width,
+                    height = activeSink.height,
+                    codec = activeSink.kind,
+                ),
+            )
         } catch (error: Exception) {
             stopInternal(error.message ?: "Screen sharing failed")
             throw error
@@ -104,9 +145,26 @@ class MirrorController(
         stopInternal(message)
     }
 
+    fun requestKeyframe() {
+        val current = handler ?: return
+        current.post { sink?.requestKeyframe() }
+    }
+
     private fun stopInternal(message: String?) {
         if (stopping) return
-        val wasActive = projection != null || imageReader != null
+        val current = handler
+        if (current != null && Looper.myLooper() != current.looper) {
+            val stopped = runCatching {
+                onHandler { stopOnHandler(message) }
+            }.isSuccess
+            if (stopped) return
+        }
+        stopOnHandler(message)
+    }
+
+    private fun stopOnHandler(message: String?) {
+        if (stopping) return
+        val wasActive = projection != null || sink != null
         if (!wasActive) {
             onState(MirrorState(active = false, message = message))
             return
@@ -114,13 +172,13 @@ class MirrorController(
         stopping = true
         try {
             unregisterDisplayListener()
-            imageReader?.setOnImageAvailableListener(null, null)
             virtualDisplay?.release()
-            imageReader?.close()
+            virtualDisplay = null
+            sink?.release()
+            sink = null
+            suppressProjectionStop = true
             projection?.stop()
             projection = null
-            virtualDisplay = null
-            imageReader = null
             handlerThread?.quitSafely()
             handlerThread = null
             handler = null
@@ -132,74 +190,7 @@ class MirrorController(
         }
     }
 
-    private fun handleImage(reader: ImageReader) {
-        val image = runCatching { reader.acquireLatestImage() }.getOrNull() ?: return
-        try {
-            val now = SystemClock.elapsedRealtime()
-            if (now - lastFrameAt < FRAME_INTERVAL_MS) return
-            val jpeg = imageToJpeg(image) ?: return
-            lastFrameAt = now
-            val frame = BinaryCodec.encode(
-                type = BinaryCodec.TYPE_MIRROR,
-                streamId = 0,
-                seq = sequence++,
-                last = false,
-                payload = jpeg,
-            )
-            onFrame(frame)
-        } catch (error: Throwable) {
-            LinkStatus.log("Mirror", "Frame conversion failed: ${error.javaClass.simpleName}")
-        } finally {
-            image.close()
-        }
-    }
-
-    private fun imageToJpeg(image: Image): ByteArray? {
-        if (image.width <= 0 || image.height <= 0) return null
-        val plane = image.planes.firstOrNull() ?: return null
-        val pixelStride = plane.pixelStride
-        if (pixelStride <= 0) return null
-        val rowStride = plane.rowStride
-        val paddedWidth = rowStride / pixelStride
-        if (paddedWidth < image.width) return null
-
-        plane.buffer.rewind()
-        val padded = Bitmap.createBitmap(paddedWidth, image.height, Bitmap.Config.ARGB_8888)
-        padded.copyPixelsFromBuffer(plane.buffer)
-        val cropped = if (paddedWidth == image.width) {
-            padded
-        } else {
-            Bitmap.createBitmap(padded, 0, 0, image.width, image.height)
-        }
-        if (cropped !== padded) padded.recycle()
-
-        val longest = max(cropped.width, cropped.height)
-        val scaled = if (longest > MAX_DIMENSION) {
-            val ratio = MAX_DIMENSION.toFloat() / longest
-            Bitmap.createScaledBitmap(
-                cropped,
-                (cropped.width * ratio).toInt().coerceAtLeast(1),
-                (cropped.height * ratio).toInt().coerceAtLeast(1),
-                true,
-            ).also { cropped.recycle() }
-        } else {
-            cropped
-        }
-
-        return try {
-            ByteArrayOutputStream().use { output ->
-                if (scaled.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, output)) {
-                    output.toByteArray()
-                } else {
-                    null
-                }
-            }
-        } finally {
-            scaled.recycle()
-        }
-    }
-
-    private fun scaledScreenSize(): Pair<Int, Int> {
+    private fun screenSize(): Pair<Int, Int> {
         val metrics = context.resources.displayMetrics
         var width = metrics.widthPixels
         var height = metrics.heightPixels
@@ -212,16 +203,8 @@ class MirrorController(
                 height = bounds.height()
             }
         }
-        val longest = max(width, height)
-        if (longest > MAX_DIMENSION) {
-            val ratio = MAX_DIMENSION.toFloat() / longest
-            width = (width * ratio).toInt()
-            height = (height * ratio).toInt()
-        }
-        return evenDimension(width) to evenDimension(height)
+        return width.coerceAtLeast(2) to height.coerceAtLeast(2)
     }
-
-    private fun evenDimension(value: Int): Int = (value.coerceAtLeast(2) / 2) * 2
 
     private fun currentRotation(): Int {
         val display = context.getSystemService(DisplayManager::class.java)
@@ -254,9 +237,19 @@ class MirrorController(
         displayListener = null
     }
 
-    private companion object {
-        const val MAX_DIMENSION = 1_280
-        const val FRAME_INTERVAL_MS = 190L
-        const val JPEG_QUALITY = 55
+    private fun <T> onHandler(block: () -> T): T {
+        val current = handler ?: return block()
+        if (Looper.myLooper() == current.looper) return block()
+        var result: Result<T>? = null
+        val latch = CountDownLatch(1)
+        if (!current.post {
+                result = runCatching(block)
+                latch.countDown()
+            }
+        ) {
+            error("Mirror thread is unavailable")
+        }
+        if (!latch.await(5, TimeUnit.SECONDS)) error("Mirror setup timed out")
+        return result?.getOrThrow() ?: error("Mirror setup failed")
     }
 }

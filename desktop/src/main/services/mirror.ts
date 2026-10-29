@@ -1,40 +1,46 @@
 import type { PeerSession } from '../server';
-import type { MirrorStateWire, MirrorTouchWire } from '../../shared/types';
+import type { MirrorCodec, MirrorStateWire, MirrorTouchWire } from '../../shared/types';
 import { TYPES } from '../../shared/types';
-import type { BinaryFrame } from '../core/binary';
+import { TYPE_MIRROR, TYPE_VIDEO, type BinaryFrame } from '../core/binary';
 import type { Logger } from '../core/logger';
 
 export class MirrorService {
-  private state: MirrorStateWire = { active: false, width: 0, height: 0 };
+  private state: MirrorStateWire = { active: false, width: 0, height: 0, codec: 'jpeg' };
   private error: string | undefined;
   private session: PeerSession | undefined;
 
   constructor(
     private readonly logger: Logger,
     private readonly onChange: () => void,
-    private readonly onFrame: (payload: Buffer, seq: number) => void,
+    private readonly onFrame: (frame: BinaryFrame) => void,
   ) {}
 
   onConnected(session: PeerSession): void {
     this.session = session;
-    this.state = { active: false, width: 0, height: 0 };
+    this.state = { active: false, width: 0, height: 0, codec: 'jpeg' };
     this.error = undefined;
     this.onChange();
   }
 
   onDisconnected(): void {
     this.session = undefined;
-    this.state = { active: false, width: 0, height: 0 };
+    this.state = { active: false, width: 0, height: 0, codec: 'jpeg' };
     this.error = undefined;
     this.onChange();
   }
 
-  async start(): Promise<void> {
+  async start(codec: MirrorCodec = 'jpeg'): Promise<void> {
     const session = this.requireSession();
     this.error = undefined;
-    await session.request(TYPES.MIRROR_START, {}, 15_000);
-    this.logger.log('Mirror', 'Asked the phone for screen-sharing consent');
+    await session.request(TYPES.MIRROR_START, { codec }, 15_000);
+    this.logger.log('Mirror', `Asked the phone for screen-sharing consent (${codec})`);
     this.onChange();
+  }
+
+  async requestKeyframe(): Promise<void> {
+    const session = this.requireSession();
+    if (!this.state.active || this.state.codec !== 'h264') return;
+    await session.request(TYPES.MIRROR_KEYFRAME, {}, 6_000);
   }
 
   async stop(): Promise<void> {
@@ -42,7 +48,7 @@ export class MirrorService {
     try {
       await session.request(TYPES.MIRROR_STOP, {}, 10_000);
     } finally {
-      this.state = { active: false, width: 0, height: 0 };
+      this.state = { active: false, width: 0, height: 0, codec: 'jpeg' };
       this.onChange();
     }
   }
@@ -54,16 +60,24 @@ export class MirrorService {
       width: Number.isFinite(data.width) ? Math.max(0, data.width || 0) : 0,
       height: Number.isFinite(data.height) ? Math.max(0, data.height || 0) : 0,
       message: typeof data.message === 'string' ? data.message.slice(0, 300) : null,
+      codec: data.codec === 'h264' ? 'h264' : 'jpeg',
     };
     if (data.message) this.error = data.message;
     if (data.active) this.error = undefined;
-    this.logger.log('Mirror', data.active ? 'Mirroring active' : `Mirroring stopped${data.message ? `: ${data.message}` : ''}`);
+    this.logger.log(
+      'Mirror',
+      data.active
+        ? `Mirroring active (${this.state.codec})`
+        : `Mirroring stopped${data.message ? `: ${data.message}` : ''}`,
+    );
     this.onChange();
   }
 
   onBinaryFrame(frame: BinaryFrame): void {
     if (!this.state.active) return;
-    this.onFrame(frame.payload, frame.seq);
+    const expected = this.state.codec === 'h264' ? TYPE_VIDEO : TYPE_MIRROR;
+    if (frame.type !== expected) return;
+    this.onFrame(frame);
   }
 
   async touch(touch: MirrorTouchWire): Promise<void> {

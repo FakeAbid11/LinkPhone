@@ -70,6 +70,7 @@ object Types {
     const val MIRROR_STOP = "mirror.stop"
     const val MIRROR_STATE = "mirror.state"
     const val MIRROR_TOUCH = "mirror.touch"
+    const val MIRROR_KEYFRAME = "mirror.keyframe"
     const val PING = "ping"
     const val PONG = "pong"
 }

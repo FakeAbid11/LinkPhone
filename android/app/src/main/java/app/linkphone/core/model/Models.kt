@@ -224,7 +224,11 @@ data class MirrorState(
     val width: Int = 0,
     val height: Int = 0,
     val message: String? = null,
+    val codec: String? = null,
 )
+
+@Serializable
+data class MirrorStartRequest(val codec: String? = null)
 
 @Serializable
 data class MirrorTouchRequest(
@@ -270,6 +274,7 @@ object Capabilities {
     const val CALLS_SIM_SELECTION = "calls.simSelection"
     const val MIRROR = "mirror"
     const val MIRROR_INPUT = "mirror.input"
+    const val MIRROR_H264 = "mirror.h264"
     const val CLIPBOARD = "clipboard"
     const val HANDOFF = "handoff"
 }
