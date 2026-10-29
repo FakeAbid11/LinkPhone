@@ -34,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -129,6 +130,68 @@ fun StatusPill(text: String, tone: StatusTone) {
             style = MaterialTheme.typography.labelMedium,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
         )
+    }
+}
+
+@Composable
+fun ToggleRow(
+    title: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth().padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(
+                description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+@Composable
+fun Notice(
+    title: String,
+    body: String,
+    tone: StatusTone = StatusTone.Neutral,
+    modifier: Modifier = Modifier,
+) {
+    val background = when (tone) {
+        StatusTone.Good -> MaterialTheme.colorScheme.primaryContainer
+        StatusTone.Warn -> MaterialTheme.colorScheme.tertiaryContainer
+        StatusTone.Bad -> MaterialTheme.colorScheme.errorContainer
+        StatusTone.Neutral -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    val foreground = when (tone) {
+        StatusTone.Good -> MaterialTheme.colorScheme.onPrimaryContainer
+        StatusTone.Warn -> MaterialTheme.colorScheme.onTertiaryContainer
+        StatusTone.Bad -> MaterialTheme.colorScheme.onErrorContainer
+        StatusTone.Neutral -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = background,
+        contentColor = foreground,
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(
+                body,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 3.dp),
+            )
+        }
     }
 }
 

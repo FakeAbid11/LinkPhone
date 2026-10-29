@@ -21,11 +21,15 @@ Nothing is sent to a server on the internet by LinkPhone. mDNS broadcasts the PC
 PC id, and certificate fingerprint on the local network so the phone can find it; this is public
 routing information, not message content.
 
-The Windows app's updater is the one internet-facing exception: it requests the latest release
-metadata and the installer/checksum files from the official GitHub Releases page. It sends no
-device identifiers, account information, message content, or telemetry. GitHub sees the usual HTTP
-request metadata (IP address, user agent, timestamps). Automatic checks can be disabled in Settings;
-manual checks use the same feed.
+The two updaters are the only internet-facing exceptions: the Windows app and the Android app each
+request the latest release metadata and the installer/APK plus checksum files from the official
+GitHub Releases page. They send no device identifiers, account information, message content, or
+telemetry. GitHub sees the usual HTTP request metadata (IP address, user agent, timestamps).
+Automatic checks can be disabled; manual checks use the same feed.
+
+The Android updater additionally remembers the time of the last check in app-private preferences
+so that a process restart (a reboot, an OEM task kill, a service restart) does not immediately
+spend another request from GitHub's unauthenticated quota.
 
 ## What is stored
 
@@ -42,6 +46,8 @@ manual checks use the same feed.
 | Photos you save | `Pictures\LinkPhone` | Until you delete them |
 | Shared images | `Downloads\LinkPhone` | Until you delete them |
 | Clipboard | OS clipboard | Controlled by Android/Windows |
+| Downloaded update APK (Android) | Phone app-private `filesDir/updates` | Replaced on the next update; removed on uninstall |
+| Update check timestamp, auto-check preference (Android) | Phone app-private preferences | Until the app data is cleared/uninstalled |
 
 LinkPhone does not write SMS bodies or notification text to disk. The PC's `state.json` contains no
 message history; it keeps only the ids of messages you marked read locally so unread badges survive

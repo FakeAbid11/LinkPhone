@@ -125,6 +125,22 @@ The Windows updater reads the release's `LinkPhone-Setup-<version>.exe` and `SHA
 GitHub Releases. Keep both assets attached to every published release; the portable EXE is not used
 for automatic updates. No `latest.yml` or electron-updater metadata is required.
 
+The Android updater reads the release's `LinkPhone-<version>.apk` and `SHA256SUMS.txt` from the same
+release. **Both assets must stay attached**, and the APK must be signed with the stable release key
+whose SHA-256 digest is
+
+```
+FD:F3:D0:3E:A4:11:EF:50:3A:1C:5A:17:90:DE:A6:1A:38:80:EE:1C:72:4C:63:C1:49:7B:03:E6:C1:C6:A4:E3
+```
+
+CI prints that digest with `apksigner verify --print-certs`; check it after every release, because
+an APK signed with any other key is refused by the in-app updater (that is the intended behavior,
+not a bug). A release APK built without the signing secret falls back to the debug key and will
+also be refused.
+
+`kotlinx-serialization-json` must stay at 1.7.x while the project is on Kotlin 2.0.21; bumping to
+Kotlin 2.1+ requires `kotlinx-serialization-json` 1.8.0 or newer.
+
 ### Full CI commands
 
 ```bash

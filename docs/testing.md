@@ -31,6 +31,17 @@ locally.
 - `AvcConfigTest` / `MirrorSizingTest` / `MirrorCodecChoiceTest` / `VideoFrameCodecTest` — Annex B
   SPS/PPS parsing, codec strings, 720×1600 sizing/step-down, codec negotiation, and type-4
   flags/timestamps.
+- `core/update/UpdateVersionTest` — tag prefixes, pre-release suffixes, leading zeros, numeric
+  (not lexical) comparison, and rejection of invalid versions.
+- `core/update/UpdateChecksumsTest` — `sha256sum` parsing with path prefixes and the binary
+  marker, digest comparison, SHA-256 file hashing against known vectors, and asset naming.
+- `core/update/UpdateClientTest` — GitHub release JSON parsing, drafts/prereleases, missing assets
+  and page URLs, notes truncation, unknown fields, and malformed JSON.
+- `core/update/UpdateSignerTest` — the signing-certificate rule, including the refusal of a
+  rollback to a retired key.
+- `core/update/UpdateEngineTest` — the update state machine: download and verification, checksum
+  and signature failures, up-to-date, disabled builds, the automatic-check timer, the six-hour
+  throttle, manual checks with auto-check off, stale-file cleanup, and error reporting.
 
 Run in CI:
 
@@ -113,6 +124,8 @@ The following require real hardware and are **not** verified by this repository'
 - Battery/Doze/OEM background killing
 - Real Wi-Fi AP isolation, VPN interference, Windows firewall prompts
 - SmartScreen behavior for the unsigned Windows binary
+- The Android "install unknown apps" grant, the system package installer, the actual app
+  replacement, and the live GitHub API interaction (rate limit, redirects, a ~46 MB transfer)
 
 Do not treat a green CI run as proof that those work. Use the checklist below on hardware.
 
@@ -280,6 +293,29 @@ Use two devices on the same Wi-Fi. Check each item and keep the diagnostics log 
 - [ ] Portable build: confirm automatic updates are unavailable and **Download portable** opens Releases.
 - [ ] E2E/CDP launch: confirm the Updates card says automatic updates are unavailable and no network
       request is made.
+
+### Android updates
+
+- [ ] Install `LinkPhone-0.7.0.apk`; **Home → Updates** shows `LinkPhone 0.7.0` and `Not checked yet`.
+- [ ] Tap **Check for updates**; the status goes `Checking…` → `Up to date` and nothing is downloaded.
+- [ ] Toggle automatic checks off, force-stop the app, and relaunch; confirm no automatic check
+      runs and that a manual check still works.
+- [ ] Publish a higher version; confirm the card shows `Version <x> available`, the download starts
+      by itself, the progress advances, and the status becomes `Version <x> ready`.
+- [ ] Confirm the release notes from the GitHub release body appear in the card.
+- [ ] Tap **Install update**; confirm the "Allow LinkPhone to install updates?" dialog, then
+      **Open settings**, enable *Allow from this source*, come back, and tap **Install update**
+      again; confirm Android's package installer opens and the app is replaced.
+- [ ] After the update, confirm the About card and the Updates card show the new version and that
+      pairing, mirroring, and the connection service still work.
+- [ ] Enable airplane mode and tap **Check for updates**; confirm a readable error, no crash, and
+      the status reads `Update failed`.
+- [ ] Interrupt a download with airplane mode; confirm a readable error, that the partial file is
+      removed, and that a retry succeeds.
+- [ ] With notifications granted, confirm the "Update ready" notification appears and opens
+      LinkPhone.
+- [ ] Install a CI debug-signed APK, then update to an official release; confirm the "signed with a
+      different key" message appears and no install is offered.
 
 ### Security and cleanup
 

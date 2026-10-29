@@ -4,7 +4,7 @@
 
 Your Android phone and Windows PC, connected directly over your own Wi-Fi. Messages, notifications, photos, call control, clipboard handoff, and experimental screen mirroring — encrypted, LAN-only, no cloud account.
 
-> **Status:** v0.6.1. The Android and Windows apps compile, pass their unit/integration tests, and are packaged in GitHub Actions. They have **not** been tested on a physical phone in this environment; OEM permissions, calls, notifications, MediaProjection, and background behavior require the device acceptance checklist. See [testing.md](docs/testing.md#device-acceptance-checklist) and the limitations below before installing.
+> **Status:** v0.7.0. The Android and Windows apps compile, pass their unit/integration tests, and are packaged in GitHub Actions. They have **not** been tested on a physical phone in this environment; OEM permissions, calls, notifications, MediaProjection, the Android update installer, and background behavior require the device acceptance checklist. See [testing.md](docs/testing.md#device-acceptance-checklist) and the limitations below before installing.
 
 Documentation: [feasibility & limits](docs/feasibility.md) · [architecture](docs/architecture.md) · [protocol](docs/protocol.md) · [permissions](docs/permissions.md) · [security](docs/security.md) · [troubleshooting](docs/troubleshooting.md) · [building](docs/building.md).
 
@@ -23,16 +23,27 @@ The Windows binaries are unsigned, so SmartScreen may warn. The APK is signed wi
 
 ## Updates
 
-The installed Windows Setup build checks GitHub Releases after launch and every six hours, downloads
-a newer Setup EXE in the background, verifies its SHA-256 checksum, and shows an **Update ready**
-banner. **Restart and install** opens the installer after LinkPhone stops its connection service.
-Automatic checks can be disabled in **Settings → Updates**; manual checks still work.
+**Windows.** The installed Setup build checks GitHub Releases after launch and every six hours,
+downloads a newer Setup EXE in the background, verifies its SHA-256 checksum, and shows an **Update
+ready** banner. **Restart and install** opens the installer after LinkPhone stops its connection
+service. Automatic checks can be disabled in **Settings → Updates**; manual checks still work.
 
+**Android.** The phone app has the same updater in **Home → Updates**. It checks GitHub Releases
+shortly after launch and every six hours, downloads the release APK, verifies its SHA-256 checksum
+**and** its signing certificate, and **Install update** hands it to Android's own package installer.
+Automatic checks can be turned off in the Updates card; manual checks still work.
+
+- Android requires a one-time grant: **Settings → Install unknown apps → LinkPhone → Allow from
+  this source**. The app explains this in a dialog before sending you there. Android — not
+  LinkPhone — performs the install, and the OS restarts the app afterwards.
+- Only APKs signed with the same release key can install over an existing copy. A debug-signed
+  build cannot replace an official installation, and an official APK cannot replace a debug build.
+- Debug builds never contact GitHub at all.
 - Portable builds cannot update in place; use the **Download portable** link in Settings.
 - Update installers are unsigned. The updater verifies SHA-256 from the official release but cannot
   verify an Authenticode publisher signature. Only install updates from this repository's releases.
-- v0.4.0 is the first updater-enabled build, so install it manually once. Later v0.4.x builds can
-  update in-app.
+- v0.4.0 is the first updater-enabled Windows build and v0.7.0 the first updater-enabled Android
+  build, so install them manually once. Later builds can update in-app.
 
 ## Quick start
 
@@ -58,6 +69,8 @@ If the PC shows no LAN address or the phone cannot connect, allow LinkPhone thro
 - MediaProjection consent, secure-window blacking, lock/rotation, Accessibility gestures
 - Background survival under Doze and OEM task killers
 - Wi-Fi AP isolation, VPNs, Windows Firewall prompts, SmartScreen
+- The Android "install unknown apps" grant, the system package installer, and the actual app
+  replacement
 
 Do not interpret a green CI run as proof that those device-specific paths work. Run the checklist and report results.
 
@@ -80,6 +93,7 @@ Do not interpret a green CI run as proof that those device-specific paths work. 
 | Call control | Limited | Dial/answer/decline/end, caller state, contact search, SIM selection on Android 11+, and a best-effort speaker toggle; **call audio stays on the phone** |
 | Clipboard and Continue on PC | Limited | PC→phone clipboard; phone→PC on explicit action only |
 | Apps / screen mirroring | Experimental | Hardware H.264 ~720×1600 at 30 fps (opt-in 60 fps) where supported, JPEG fallback, per-session consent, stops on lock, no audio/keyboard |
+| Android app updates | Implemented | In-app check and download; SHA-256 and signing-certificate verified; Android's installer performs the install; one-time "install unknown apps" grant |
 | Background operation | Best effort | Ongoing notification and battery-optimization exemption required |
 
 ### What is not possible (and why)
@@ -100,6 +114,7 @@ Each feature is opt-in. LinkPhone asks at the point of use and explains why.
 - **Photos:** `READ_MEDIA_IMAGES` (Android 13+) or `READ_EXTERNAL_STORAGE` (Android 10–12). Android 14 may grant only selected photos.
 - **Notification mirroring:** Notification access (special settings screen).
 - **Screen mirroring:** MediaProjection consent each session, plus the Accessibility service for remote taps.
+- **App updates:** `REQUEST_INSTALL_PACKAGES` lets the app ask Android to install a downloaded APK. It is not self-granting; the user enables *Allow from this source* for LinkPhone once in system settings.
 - **Background:** battery-optimization exemption and, on some OEMs, an autostart toggle.
 
 ## Background operation

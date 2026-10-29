@@ -1,5 +1,6 @@
 package app.linkphone.ui
 
+import android.app.Activity
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -11,6 +12,9 @@ import app.linkphone.core.crypto.normalizeFingerprint
 import app.linkphone.core.net.PairingClient
 import app.linkphone.core.prefs.LinkPrefs
 import app.linkphone.core.prefs.PairedPc
+import app.linkphone.core.update.AppUpdater
+import app.linkphone.core.update.InstallResult
+import app.linkphone.core.update.UpdateStatus
 import app.linkphone.core.util.ConnectionPolicy
 import app.linkphone.core.util.LinkState
 import app.linkphone.core.util.LinkStatus
@@ -50,7 +54,10 @@ class LinkViewModel(application: Application) : AndroidViewModel(application) {
     private val _permissionRevision = MutableStateFlow(0)
     val permissionRevision: StateFlow<Int> = _permissionRevision.asStateFlow()
 
+    val updateStatus: StateFlow<UpdateStatus> = AppUpdater.status
+
     private var pairingJob: Job? = null
+    private var updateJob: Job? = null
 
     val appVersion: String = BuildConfig.VERSION_NAME
 
@@ -63,6 +70,31 @@ class LinkViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+
+    var autoCheckUpdates: Boolean
+        get() = AppUpdater.autoCheck
+        set(value) {
+            AppUpdater.autoCheck = value
+        }
+
+    fun checkForUpdates() {
+        if (updateJob?.isActive == true) return
+        updateJob = viewModelScope.launch {
+            AppUpdater.check()
+        }
+    }
+
+    fun downloadUpdate() {
+        if (updateJob?.isActive == true) return
+        updateJob = viewModelScope.launch {
+            AppUpdater.download()
+        }
+    }
+
+    fun installUpdate(activity: Activity?): InstallResult = AppUpdater.install(activity)
+
+    fun openInstallPermissionSettings(activity: Activity?): Boolean =
+        AppUpdater.openInstallPermissionSettings(activity)
 
     fun goHome() {
         _screen.value = Screen.Home
