@@ -2,10 +2,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { TYPE_MIRROR, TYPE_VIDEO, type BinaryFrame } from '../src/main/core/binary';
 import { Logger } from '../src/main/core/logger';
 import { MirrorService } from '../src/main/services/mirror';
 import type { PeerSession } from '../src/main/server';
-import type { BinaryFrame } from '../src/main/core/binary';
 import { TYPES } from '../src/shared/types';
 
 const dirs: string[] = [];
@@ -14,11 +14,24 @@ function reply(data: unknown = { ok: true }) {
   return { v: 1, id: 'reply', type: 'response', ok: true, data, ts: Date.now() };
 }
 
+function frame(type = TYPE_MIRROR, seq = 1, flags = 0): BinaryFrame {
+  return {
+    type,
+    streamId: 0,
+    seq,
+    flags,
+    last: (flags & 1) === 1,
+    keyframe: (flags & 2) === 2,
+    codecConfig: (flags & 4) === 4,
+    payload: Buffer.from(type === TYPE_VIDEO ? 'video' : 'jpeg'),
+  };
+}
+
 function harness() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'linkphone-mirror-'));
   dirs.push(dir);
   const requests: Array<{ type: string; data: unknown }> = [];
-  const frames: Array<{ payload: Buffer; seq: number }> = [];
+  const frames: BinaryFrame[] = [];
   const session = {
     request: async (type: string, data: unknown) => {
       requests.push({ type, data });
@@ -28,7 +41,7 @@ function harness() {
   const service = new MirrorService(
     new Logger(path.join(dir, 'log.txt')),
     () => undefined,
-    (payload, seq) => frames.push({ payload, seq }),
+    (next) => frames.push(next),
   );
   service.onConnected(session);
   return { service, requests, frames };
@@ -42,10 +55,12 @@ describe('mirror service', () => {
   it('requests consent and stop over the session', async () => {
     const { service, requests } = harness();
     await service.start();
+    await service.start('h264');
     await service.stop();
-    expect(requests.map((item) => item.type)).toEqual([
-      TYPES.MIRROR_START,
-      TYPES.MIRROR_STOP,
+    expect(requests).toEqual([
+      { type: TYPES.MIRROR_START, data: { codec: 'jpeg' } },
+      { type: TYPES.MIRROR_START, data: { codec: 'h264' } },
+      { type: TYPES.MIRROR_STOP, data: {} },
     ]);
   });
 
@@ -62,12 +77,14 @@ describe('mirror service', () => {
       width: 1080,
       height: 2400,
       message: 'Screen sharing was not approved',
+      codec: 'jpeg',
     });
     expect(service.status().error).toBe('Screen sharing was not approved');
 
-    service.onPhoneState({ active: true, width: 1080, height: 2400 });
+    service.onPhoneState({ active: true, width: 1080, height: 2400, codec: 'h264' });
     expect(service.status().error).toBeUndefined();
     expect(service.status().state.active).toBe(true);
+    expect(service.status().state.codec).toBe('h264');
 
     service.onDisconnected();
     expect(service.status().state.active).toBe(false);
@@ -99,21 +116,35 @@ describe('mirror service', () => {
     expect(requests).toHaveLength(before);
   });
 
-  it('forwards binary frames only while the session is live', () => {
+  it('forwards frames only for the active codec', () => {
     const { service, frames } = harness();
-    const frame = {
-      type: 2,
-      streamId: 0,
-      seq: 1,
-      last: false,
-      payload: Buffer.from('jpeg'),
-    } as BinaryFrame;
+    const jpeg = frame(TYPE_MIRROR, 1);
+    const video = frame(TYPE_VIDEO, 2, 2);
 
-    service.onBinaryFrame(frame);
-    expect(frames).toHaveLength(0);
-
+    service.onBinaryFrame(jpeg);
     service.onPhoneState({ active: true, width: 100, height: 200 });
-    service.onBinaryFrame(frame);
-    expect(frames).toEqual([{ payload: frame.payload, seq: 1 }]);
+    service.onBinaryFrame(jpeg);
+    service.onBinaryFrame(video);
+    expect(frames).toEqual([jpeg]);
+
+    service.onPhoneState({ active: true, width: 100, height: 200, codec: 'h264' });
+    service.onBinaryFrame(jpeg);
+    service.onBinaryFrame(video);
+    expect(frames).toEqual([jpeg, video]);
+  });
+
+  it('requests keyframes only for an active H.264 session', async () => {
+    const { service, requests } = harness();
+    await service.requestKeyframe();
+    expect(requests).toHaveLength(0);
+
+    service.onPhoneState({ active: true, width: 100, height: 200, codec: 'h264' });
+    await service.requestKeyframe();
+    expect(requests.at(-1)).toEqual({ type: TYPES.MIRROR_KEYFRAME, data: {} });
+
+    service.onPhoneState({ active: true, width: 100, height: 200, codec: 'jpeg' });
+    const before = requests.length;
+    await service.requestKeyframe();
+    expect(requests).toHaveLength(before);
   });
 });

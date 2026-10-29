@@ -1,37 +1,49 @@
-## LinkPhone v0.5.3
+## LinkPhone v0.6.0
 
-A direct, LAN-only companion link between an Android phone and a Windows PC. This release gives both
-apps the finished LinkPhone mark: a phone and monitor joined by transfer arrows on the indigo plate.
+A direct, LAN-only companion link between an Android phone and a Windows PC. This release replaces the
+slow JPEG mirror with hardware H.264 when both apps support it, and keeps JPEG as the compatible
+fallback.
 
 ### What's new
 
-- New logo on the Windows app, installer, Start-menu/desktop shortcuts, taskbar window, and tray icon.
-- The logo now appears in the PC sidebar and on the startup/fatal screens instead of the old inline
-  SVG mark.
-- New Android launcher icon (adaptive foreground, round icon, and Android 13+ themed monochrome layer)
-  using the same mark.
-- No protocol, permission, SMS, call, photo, mirroring, or updater behavior changed. The v0.5.2
-  speaker-route handling is included.
+- **Hardware H.264 screen mirroring:** about 720×1600, 30 fps, 6 Mbps, encoded with MediaCodec and
+  decoded on the PC with WebCodecs. Text is sharper and motion is much smoother than the old ≤5 fps
+  JPEG stream.
+- **Automatic fallback:** if the phone has no hardware AVC encoder or the PC cannot decode the stream,
+  mirroring uses the existing JPEG path. The Apps tab also has an explicit **Compatible (JPEG)** mode.
+- **Fast recovery:** the PC requests IDR keyframes after a decode backlog or a Wi-Fi stall, and SPS/PPS
+  are carried with keyframes so playback can resync.
+- **Backward compatible:** an old Windows build with a new APK gets JPEG; a new Windows build with a
+  v0.5.x APK also gets JPEG. Consent, lock/rotation stops, secure-window blackouts, and remote taps are
+  unchanged.
+- Session status now shows the active codec, dimensions, and measured frame rate.
+
+No audio, keyboard input, clipboard-inside-the-app, or app virtualization was added.
 
 ### Which updates do I need?
 
-- **Both apps** if you want the new branding. Functionally, either app can stay on v0.5.2.
+- **Both apps** for H.264 mirroring. The Windows app must be v0.6.0 to decode H.264; the phone app
+  must be v0.6.0 to encode it.
+- Updating only one side is safe: mirroring falls back to JPEG.
 - Installed v0.4.0+ Windows builds can update in-app; portable builds update manually.
 
 ### Download
 
-- `LinkPhone-0.5.3.apk` — Android 10+ companion (sideload; same release key)
-- `LinkPhone-Portable-0.5.3.exe` — Windows portable app
-- `LinkPhone-Setup-0.5.3.exe` — Windows installer (recommended for automatic updates)
+- `LinkPhone-0.6.0.apk` — Android 10+ companion (sideload; same release key)
+- `LinkPhone-Portable-0.6.0.exe` — Windows portable app
+- `LinkPhone-Setup-0.6.0.exe` — Windows installer (recommended for automatic updates)
 - `SHA256SUMS.txt` — verify your downloads
 
 ### Known limitations
 
+- H.264 depends on the phone's hardware encoder and the PC's WebCodecs decoder; unsupported devices
+  stay on JPEG.
+- H.264 uses more CPU/battery/thermal headroom than the JPEG fallback.
+- Secure/DRM windows remain black, and mirroring still stops on lock or rotation.
 - Reliable cellular speaker routing still requires the default-dialer/`InCallService` role, which
   LinkPhone deliberately does not take.
 - Call audio never reaches the PC.
-- Mirroring remains experimental; the callback fix from v0.5.1 is included.
 - The Windows updater is unsigned and SHA-256 verified; portable builds update manually.
 
-Built, unit-tested, linted, and E2E-tested in GitHub Actions. Icon rendering on launchers, shortcuts,
-and the tray still needs the hardware checklist in `docs/testing.md`.
+Built, unit-tested, linted, and E2E-tested in GitHub Actions. H.264 encoding/decoding and real Wi-Fi
+behavior need the hardware checklist in `docs/testing.md`.

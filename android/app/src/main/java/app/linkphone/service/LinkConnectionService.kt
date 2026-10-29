@@ -35,6 +35,7 @@ import app.linkphone.core.model.ContactListRequest
 import app.linkphone.core.model.ContactListResult
 import app.linkphone.core.model.ClipboardSetRequest
 import app.linkphone.core.model.HandoffOpenRequest
+import app.linkphone.core.model.MirrorStartRequest
 import app.linkphone.core.model.MirrorState
 import app.linkphone.core.model.MirrorTouchRequest
 import app.linkphone.core.model.NotificationDismissRequest
@@ -75,6 +76,7 @@ import app.linkphone.features.calls.CallController
 import app.linkphone.features.clipboard.ClipboardBridge
 import app.linkphone.features.contacts.ContactRepository
 import app.linkphone.features.mirror.LinkAccessibilityService
+import app.linkphone.features.mirror.MirrorCodecChoice
 import app.linkphone.features.mirror.MirrorController
 import app.linkphone.features.notifications.LinkNotificationListener
 import app.linkphone.features.photos.PhotoRepository
@@ -124,6 +126,9 @@ class LinkConnectionService : Service() {
     private var destroyed = false
     private var explicitStop = false
     private var lastStartId = 0
+
+    @Volatile
+    private var pendingMirrorCodec = MirrorCodecChoice.JPEG
 
     private val smsReader by lazy { SmsReader(this) }
     private val smsSender by lazy { SmsSender(this) }
@@ -608,12 +613,20 @@ class LinkConnectionService : Service() {
                     )
                     return
                 }
+                val request = runCatching { envelope.decodeData<MirrorStartRequest>() }
+                    .getOrDefault(MirrorStartRequest())
+                pendingMirrorCodec = MirrorCodecChoice.normalize(request.codec)
                 postMirrorConsentNotification()
                 replyOk(envelope)
             }
 
             Types.MIRROR_STOP -> {
                 mirror.stop("Stopped from the PC")
+                replyOk(envelope)
+            }
+
+            Types.MIRROR_KEYFRAME -> {
+                mirror.requestKeyframe()
                 replyOk(envelope)
             }
 
@@ -748,7 +761,7 @@ class LinkConnectionService : Service() {
             return
         }
         try {
-            mirror.start(resultCode, resultData)
+            mirror.start(resultCode, resultData, pendingMirrorCodec)
             cancelAlert(MIRROR_REQUEST_ID)
         } catch (error: Exception) {
             LinkStatus.log("Mirror", "Start failed: ${error.message}")

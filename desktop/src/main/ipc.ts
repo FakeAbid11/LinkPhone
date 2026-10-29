@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 import type { AppController } from './app';
-import type { MirrorTouchWire, Settings } from '../shared/types';
+import type { MirrorCodec, MirrorTouchWire, Settings } from '../shared/types';
 
 function requireString(value: unknown, name: string, max = 1_000): string {
   if (typeof value !== 'string' || !value.trim() || value.length > max) {
@@ -102,8 +102,12 @@ export function registerIpc(controller: AppController): void {
     controller.showFile(requireString(filePath, 'file path', 1_024)),
   );
 
-  ipcMain.handle('mirror:start', () => controller.startMirror());
+  ipcMain.handle('mirror:start', (_event, codec: unknown) => {
+    const value: MirrorCodec = codec === 'h264' ? 'h264' : 'jpeg';
+    return controller.startMirror(value);
+  });
   ipcMain.handle('mirror:stop', () => controller.stopMirror());
+  ipcMain.handle('mirror:keyframe', () => controller.requestMirrorKeyframe());
   ipcMain.handle('mirror:touch', (_event, touch: unknown) => {
     if (!touch || typeof touch !== 'object') throw new Error('Invalid touch');
     return controller.mirrorTouch(touch as MirrorTouchWire);

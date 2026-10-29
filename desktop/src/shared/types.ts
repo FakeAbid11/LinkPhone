@@ -38,6 +38,7 @@ export const TYPES = {
   MIRROR_STOP: 'mirror.stop',
   MIRROR_STATE: 'mirror.state',
   MIRROR_TOUCH: 'mirror.touch',
+  MIRROR_KEYFRAME: 'mirror.keyframe',
   PING: 'ping',
   PONG: 'pong',
 } as const;
@@ -71,6 +72,7 @@ export const CAPABILITIES = {
   CALLS_SIM_SELECTION: 'calls.simSelection',
   MIRROR: 'mirror',
   MIRROR_INPUT: 'mirror.input',
+  MIRROR_H264: 'mirror.h264',
   CLIPBOARD: 'clipboard',
   HANDOFF: 'handoff',
 } as const;
@@ -223,11 +225,21 @@ export interface HandoffFileMetaWire {
   size: number;
 }
 
+export type MirrorCodec = 'h264' | 'jpeg';
+
 export interface MirrorStateWire {
   active: boolean;
   width: number;
   height: number;
   message?: string | null;
+  codec?: MirrorCodec | null;
+}
+
+export interface MirrorFrameWire {
+  type: number;
+  seq: number;
+  flags: number;
+  data: Uint8Array;
 }
 
 export interface MirrorTouchWire {
@@ -441,7 +453,7 @@ export interface AppSnapshot {
 export interface LinkPhoneApi {
   getState(): Promise<AppSnapshot>;
   onState(listener: (state: AppSnapshot) => void): () => void;
-  onMirrorFrame(listener: (frame: { seq: number; data: Uint8Array }) => void): () => void;
+  onMirrorFrame(listener: (frame: MirrorFrameWire) => void): () => void;
   onToast(listener: (toast: { kind: string; message: string }) => void): () => void;
   createPairing(): Promise<void>;
   cancelPairing(): Promise<void>;
@@ -474,9 +486,10 @@ export interface LinkPhoneApi {
   openUrl(url: string): Promise<void>;
   openOnPhone(url: string): Promise<void>;
   showFile(path: string): Promise<void>;
-  startMirror(): Promise<void>;
+  startMirror(codec?: MirrorCodec): Promise<void>;
   stopMirror(): Promise<void>;
   mirrorTouch(touch: MirrorTouchWire): Promise<void>;
+  requestMirrorKeyframe(): Promise<void>;
   openLogs(): Promise<void>;
   openDocs(): Promise<void>;
   checkForUpdates(): Promise<void>;

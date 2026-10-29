@@ -8,6 +8,7 @@ import app.linkphone.core.model.Capabilities
 import app.linkphone.core.model.PhoneInfo
 import app.linkphone.core.model.SimInfo
 import app.linkphone.core.util.LinkStatus
+import app.linkphone.features.mirror.MirrorEncoderSelector
 
 object PhoneInfoBuilder {
     fun build(context: Context, appVersion: String): PhoneInfo {
@@ -33,6 +34,9 @@ object PhoneInfoBuilder {
         if (Permissions.callerId(context)) capabilities += Capabilities.CALLS_CALLER_ID
         if (Permissions.contacts(context)) capabilities += Capabilities.CONTACTS
         capabilities += Capabilities.MIRROR
+        if (MirrorEncoderSelector.avcEncoderAvailable()) {
+            capabilities += Capabilities.MIRROR_H264
+        }
         if (Permissions.accessibility(context)) capabilities += Capabilities.MIRROR_INPUT
         capabilities += Capabilities.CLIPBOARD
         capabilities += Capabilities.HANDOFF

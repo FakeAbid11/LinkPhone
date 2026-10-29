@@ -3,6 +3,7 @@ import type { IpcRendererEvent } from 'electron';
 import type {
   AppSnapshot,
   LinkPhoneApi,
+  MirrorFrameWire,
   MirrorTouchWire,
   Settings,
 } from '../shared/types';
@@ -17,7 +18,7 @@ const api: LinkPhoneApi = {
   onMirrorFrame: (listener) => {
     const handler = (
       _event: IpcRendererEvent,
-      frame: { seq: number; data: Uint8Array },
+      frame: MirrorFrameWire,
     ) => listener(frame);
     ipcRenderer.on('mirror:frame', handler);
     return () => ipcRenderer.removeListener('mirror:frame', handler);
@@ -61,9 +62,10 @@ const api: LinkPhoneApi = {
   openUrl: (url) => ipcRenderer.invoke('handoff:open', url),
   openOnPhone: (url) => ipcRenderer.invoke('handoff:openOnPhone', url),
   showFile: (filePath) => ipcRenderer.invoke('file:show', filePath),
-  startMirror: () => ipcRenderer.invoke('mirror:start'),
+  startMirror: (codec) => ipcRenderer.invoke('mirror:start', codec),
   stopMirror: () => ipcRenderer.invoke('mirror:stop'),
   mirrorTouch: (touch: MirrorTouchWire) => ipcRenderer.invoke('mirror:touch', touch),
+  requestMirrorKeyframe: () => ipcRenderer.invoke('mirror:keyframe'),
   openLogs: () => ipcRenderer.invoke('app:openLogs'),
   openDocs: () => ipcRenderer.invoke('app:openDocs'),
   checkForUpdates: () => ipcRenderer.invoke('updater:check'),
