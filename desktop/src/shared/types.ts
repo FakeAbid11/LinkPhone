@@ -20,6 +20,7 @@ export const TYPES = {
   NOTIF_REMOVED: 'notif.removed',
   NOTIF_DISMISS: 'notif.dismiss',
   PHOTO_LIST: 'photo.list',
+  PHOTO_ALBUMS: 'photo.albums',
   PHOTO_FETCH: 'photo.fetch',
   PHOTO_STREAM_END: 'photo.streamEnd',
   CALL_STATE: 'call.state',
@@ -61,6 +62,7 @@ export const CAPABILITIES = {
   NOTIFICATIONS: 'notifications',
   PHOTOS: 'photos',
   PHOTOS_PARTIAL: 'photos.partial',
+  PHOTOS_ALBUMS: 'photos.albums',
   CALLS: 'calls',
   CALLS_ANSWER: 'calls.answer',
   CALLS_CALLER_ID: 'calls.callerId',
@@ -170,6 +172,19 @@ export interface PhotoWire {
 
 export interface PhotoListResultWire {
   photos: PhotoWire[];
+  hasMore?: boolean;
+}
+
+export interface PhotoAlbumWire {
+  id: string;
+  name: string;
+  count: number;
+  coverId: string;
+  latest: number;
+}
+
+export interface PhotoAlbumListResultWire {
+  albums: PhotoAlbumWire[];
 }
 
 export interface PhotoStreamMetaWire {
@@ -359,8 +374,15 @@ export interface AppSnapshot {
   notifications: NotificationUi[];
   photos: {
     items: PhotoUi[];
+    albums: PhotoAlbumWire[];
+    activeAlbum: string | null;
+    hasMore: boolean;
     loading: boolean;
+    loadingMore: boolean;
+    albumsLoading: boolean;
+    albumsSupported: boolean;
     error?: string;
+    albumsError?: string;
     partial: boolean;
   };
   calls: {
@@ -405,6 +427,9 @@ export interface LinkPhoneApi {
   dismissNotification(key: string): Promise<void>;
   setPackageMuted(pkg: string, muted: boolean): Promise<void>;
   refreshPhotos(): Promise<void>;
+  refreshPhotoAlbums(): Promise<void>;
+  selectPhotoAlbum(bucket: string | null): Promise<void>;
+  loadMorePhotos(): Promise<void>;
   getThumbnail(id: string): Promise<string | null>;
   savePhoto(id: string): Promise<string>;
   copyPhoto(id: string): Promise<void>;

@@ -43,6 +43,16 @@ class LinkPrefs(context: Context) {
             store.edit().putBoolean(KEY_ONBOARDING, value).apply()
         }
 
+    var desiredConnected: Boolean
+        get() = if (store.contains(KEY_DESIRED_CONNECTED)) {
+            store.getBoolean(KEY_DESIRED_CONNECTED, false)
+        } else {
+            autoConnect
+        }
+        set(value) {
+            store.edit().putBoolean(KEY_DESIRED_CONNECTED, value).apply()
+        }
+
     val pairedPc: PairedPc?
         get() {
             val pcId = store.getString(KEY_PC_ID, null) ?: return null
@@ -87,6 +97,7 @@ class LinkPrefs(context: Context) {
             .remove(KEY_PC_HOST)
             .remove(KEY_PC_PORT)
             .remove(KEY_PC_FINGERPRINT)
+            .remove(KEY_DESIRED_CONNECTED)
             .apply()
     }
 
@@ -99,6 +110,7 @@ class LinkPrefs(context: Context) {
         const val KEY_PHONE_ID = "phone.id"
         const val KEY_PHONE_NAME = "phone.name"
         const val KEY_AUTO_CONNECT = "auto.connect"
+        const val KEY_DESIRED_CONNECTED = "connection.desired"
         const val KEY_ONBOARDING = "onboarding.done"
         const val KEY_PC_ID = "pc.id"
         const val KEY_PC_NAME = "pc.name"

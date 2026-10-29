@@ -24,6 +24,9 @@ locally.
   normalized gesture coordinates.
 - `ThemeContrastTest` — WCAG contrast for the light and dark palette's body text, secondary text,
   primary text, button labels, outlines, and status-pill containers.
+- `PhotoAlbumAccumulatorTest` — album counts, date-based covers, latest timestamps, and name fallback.
+- `PhotoQueryTest` — MediaStore bucket ids, keyset args, zero-date fallback, and valid-row paging.
+- `ConnectionPolicyTest` — auto-start/boot gating on paired, auto-connect, and persisted intent.
 
 Run in CI:
 
@@ -56,6 +59,8 @@ gradle -p android :app:testDebugUnitTest :app:lintDebug
   case/whitespace handling and no-match results.
 - `palette.test.ts` — parses the `:root` tokens in `styles.css` and asserts WCAG contrast for body,
   muted, caption, primary, secondary, and primary-button text.
+- `photos.test.ts` — first page and album requests, selecting an album, keyset `beforeDate/beforeId`,
+  paging/dedupe, unsupported phones, invalid responses, and thumbnail single-flight.
 - `e2e/messages-layout.spec.ts` — the conversation list and message history scroll independently at
   1180×780 and 960×640, and the composer stays in view.
 
@@ -170,9 +175,12 @@ Use two devices on the same Wi-Fi. Check each item and keep the diagnostics log 
 ### Photos
 
 - [ ] Grant full photos; recent images appear as thumbnails.
+- [ ] The album strip lists Camera, Screenshots, Downloads, and an app album (for example WhatsApp).
+- [ ] Select each album; only that album’s photos appear; counts in the strip match the phone.
+- [ ] Open a large album and press **Load more** until the end; no duplicates and the button stops.
 - [ ] Save an image; it opens from `Pictures\LinkPhone`.
 - [ ] Copy an image; paste it into Paint/Word.
-- [ ] Android 14: choose selected photos; only those appear, with a warning.
+- [ ] Android 14: choose selected photos; only those appear, with a warning and reduced album counts.
 - [ ] Test a HEIC photo (transcoded to JPEG).
 
 ### Calls
@@ -211,6 +219,11 @@ Use two devices on the same Wi-Fi. Check each item and keep the diagnostics log 
 ### Background
 
 - [ ] Ongoing notification is visible and cannot be swiped away.
+- [ ] Swipe LinkPhone from Recents: the notification stays and the PC remains connected.
+- [ ] Screen off for 10+ minutes with battery exemption: the PC link survives; check for
+      `Heartbeat timeout` in the PC log.
+- [ ] Force Doze (`adb shell dumpsys deviceidle force-idle`) and confirm the app recovers when the
+      network returns.
 - [ ] Grant battery exemption; verify the connection survives 30+ minutes idle.
 - [ ] OEM autostart settings applied; test after a reboot.
 - [ ] Force-stop: the service stops and does not restart until the app is opened (expected).

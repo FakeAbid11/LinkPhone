@@ -1,16 +1,16 @@
 # Feasibility, platform limits, and scope
 
-This document records what Android and Windows actually allow, what LinkPhone v0.2.1 implements, and
+This document records what Android and Windows actually allow, what LinkPhone v0.3.0 implements, and
 what would require a different product or system privileges.
 
 ## Summary
 
-| Requested feature | v0.2.1 | Honest limit |
+| Requested feature | v0.3.0 | Honest limit |
 |---|---|---|
 | Secure pair/reconnect | Implemented | QR + pinned TLS + ECDSA challenge; one phone at a time |
 | SMS view/send | Implemented | Sideload only; unread is PC-local; Open on phone hands the thread to the stock SMS app (one tap); no MMS/RCS; no default-SMS role, so sent items may not enter stock threads |
 | Calls from PC | Limited | Dial/answer/decline, caller state, contact search, and SIM choice on Android 11+ where OEM permits; **no call audio on PC**; caller ID needs call-log access |
-| Photos | Implemented | Recent camera roll; JPEG transcode; Android 14 partial access respected |
+| Photos | Implemented | All MediaStore image albums with paging; JPEG transcode; Android 14 partial access respected |
 | Notification mirroring | Implemented | Per-app mute, dismiss; Android 15+ may redact sensitive content; no action buttons |
 | Apps streaming | Experimental substitute | Screen mirroring + tap/swipe only; no app virtualization; consent each session; stops on lock |
 | Clipboard/handoff | Limited | PC→phone works; phone→PC explicit; “Continue on PC” via share sheet |
@@ -90,13 +90,15 @@ is a much larger product with a high risk of breaking calls; rejected for v1.
 
 ### Photos — implemented
 
-MediaStore gives recent camera images. Thumbnails use `ContentResolver.loadThumbnail`; full images
-are decoded with a sample size and transcoded to JPEG (max 2048 px) so the PC does not need HEIC
-support and memory stays bounded. “Save to PC” writes to `Pictures\LinkPhone`; “Copy image” writes
-to the PC clipboard.
+MediaStore gives the image library, grouped by album. Thumbnails use `ContentResolver.loadThumbnail`;
+full images are decoded with a sample size and transcoded to JPEG (max 2048 px) so the PC does not
+need HEIC support and memory stays bounded. The PC requests 200 photos per page and appends older
+pages with a date/id keyset; album counts and covers come from one metadata pass on the phone. “Save
+to PC” writes to `Pictures\LinkPhone`; “Copy image” writes to the PC clipboard.
 
-Limits: Android 14 partial access limits the list to selected photos. Very large images are sampled.
-The PC's image list is a snapshot; pull to refresh.
+Limits: Android 14 partial access limits the list to selected photos, so album counts and covers are
+also partial. Very large images are sampled. The PC's photo list is a snapshot; refresh or “Load
+more” to update.
 
 ### Notifications — implemented
 

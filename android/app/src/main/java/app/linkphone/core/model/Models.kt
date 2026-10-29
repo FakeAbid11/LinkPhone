@@ -111,10 +111,30 @@ data class PhotoDto(
 )
 
 @Serializable
-data class PhotoListResult(val photos: List<PhotoDto>)
+data class PhotoListResult(
+    val photos: List<PhotoDto>,
+    val hasMore: Boolean = false,
+)
 
 @Serializable
-data class PhotoListRequest(val limit: Int = 200)
+data class PhotoListRequest(
+    val limit: Int = 200,
+    val bucket: String? = null,
+    val beforeDate: Long? = null,
+    val beforeId: String? = null,
+)
+
+@Serializable
+data class PhotoAlbumDto(
+    val id: String,
+    val name: String,
+    val count: Int,
+    val coverId: String,
+    val latest: Long,
+)
+
+@Serializable
+data class PhotoAlbumListResult(val albums: List<PhotoAlbumDto>)
 
 @Serializable
 data class NotificationDismissRequest(val key: String)
@@ -236,6 +256,7 @@ object Capabilities {
     const val NOTIFICATIONS = "notifications"
     const val PHOTOS = "photos"
     const val PHOTOS_PARTIAL = "photos.partial"
+    const val PHOTOS_ALBUMS = "photos.albums"
     const val CALLS = "calls"
     const val CALLS_ANSWER = "calls.answer"
     const val CALLS_CALLER_ID = "calls.callerId"

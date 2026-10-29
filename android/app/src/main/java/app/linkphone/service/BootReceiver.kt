@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.content.ContextCompat
 import app.linkphone.core.prefs.LinkPrefs
+import app.linkphone.core.util.ConnectionPolicy
 import app.linkphone.core.util.LinkStatus
 
 class BootReceiver : BroadcastReceiver() {
@@ -15,7 +16,14 @@ class BootReceiver : BroadcastReceiver() {
             return
         }
         val prefs = LinkPrefs(context)
-        if (!prefs.isPaired || !prefs.autoConnect) return
+        if (!ConnectionPolicy.shouldStartOnBoot(
+                paired = prefs.isPaired,
+                autoConnect = prefs.autoConnect,
+                desiredConnected = prefs.desiredConnected,
+            )
+        ) {
+            return
+        }
         runCatching {
             ContextCompat.startForegroundService(
                 context,

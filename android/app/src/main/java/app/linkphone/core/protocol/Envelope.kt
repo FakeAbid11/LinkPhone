@@ -52,6 +52,7 @@ object Types {
     const val NOTIF_REMOVED = "notif.removed"
     const val NOTIF_DISMISS = "notif.dismiss"
     const val PHOTO_LIST = "photo.list"
+    const val PHOTO_ALBUMS = "photo.albums"
     const val PHOTO_FETCH = "photo.fetch"
     const val PHOTO_STREAM_END = "photo.streamEnd"
     const val CALL_STATE = "call.state"

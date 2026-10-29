@@ -358,6 +358,7 @@ export class AppController {
         };
         this.capabilities = this.phoneInfo.capabilities;
         this.subscriptions = this.phoneInfo.subscriptions;
+        this.photos.setCapabilities(this.capabilities);
         this.logger.log(
           'Phone',
           `${this.phoneInfo.model} / Android ${this.phoneInfo.androidVersion} ` +
@@ -570,6 +571,18 @@ export class AppController {
 
   async refreshPhotos(): Promise<void> {
     await this.photos.refresh();
+  }
+
+  async refreshPhotoAlbums(): Promise<void> {
+    await this.photos.refreshAlbums();
+  }
+
+  async selectPhotoAlbum(bucket: string | null): Promise<void> {
+    await this.photos.selectAlbum(bucket);
+  }
+
+  async loadMorePhotos(): Promise<void> {
+    await this.photos.loadMore();
   }
 
   async getThumbnail(id: string): Promise<string | null> {

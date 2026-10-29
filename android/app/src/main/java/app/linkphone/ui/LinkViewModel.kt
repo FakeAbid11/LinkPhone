@@ -11,6 +11,7 @@ import app.linkphone.core.crypto.normalizeFingerprint
 import app.linkphone.core.net.PairingClient
 import app.linkphone.core.prefs.LinkPrefs
 import app.linkphone.core.prefs.PairedPc
+import app.linkphone.core.util.ConnectionPolicy
 import app.linkphone.core.util.LinkState
 import app.linkphone.core.util.LinkStatus
 import app.linkphone.service.LinkConnectionService
@@ -96,20 +97,28 @@ class LinkViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun start() {
-        if (prefs.isPaired) LinkConnectionService.start(getApplication())
+        if (prefs.isPaired) {
+            prefs.desiredConnected = true
+            LinkConnectionService.start(getApplication())
+        }
     }
 
     fun shouldAutoStart(): Boolean =
-        prefs.isPaired &&
-            prefs.autoConnect &&
-            (LinkStatus.state.value is LinkState.Stopped)
+        ConnectionPolicy.shouldAutoStart(
+            paired = prefs.isPaired,
+            autoConnect = prefs.autoConnect,
+            desiredConnected = prefs.desiredConnected,
+        ) && (LinkStatus.state.value is LinkState.Stopped ||
+            LinkStatus.state.value is LinkState.Connecting)
 
     fun disconnect() {
+        prefs.desiredConnected = false
         LinkConnectionService.disconnect(getApplication())
     }
 
     fun forget() {
         pairingJob?.cancel()
+        prefs.desiredConnected = false
         LinkConnectionService.forget(getApplication())
         prefs.clearPairing()
         _paired.value = null

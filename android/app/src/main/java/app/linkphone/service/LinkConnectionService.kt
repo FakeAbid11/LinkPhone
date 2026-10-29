@@ -18,6 +18,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
@@ -37,6 +38,7 @@ import app.linkphone.core.model.MirrorState
 import app.linkphone.core.model.MirrorTouchRequest
 import app.linkphone.core.model.NotificationDismissRequest
 import app.linkphone.core.model.OkResult
+import app.linkphone.core.model.PhotoAlbumListResult
 import app.linkphone.core.model.PhotoFetchRequest
 import app.linkphone.core.model.PhotoListRequest
 import app.linkphone.core.model.PhotoListResult
@@ -116,8 +118,11 @@ class LinkConnectionService : Service() {
     private var smsDebounceJob: Job? = null
     private var wifiLock: WifiManager.WifiLock? = null
     private var multicastLock: WifiManager.MulticastLock? = null
+    private var reconnectWakeLock: PowerManager.WakeLock? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var destroyed = false
+    private var explicitStop = false
+    private var lastStartId = 0
 
     private val smsReader by lazy { SmsReader(this) }
     private val smsSender by lazy { SmsSender(this) }
@@ -139,25 +144,42 @@ class LinkConnectionService : Service() {
         createChannels()
         acquireLocks()
         registerNetworkCallback()
+        if (!Permissions.ignoringBatteryOptimizations(this)) {
+            LinkStatus.log(
+                "Service",
+                "Battery optimization is on; Android may restrict background networking",
+            )
+        }
         LinkStatus.log("Service", "Created")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForegroundCompat(includeMediaProjection = mirror.isActive())
+        lastStartId = startId
+        if (!startForegroundCompat(includeMediaProjection = mirror.isActive())) {
+            return START_NOT_STICKY
+        }
+
+        if (intent?.action == ACTION_CONNECT) {
+            prefs.desiredConnected = true
+        }
 
         when (intent?.action) {
             ACTION_DISCONNECT -> {
+                explicitStop = true
+                prefs.desiredConnected = false
                 LinkStatus.setState(LinkState.Stopped)
                 shutdownConnection()
-                stopSelf()
+                stopSelfResult(startId)
                 return START_NOT_STICKY
             }
 
             ACTION_FORGET -> {
+                explicitStop = true
+                prefs.desiredConnected = false
                 prefs.clearPairing()
                 LinkStatus.setState(LinkState.Stopped)
                 shutdownConnection()
-                stopSelf()
+                stopSelfResult(startId)
                 return START_NOT_STICKY
             }
 
@@ -165,22 +187,22 @@ class LinkConnectionService : Service() {
             ACTION_MIRROR_STOP -> mirror.stop("Stopped from the PC")
             ACTION_SYNC_SMS -> {
                 if (!prefs.isPaired) {
-                    stopSelf()
+                    stopSelfResult(startId)
                     return START_NOT_STICKY
                 }
                 if (ConnectionHub.isConnected()) sendSmsChanged() else startLoop()
             }
             ACTION_REFRESH_INFO -> {
                 if (!prefs.isPaired) {
-                    stopSelf()
+                    stopSelfResult(startId)
                     return START_NOT_STICKY
                 }
                 if (ConnectionHub.isConnected()) sendPhoneInfo() else startLoop()
             }
             else -> {
-                if (!prefs.isPaired) {
+                if (!prefs.isPaired || !prefs.desiredConnected) {
                     LinkStatus.setState(LinkState.Stopped)
-                    stopSelf()
+                    stopSelfResult(startId)
                     return START_NOT_STICKY
                 }
                 startLoop()
@@ -192,13 +214,19 @@ class LinkConnectionService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        // Keep the connection alive; the ongoing notification remains visible.
         super.onTaskRemoved(rootIntent)
+        LinkStatus.log("Service", "Task removed; keeping connection")
+        if (!prefs.desiredConnected) {
+            stopSelfResult(lastStartId)
+            return
+        }
+        refreshNotification()
     }
 
     override fun onDestroy() {
         destroyed = true
         shutdownConnection()
+        releaseReconnectWakeLock()
         runCatching { calls.stop() }
         networkCallback?.let { callback ->
             runCatching {
@@ -209,7 +237,11 @@ class LinkConnectionService : Service() {
         releaseLocks()
         mainHandler.removeCallbacksAndMessages(null)
         scope.cancel()
-        if (LinkStatus.state.value !is LinkState.Error) {
+        if (!explicitStop && prefs.desiredConnected) {
+            if (LinkStatus.state.value !is LinkState.Error) {
+                LinkStatus.setState(LinkState.Connecting("Reconnecting…"))
+            }
+        } else if (LinkStatus.state.value !is LinkState.Error) {
             LinkStatus.setState(LinkState.Stopped)
         }
         stopForeground(Service.STOP_FOREGROUND_REMOVE)
@@ -233,6 +265,7 @@ class LinkConnectionService : Service() {
         ConnectionHub.detach(currentSession)
         currentSession = null
         stopFeatureObservers()
+        releaseReconnectWakeLock()
         runCatching { mirror.stop("Disconnected") }
     }
 
@@ -241,6 +274,7 @@ class LinkConnectionService : Service() {
         var lastConnectFailed = false
 
         while (currentCoroutineContext().isActive) {
+            acquireReconnectWakeLock()
             val paired = prefs.pairedPc ?: break
             LinkStatus.setState(LinkState.Connecting("Connecting to ${paired.pcName}…"))
             refreshNotification()
@@ -284,6 +318,7 @@ class LinkConnectionService : Service() {
                 lastConnectFailed = false
                 backoff.reset()
                 LinkStatus.setState(LinkState.Connected(target.pcName, target.host))
+                releaseReconnectWakeLock()
                 LinkStatus.log("Net", "Authenticated with ${target.pcName} at ${target.host}")
                 refreshNotification()
                 startFeatureObservers()
@@ -344,18 +379,20 @@ class LinkConnectionService : Service() {
 
             if (!retry) break
 
+            acquireReconnectWakeLock()
             val delayMs = backoff.nextDelayMs()
             LinkStatus.setState(LinkState.Connecting("Reconnecting in ${delayMs / 1000}s…"))
             refreshNotification()
             withTimeoutOrNull(delayMs) { reconnectSignal.receive() }
         }
 
+        releaseReconnectWakeLock()
         if (!destroyed) {
             if (LinkStatus.state.value !is LinkState.Error) {
                 LinkStatus.setState(LinkState.Stopped)
             }
             refreshNotification()
-            stopSelf()
+            stopSelfResult(lastStartId)
         }
     }
 
@@ -490,8 +527,20 @@ class LinkConnectionService : Service() {
 
             Types.PHOTO_LIST -> {
                 val request = envelope.decodeData<PhotoListRequest>()
-                val items = photos.list(request.limit)
-                reply(envelope, ProtocolCodec.data(PhotoListResult(items)))
+                val page = photos.list(
+                    limit = request.limit,
+                    bucket = request.bucket,
+                    beforeDate = request.beforeDate,
+                    beforeId = request.beforeId,
+                )
+                reply(
+                    envelope,
+                    ProtocolCodec.data(PhotoListResult(page.photos, page.hasMore)),
+                )
+            }
+
+            Types.PHOTO_ALBUMS -> {
+                reply(envelope, ProtocolCodec.data(PhotoAlbumListResult(photos.albums())))
             }
 
             Types.PHOTO_FETCH -> streamPhoto(envelope)
@@ -693,19 +742,36 @@ class LinkConnectionService : Service() {
         }
     }
 
-    private fun startForegroundCompat(includeMediaProjection: Boolean = false) {
-        val types = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or
+    private fun startForegroundCompat(includeMediaProjection: Boolean = false): Boolean {
+        val baseType = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+        val requested = baseType or
             (if (includeMediaProjection) {
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
             } else {
                 0
             })
-        try {
-            ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(), types)
-        } catch (error: Exception) {
-            LinkStatus.log("Service", "Foreground start failed: ${error.javaClass.simpleName}")
-            runCatching { stopSelf() }
+        if (tryStartForeground(requested)) return true
+        if (includeMediaProjection && tryStartForeground(baseType)) {
+            LinkStatus.log("Service", "Foreground started without media projection")
+            return true
         }
+        LinkStatus.setState(
+            LinkState.Error("LinkPhone could not start its foreground service."),
+        )
+        LinkStatus.log("Service", "Foreground service unavailable; stopping safely")
+        stopSelfResult(lastStartId)
+        return false
+    }
+
+    private fun tryStartForeground(types: Int): Boolean = try {
+        ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(), types)
+        true
+    } catch (error: Exception) {
+        LinkStatus.log(
+            "Service",
+            "Foreground start failed (types=$types): ${error.javaClass.simpleName}",
+        )
+        false
     }
 
     private fun refreshNotification() {
@@ -938,7 +1004,7 @@ class LinkConnectionService : Service() {
         val wifi = applicationContext.getSystemService(WifiManager::class.java) ?: return
         runCatching {
             wifiLock = wifi.createWifiLock(
-                WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                WifiManager.WIFI_MODE_FULL_LOW_LATENCY,
                 "LinkPhone:wifi",
             ).apply {
                 setReferenceCounted(false)
@@ -953,7 +1019,32 @@ class LinkConnectionService : Service() {
         }
     }
 
+    @Synchronized
+    private fun acquireReconnectWakeLock() {
+        if (reconnectWakeLock?.isHeld == true) return
+        runCatching {
+            val power = getSystemService(PowerManager::class.java) ?: return
+            reconnectWakeLock = power.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK,
+                "LinkPhone:reconnect",
+            ).apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+            LinkStatus.log("Service", "Holding a wake lock while reconnecting")
+        }.onFailure {
+            LinkStatus.log("Service", "Reconnect wake lock unavailable")
+        }
+    }
+
+    @Synchronized
+    private fun releaseReconnectWakeLock() {
+        runCatching { if (reconnectWakeLock?.isHeld == true) reconnectWakeLock?.release() }
+        reconnectWakeLock = null
+    }
+
     private fun releaseLocks() {
+        releaseReconnectWakeLock()
         runCatching { if (wifiLock?.isHeld == true) wifiLock?.release() }
         runCatching { if (multicastLock?.isHeld == true) multicastLock?.release() }
         wifiLock = null
@@ -1001,6 +1092,7 @@ class LinkConnectionService : Service() {
 
         fun start(context: Context) {
             runCatching {
+                LinkPrefs(context).desiredConnected = true
                 ContextCompat.startForegroundService(
                     context,
                     Intent(context, LinkConnectionService::class.java)
@@ -1011,6 +1103,7 @@ class LinkConnectionService : Service() {
 
         fun disconnect(context: Context) {
             runCatching {
+                LinkPrefs(context).desiredConnected = false
                 ContextCompat.startForegroundService(
                     context,
                     Intent(context, LinkConnectionService::class.java)
@@ -1021,6 +1114,7 @@ class LinkConnectionService : Service() {
 
         fun forget(context: Context) {
             runCatching {
+                LinkPrefs(context).desiredConnected = false
                 ContextCompat.startForegroundService(
                     context,
                     Intent(context, LinkConnectionService::class.java)

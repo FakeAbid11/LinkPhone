@@ -19,6 +19,7 @@ object PhoneInfoBuilder {
         if (Permissions.notificationAccess(context)) capabilities += Capabilities.NOTIFICATIONS
         if (Permissions.photos(context)) {
             capabilities += Capabilities.PHOTOS
+            capabilities += Capabilities.PHOTOS_ALBUMS
             if (Permissions.photosPartial(context)) capabilities += Capabilities.PHOTOS_PARTIAL
         }
         if (Permissions.calls(context) && hasTelephony(context)) {

@@ -3,6 +3,9 @@ package app.linkphone
 import app.linkphone.core.model.CallDialRequest
 import app.linkphone.core.model.ContactDto
 import app.linkphone.core.model.ContactListResult
+import app.linkphone.core.model.PhotoAlbumDto
+import app.linkphone.core.model.PhotoAlbumListResult
+import app.linkphone.core.model.PhotoListRequest
 import app.linkphone.core.model.Pong
 import app.linkphone.core.model.SmsOpenThreadRequest
 import app.linkphone.core.protocol.BinaryCodec
@@ -138,6 +141,65 @@ class ProtocolCodecTest {
         assertEquals(1, decoded.contacts.size)
         assertEquals("Ada", decoded.contacts[0].name)
         assertEquals("+15550101000", decoded.contacts[0].number)
+    }
+
+    @Test
+    fun photoAlbumListRoundTrips() {
+        val encoded = ProtocolCodec.json.encodeToString(
+            PhotoAlbumListResult.serializer(),
+            PhotoAlbumListResult(
+                listOf(
+                    PhotoAlbumDto(
+                        id = "v:external_primary:42",
+                        name = "Camera",
+                        count = 12,
+                        coverId = "900",
+                        latest = 1_700_000_000_000L,
+                    ),
+                ),
+            ),
+        )
+        val decoded = ProtocolCodec.json.decodeFromString(
+            PhotoAlbumListResult.serializer(),
+            encoded,
+        )
+        assertEquals(1, decoded.albums.size)
+        assertEquals("Camera", decoded.albums[0].name)
+        assertEquals(12, decoded.albums[0].count)
+        assertEquals("900", decoded.albums[0].coverId)
+    }
+
+    @Test
+    fun oldPhotoListRequestStillDecodes() {
+        val decoded = ProtocolCodec.json.decodeFromString(
+            PhotoListRequest.serializer(),
+            """{"limit":200}""",
+        )
+        assertEquals(200, decoded.limit)
+        assertNull(decoded.bucket)
+        assertNull(decoded.beforeDate)
+        assertNull(decoded.beforeId)
+    }
+
+    @Test
+    fun photoListRequestCarriesAlbumAndKeyset() {
+        val encoded = ProtocolCodec.json.encodeToString(
+            PhotoListRequest.serializer(),
+            PhotoListRequest(
+                limit = 100,
+                bucket = "v:external_primary:42",
+                beforeDate = 1_700_000_000_000L,
+                beforeId = "900",
+            ),
+        )
+        assertTrue(encoded.contains("v:external_primary:42"))
+        val decoded = ProtocolCodec.json.decodeFromString(
+            PhotoListRequest.serializer(),
+            encoded,
+        )
+        assertEquals("v:external_primary:42", decoded.bucket)
+        assertEquals(1_700_000_000_000L, decoded.beforeDate)
+        assertEquals("900", decoded.beforeId)
     }
 
     @Test
