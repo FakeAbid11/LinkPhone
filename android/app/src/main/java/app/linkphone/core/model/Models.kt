@@ -225,10 +225,14 @@ data class MirrorState(
     val height: Int = 0,
     val message: String? = null,
     val codec: String? = null,
+    val fps: Int? = null,
 )
 
 @Serializable
-data class MirrorStartRequest(val codec: String? = null)
+data class MirrorStartRequest(
+    val codec: String? = null,
+    val fps: Int? = null,
+)
 
 @Serializable
 data class MirrorTouchRequest(

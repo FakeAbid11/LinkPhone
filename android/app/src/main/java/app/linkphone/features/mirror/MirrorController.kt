@@ -49,7 +49,12 @@ class MirrorController(
 
     fun isActive(): Boolean = projection != null
 
-    fun start(resultCode: Int, data: Intent, requestedCodec: String = MirrorCodecChoice.JPEG) {
+    fun start(
+        resultCode: Int,
+        data: Intent,
+        requestedCodec: String = MirrorCodecChoice.JPEG,
+        requestedFps: Int = MirrorCodecChoice.FPS_30,
+    ) {
         if (isActive()) stop("Restarting screen mirroring")
         val manager = context.getSystemService(MediaProjectionManager::class.java)
             ?: throw IllegalStateException("MediaProjection is unavailable")
@@ -82,6 +87,7 @@ class MirrorController(
                 requestedCodec,
                 MirrorEncoderSelector.avcEncoderAvailable(),
             )
+            val fps = MirrorCodecChoice.normalizeFps(requestedFps)
             var selected: MirrorSink? = null
             if (codec == MirrorCodecChoice.H264) {
                 selected = runCatching {
@@ -90,6 +96,7 @@ class MirrorController(
                             handler = workHandler,
                             screenWidth = screen.first,
                             screenHeight = screen.second,
+                            fps = fps,
                             onFrame = onFrame,
                             onFatal = { message -> workHandler.post { stopInternal(message) } },
                             queueSize = ConnectionHub::queueSize,
@@ -133,6 +140,7 @@ class MirrorController(
                     width = activeSink.width,
                     height = activeSink.height,
                     codec = activeSink.kind,
+                    fps = activeSink.fps,
                 ),
             )
         } catch (error: Exception) {

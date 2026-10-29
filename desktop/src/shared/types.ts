@@ -233,6 +233,7 @@ export interface MirrorStateWire {
   height: number;
   message?: string | null;
   codec?: MirrorCodec | null;
+  fps?: number | null;
 }
 
 export interface MirrorFrameWire {
@@ -486,7 +487,7 @@ export interface LinkPhoneApi {
   openUrl(url: string): Promise<void>;
   openOnPhone(url: string): Promise<void>;
   showFile(path: string): Promise<void>;
-  startMirror(codec?: MirrorCodec): Promise<void>;
+  startMirror(codec?: MirrorCodec, fps?: number): Promise<void>;
   stopMirror(): Promise<void>;
   mirrorTouch(touch: MirrorTouchWire): Promise<void>;
   requestMirrorKeyframe(): Promise<void>;

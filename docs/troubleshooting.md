@@ -199,6 +199,9 @@ override the platform; there is no public API that prevents that.
 - **H.264 does not start / “Restart in Compatible mode”:** the phone may lack a hardware AVC
   encoder or the PC may not decode the stream. Choose Compatible (JPEG), or update the phone app.
   H.264 is still consent-gated and stops on lock/rotation just like JPEG.
+- **60 fps still shows about 30 fps:** the phone encoder or its current stream size does not
+  support 60 fps, so LinkPhone stays at 30 fps. Slow Wi-Fi or a busy PC decoder can also prevent
+  60 fps; use 30 fps for battery and stability.
 - **H.264 freezes after a Wi-Fi stall:** the PC requests a fresh key frame automatically; if the
   picture does not return after a few seconds, stop and restart mirroring.
 - **Consent notification never appears:** allow notifications on the phone. The consent must be
@@ -226,6 +229,9 @@ override the platform; there is no public API that prevents that.
 - **H.264 does not start / “Restart in Compatible mode”:** the phone may lack a hardware AVC
   encoder or the PC may not decode the stream. Choose Compatible (JPEG), or update the phone app.
   H.264 is still consent-gated and stops on lock/rotation just like JPEG.
+- **60 fps still shows about 30 fps:** the phone encoder or its current stream size does not
+  support 60 fps, so LinkPhone stays at 30 fps. Slow Wi-Fi or a busy PC decoder can also prevent
+  60 fps; use 30 fps for battery and stability.
 - **H.264 freezes after a Wi-Fi stall:** the PC requests a fresh key frame automatically; if the
   picture does not return after a few seconds, stop and restart mirroring.
 - **Taps land in the wrong place:** the mirrored portrait video can be letterboxed in the PC canvas;

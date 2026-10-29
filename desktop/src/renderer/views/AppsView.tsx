@@ -16,6 +16,7 @@ export function AppsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   const active = state.mirror.state.active;
   const [requested, setRequested] = useState(false);
   const [preference, setPreference] = useState<CodecPreference>('auto');
+  const [fpsPreference, setFpsPreference] = useState<30 | 60>(30);
   const [fps, setFps] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -26,7 +27,9 @@ export function AppsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   const canH264 =
     state.connection.capabilities.includes(CAPABILITIES.MIRROR_H264) && h264Supported();
   const requestedCodec: MirrorCodec = preference === 'auto' && canH264 ? 'h264' : 'jpeg';
+  const requestedFps = requestedCodec === 'h264' ? fpsPreference : 30;
   const phoneCodec = state.mirror.state.codec ?? 'jpeg';
+  const phoneFps = state.mirror.state.fps ?? null;
 
   useEffect(() => {
     if (active || state.mirror.error) setRequested(false);
@@ -81,8 +84,13 @@ export function AppsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
         void api.requestMirrorKeyframe().catch(() => undefined);
       },
       onFatal: (message) => {
-        setPreference('jpeg');
-        setNotice(`${message} Restart mirroring in Compatible mode.`);
+        if (fpsPreference === 60) {
+          setFpsPreference(30);
+          setNotice(`${message} Restart at 30 fps or in Compatible mode.`);
+        } else {
+          setPreference('jpeg');
+          setNotice(`${message} Restart mirroring in Compatible mode.`);
+        }
         void api.stopMirror().catch(() => undefined);
       },
     });
@@ -127,7 +135,7 @@ export function AppsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
     setNotice(null);
     setRequested(true);
     try {
-      await api.startMirror(requestedCodec);
+      await api.startMirror(requestedCodec, requestedFps);
     } catch (error) {
       setRequested(false);
       ui.toast('error', error instanceof Error ? error.message : String(error));
@@ -313,11 +321,43 @@ export function AppsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
                 </Select>
               </Field>
             )}
+            {!active && (
+              <Field
+                id="mirror-fps"
+                label="Frame rate"
+                hint={
+                  requestedCodec === 'h264'
+                    ? '60 fps uses a higher bitrate and more battery; the phone falls back to 30 fps if it cannot encode it.'
+                    : 'JPEG mode is limited to about 5 fps.'
+                }
+              >
+                <Select
+                  id="mirror-fps"
+                  value={requestedCodec === 'h264' ? String(fpsPreference) : '30'}
+                  disabled={requested || requestedCodec !== 'h264'}
+                  onChange={(event) =>
+                    setFpsPreference(event.target.value === '60' ? 60 : 30)
+                  }
+                >
+                  <option value="30">30 fps (balanced)</option>
+                  <option value="60">60 fps (smoother)</option>
+                </Select>
+              </Field>
+            )}
             {active && requestedCodec === 'h264' && phoneCodec === 'jpeg' && (
               <Notice tone="warn">
                 The phone did not start H.264; this session is using JPEG.
               </Notice>
             )}
+            {active &&
+              requestedCodec === 'h264' &&
+              phoneCodec === 'h264' &&
+              fpsPreference === 60 &&
+              (phoneFps ?? 30) < 60 && (
+                <Notice tone="warn">
+                  60 fps is not available on this phone/encoder; this session is running at 30 fps.
+                </Notice>
+              )}
             {notice && <Notice tone="bad">{notice}</Notice>}
             {state.mirror.state.message && (
               <Notice tone="warn">{state.mirror.state.message}</Notice>

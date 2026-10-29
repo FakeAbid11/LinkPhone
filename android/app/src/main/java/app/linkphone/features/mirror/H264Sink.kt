@@ -11,7 +11,8 @@ import app.linkphone.core.protocol.VideoPayload
 import app.linkphone.core.util.LinkStatus
 
 /**
- * Hardware H.264 capture: MediaCodec surface input, 30 fps, 6 Mbps. The encoder
+ * Hardware H.264 capture: MediaCodec surface input, 30 fps/6 Mbps by default or
+ * 60 fps/12 Mbps when requested. The encoder
  * writes Annex B access units; SPS/PPS are kept and prepended to every key frame
  * so the PC decoder can resync without a separate out-of-band negotiation.
  */
@@ -26,6 +27,7 @@ class H264Sink private constructor(
     override val kind: String = MirrorCodecChoice.H264
     override val width: Int = choice.width
     override val height: Int = choice.height
+    override val fps: Int = choice.fps
     override val surface: Surface get() = inputSurface ?: error("H.264 sink is not ready")
 
     private var inputSurface: Surface? = null
@@ -215,11 +217,12 @@ class H264Sink private constructor(
             handler: Handler,
             screenWidth: Int,
             screenHeight: Int,
+            fps: Int,
             onFrame: (ByteArray) -> Unit,
             onFatal: (String) -> Unit,
             queueSize: () -> Long,
         ): H264Sink? {
-            val choice = MirrorEncoderSelector.choose(screenWidth, screenHeight) ?: return null
+            val choice = MirrorEncoderSelector.choose(screenWidth, screenHeight, fps) ?: return null
             for (constantBitrate in booleanArrayOf(true, false)) {
                 var codec: MediaCodec? = null
                 var sink: H264Sink? = null
@@ -231,7 +234,7 @@ class H264Sink private constructor(
                     createdSink.configure(constantBitrate)
                     LinkStatus.log(
                         "Mirror",
-                        "H.264 encoder started at ${choice.width}x${choice.height} " +
+                        "H.264 encoder started at ${choice.width}x${choice.height}@${choice.fps} " +
                             "(${if (constantBitrate) "CBR" else "VBR"})",
                     )
                     return sink

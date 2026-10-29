@@ -133,7 +133,7 @@ certificate is the PC's identity; the signature is the phone's identity.
   HEIC and extreme sizes off the PC.
 - **Handoff images**: same mechanism with frame type 3 and a 20 MB cap.
 - **Mirroring**: the phone captures with MediaProjection. When both sides support it, a hardware AVC
-  encoder writes ~720×1600/30 fps/6 Mbps access units (binary type 4) that the PC decodes with
+  encoder writes ~720×1600 access units at 30 fps/6 Mbps (or opt-in 60 fps/12 Mbps) (binary type 4) that the PC decodes with
   WebCodecs; otherwise it falls back to ≤1280 px/≤5 fps JPEG (type 2). The PC draws frames to a canvas
   and sends normalized tap/swipe coordinates back.
 
