@@ -1,31 +1,28 @@
-## LinkPhone v0.5.2
+## LinkPhone v0.5.3
 
-A direct, LAN-only companion link between an Android phone and a Windows PC. This release makes the
-call speaker control honest on phones that refuse cellular audio routing.
+A direct, LAN-only companion link between an Android phone and a Windows PC. This release gives both
+apps the finished LinkPhone mark: a phone and monitor joined by transfer arrows on the indigo plate.
 
 ### What's new
 
-- The Speaker toggle now tries **both** `AudioManager.setCommunicationDevice()` and the legacy
-  speakerphone request, waits briefly, and verifies the reported route.
-- It only shows **Speaker on** when the phone reports that the route is actually on. If the phone
-  blocks it, the toggle stays off and the PC shows an explicit “phone blocked speaker control”
-  error instead of a false success.
-- Turning the speaker off also clears both route requests; ending the call resets them.
-- Cellular routing remains controlled by Android Telecom/the default dialer. Even with the fallback,
-  some phones will still refuse; use the phone's in-call screen or a headset in that case.
-
-No protocol, permission, SMS, photo, mirroring, or updater changes.
+- New logo on the Windows app, installer, Start-menu/desktop shortcuts, taskbar window, and tray icon.
+- The logo now appears in the PC sidebar and on the startup/fatal screens instead of the old inline
+  SVG mark.
+- New Android launcher icon (adaptive foreground, round icon, and Android 13+ themed monochrome layer)
+  using the same mark.
+- No protocol, permission, SMS, call, photo, mirroring, or updater behavior changed. The v0.5.2
+  speaker-route handling is included.
 
 ### Which updates do I need?
 
-- **Phone app only** for the speaker behavior. The Windows app can stay on v0.5.0/v0.5.1.
-- Installed v0.4.0+ Windows builds can update in-app.
+- **Both apps** if you want the new branding. Functionally, either app can stay on v0.5.2.
+- Installed v0.4.0+ Windows builds can update in-app; portable builds update manually.
 
 ### Download
 
-- `LinkPhone-0.5.2.apk` — Android 10+ companion (sideload; same release key)
-- `LinkPhone-Portable-0.5.2.exe` — Windows portable app
-- `LinkPhone-Setup-0.5.2.exe` — Windows installer (recommended for automatic updates)
+- `LinkPhone-0.5.3.apk` — Android 10+ companion (sideload; same release key)
+- `LinkPhone-Portable-0.5.3.exe` — Windows portable app
+- `LinkPhone-Setup-0.5.3.exe` — Windows installer (recommended for automatic updates)
 - `SHA256SUMS.txt` — verify your downloads
 
 ### Known limitations
@@ -36,5 +33,5 @@ No protocol, permission, SMS, photo, mirroring, or updater changes.
 - Mirroring remains experimental; the callback fix from v0.5.1 is included.
 - The Windows updater is unsigned and SHA-256 verified; portable builds update manually.
 
-Built, unit-tested, linted, and E2E-tested in GitHub Actions. Speaker behavior varies by OEM and
-still needs the hardware checklist in `docs/testing.md`.
+Built, unit-tested, linted, and E2E-tested in GitHub Actions. Icon rendering on launchers, shortcuts,
+and the tray still needs the hardware checklist in `docs/testing.md`.
