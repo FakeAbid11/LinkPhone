@@ -65,8 +65,7 @@ function frame(flags: number, data: Uint8Array, seq = 0): MirrorFrameWire {
 
 function harness() {
   const backends: FakeBackend[] = [];
-  let keyframeRequests = 0;
-  let fatal: string | null = null;
+  const state = { keyframeRequests: 0, fatal: null as string | null };
   const decoder = new H264StreamDecoder({
     width: 720,
     height: 1600,
@@ -78,27 +77,18 @@ function harness() {
     },
     draw: () => undefined,
     requestKeyframe: () => {
-      keyframeRequests += 1;
+      state.keyframeRequests += 1;
     },
     onFatal: (message) => {
-      fatal = message;
+      state.fatal = message;
     },
   });
-  return {
-    decoder,
-    backends,
-    get keyframeRequests() {
-      return keyframeRequests;
-    },
-    get fatal() {
-      return fatal;
-    },
-  };
+  return { decoder, backends, state };
 }
 
 describe('H.264 stream decoder', () => {
   it('configures from SPS/PPS, waits for a key frame, then decodes deltas', () => {
-    const { decoder, backends, keyframeRequests } = harness();
+    const { decoder, backends, state } = harness();
 
     decoder.push(frame(0, payload(1, DELTA)));
     expect(backends).toHaveLength(0);
@@ -111,7 +101,7 @@ describe('H.264 stream decoder', () => {
       avc: { format: 'annexb' },
     });
     expect(backends[0].chunks).toHaveLength(0);
-    expect(keyframeRequests).toBeGreaterThan(0);
+    expect(state.keyframeRequests).toBeGreaterThan(0);
 
     decoder.push(frame(0, payload(2, DELTA)));
     expect(backends[0].chunks).toHaveLength(0);
@@ -127,7 +117,7 @@ describe('H.264 stream decoder', () => {
   });
 
   it('recovers from a decode backlog by resetting and asking for a key frame', () => {
-    const { decoder, backends, keyframeRequests } = harness();
+    const { decoder, backends, state } = harness();
     decoder.push(frame(FLAG_CONFIG, payload(0, SPS, PPS)));
     decoder.push(frame(FLAG_KEY, payload(1, IDR)));
     const backend = backends[0];
@@ -136,7 +126,7 @@ describe('H.264 stream decoder', () => {
     decoder.push(frame(0, payload(2, DELTA)));
     expect(backend.resets).toBe(1);
     expect(backend.chunks).toHaveLength(1);
-    expect(keyframeRequests).toBeGreaterThanOrEqual(2);
+    expect(state.keyframeRequests).toBeGreaterThanOrEqual(2);
 
     decoder.push(frame(FLAG_KEY, payload(3, IDR)));
     expect(backend.chunks).toHaveLength(2);
@@ -151,16 +141,16 @@ describe('H.264 stream decoder', () => {
   });
 
   it('restarts once on a decoder error, then reports a fatal failure', () => {
-    const { decoder, backends, fatal } = harness();
+    const { decoder, backends, state } = harness();
     decoder.push(frame(FLAG_CONFIG, payload(0, SPS, PPS)));
     decoder.push(frame(FLAG_KEY, payload(1, IDR)));
 
     backends[0].error(new Error('first failure'));
     expect(backends).toHaveLength(2);
-    expect(fatal).toBeNull();
+    expect(state.fatal).toBeNull();
 
     backends[1].error(new Error('second failure'));
-    expect(fatal).toContain('H.264 playback failed');
+    expect(state.fatal).toContain('H.264 playback failed');
   });
 
   it('does not feed a codec config frame to the decoder', () => {
