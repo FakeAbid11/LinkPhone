@@ -1,3 +1,32 @@
+## LinkPhone v0.7.1
+
+A direct, LAN-only companion link between an Android phone and a Windows PC. This release replaces
+the crosshair cursor over the mirrored phone screen with the ordinary mouse pointer.
+
+### What's new
+
+- **The Apps tab now shows your normal mouse pointer.** The mirrored phone screen used to display a
+  crosshair, which read as a targeting reticle rather than a mouse. It now behaves like every other
+  surface in the app: the standard Windows arrow, with the same click-to-tap and drag-to-swipe
+  gestures as before.
+- Nothing else changed. Tapping, swiping, the codec and frame-rate pickers, the remote-input
+  permissions, and every other feature behave exactly as they did in v0.7.0.
+
+### Which updates do I need?
+
+- **PC v0.7.1** for the new cursor. The Android app has no functional changes; the published APK is
+  the same code as v0.7.0 under the new version number.
+- Updating only one side is safe; the two apps are versioned independently.
+
+### Download
+
+- `LinkPhone-0.7.1.apk` — Android 10+ companion (sideload; same release key)
+- `LinkPhone-Portable-0.7.1.exe` — Windows portable app
+- `LinkPhone-Setup-0.7.1.exe` — Windows installer (recommended for automatic updates)
+- `SHA256SUMS.txt` — verify your downloads
+
+Built, unit-tested, linted, and E2E-tested in GitHub Actions.
+
 ## LinkPhone v0.7.0
 
 A direct, LAN-only companion link between an Android phone and a Windows PC. This release brings
