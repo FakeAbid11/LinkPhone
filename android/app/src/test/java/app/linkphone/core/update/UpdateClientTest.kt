@@ -91,7 +91,7 @@ class UpdateClientTest {
               "html_url": "https://example.com/releases/v0.7.0",
               "draft": false,
               "prerelease": false,
-              "assets": $APK_AND_CHECKSUMS
+              "assets": [$APK_AND_CHECKSUMS]
             }
             """.trimIndent(),
         )
