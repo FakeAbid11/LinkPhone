@@ -105,6 +105,10 @@ export class UpdateService {
     this.options.install(this.installerPath);
   }
 
+  async whenIdle(): Promise<void> {
+    await (this.checkInFlight ?? this.downloadInFlight);
+  }
+
   private scheduleAutoCheck(): void {
     this.clearTimers();
     this.initialTimer = setTimeout(() => {
