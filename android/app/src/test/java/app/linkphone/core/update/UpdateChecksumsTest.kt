@@ -110,7 +110,8 @@ class UpdateChecksumsTest {
             .digest(file.readBytes())
             .joinToString("") { "%02x".format(it) }
         val sums = "$digest  release.apk"
-        assertEquals(digest, parseChecksum(sums, "release.apk"))
-        assertTrue(checksumsEqual(sha256File(file), parseChecksum(sums, "release.apk")))
+        val parsed = parseChecksum(sums, "release.apk")
+        assertEquals(digest, parsed)
+        assertTrue(parsed != null && checksumsEqual(sha256File(file), parsed))
     }
 }

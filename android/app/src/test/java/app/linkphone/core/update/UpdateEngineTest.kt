@@ -157,19 +157,17 @@ class UpdateEngineTest {
         val client = fakeClient()
         client.release = release("0.7.1")
         val dir = folder.newFolder("updates")
-        var status: UpdateStatus? = null
         val engine = engine(
             client = client,
             dir = dir,
             scope = backgroundScope,
             mode = UpdateMode.Disabled,
-            onStatus = { status = it },
         )
 
         engine.start()
         engine.check(manual = true)
 
-        assertEquals(UpdatePhase.Unsupported, status?.phase)
+        assertEquals(UpdatePhase.Unsupported, engine.status.value.phase)
         assertEquals(0, client.latestCalls)
         assertEquals(0, client.downloadCalls)
     }
