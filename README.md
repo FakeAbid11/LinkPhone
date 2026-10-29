@@ -4,7 +4,7 @@
 
 Your Android phone and Windows PC, connected directly over your own Wi-Fi. Messages, notifications, photos, call control, clipboard handoff, and experimental screen mirroring — encrypted, LAN-only, no cloud account.
 
-> **Status:** v0.7.1. The Android and Windows apps compile, pass their unit/integration tests, and are packaged in GitHub Actions. They have **not** been tested on a physical phone in this environment; OEM permissions, calls, notifications, MediaProjection, the Android update installer, and background behavior require the device acceptance checklist. See [testing.md](docs/testing.md#device-acceptance-checklist) and the limitations below before installing.
+> **Status:** v0.7.2. The Android and Windows apps compile, pass their unit/integration tests, and are packaged in GitHub Actions. They have **not** been tested on a physical phone in this environment; OEM permissions, calls, notifications, MediaProjection, the Android update installer, and background behavior require the device acceptance checklist. See [testing.md](docs/testing.md#device-acceptance-checklist) and the limitations below before installing.
 
 Documentation: [feasibility & limits](docs/feasibility.md) · [architecture](docs/architecture.md) · [protocol](docs/protocol.md) · [permissions](docs/permissions.md) · [security](docs/security.md) · [troubleshooting](docs/troubleshooting.md) · [building](docs/building.md).
 
@@ -66,6 +66,7 @@ If the PC shows no LAN address or the phone cannot connect, allow LinkPhone thro
 
 - Real SMS/MMS, carrier calls, caller ID, OEM answer/decline restrictions
 - Notification-listener behavior on Android 15+ and OEM skins
+- The live notification mirror and the phone battery indicator on real hardware
 - MediaProjection consent, secure-window blacking, lock/rotation, Accessibility gestures
 - Background survival under Doze and OEM task killers
 - Wi-Fi AP isolation, VPNs, Windows Firewall prompts, SmartScreen
@@ -88,7 +89,8 @@ Do not interpret a green CI run as proof that those device-specific paths work. 
 |---|---|---|
 | Secure pairing and reconnect | Implemented | QR pairing, pinned TLS, ECDSA device authentication, automatic reconnect |
 | SMS read/send/receive | Implemented | Requires `READ_SMS`/`SEND_SMS`/`RECEIVE_SMS`; opening a thread clears PC-local unread; **Open on phone** syncs the stock SMS app; no MMS/RCS |
-| Notification mirroring | Implemented | Per-app mute and dismiss; Android 15+ may redact sensitive content |
+| Notification mirroring | Implemented | Live mirror of the phone's current notifications; a changed count is rewritten in place; per-app mute and dismiss; Android 15+ may redact sensitive content |
+| Phone battery | Implemented | Charge level and charging state on the Connection tab and in the sidebar |
 | Photos | Implemented | Album browsing with paging, save to PC, copy image to clipboard |
 | Call control | Limited | Dial/answer/decline/end, caller state, contact search, SIM selection on Android 11+, and a best-effort speaker toggle; **call audio stays on the phone** |
 | Clipboard and Continue on PC | Limited | PC→phone clipboard; phone→PC on explicit action only |

@@ -55,6 +55,7 @@ export function registerIpc(controller: AppController): void {
   ipcMain.handle('notif:mute', (_event, pkg: unknown, muted: unknown) =>
     controller.setPackageMuted(requireString(pkg, 'package', 200), Boolean(muted)),
   );
+  ipcMain.handle('notif:refresh', () => controller.refreshNotifications());
 
   ipcMain.handle('photos:refresh', () => controller.refreshPhotos());
   ipcMain.handle('photos:albums', () => controller.refreshPhotoAlbums());

@@ -12,7 +12,7 @@ import {
   type ToastItem,
 } from './components';
 import type { Ui } from './ui';
-import { errorMessage, formatFingerprint } from './utils';
+import { batteryLabel, batteryTone, errorMessage, formatFingerprint } from './utils';
 import { AppsView } from './views/AppsView';
 import { CallsView } from './views/CallsView';
 import { ConnectView } from './views/ConnectView';
@@ -163,7 +163,7 @@ export function App() {
   }
 
   const unread = state.sms.threads.reduce((sum, thread) => sum + thread.unread, 0);
-  const notificationCount = state.notifications.length;
+  const notificationCount = state.notifications.items.length;
   const handoffCount = state.handoff.length;
   const request = state.pairing.request;
   const ringing = state.calls.state.state === 'ringing';
@@ -237,6 +237,17 @@ export function App() {
                   ? `Encrypted · ${state.server.addresses[0] ?? 'LAN'}`
                   : 'LAN only · no cloud'}
               </span>
+              {state.connection.connected && state.connection.batteryLevel !== undefined && (
+                <span
+                  className={`battery-chip battery-${batteryTone(
+                    state.connection.batteryLevel,
+                    state.connection.batteryCharging,
+                  )}`}
+                >
+                  <Icon name="battery" size={12} />
+                  {batteryLabel(state.connection.batteryLevel, state.connection.batteryCharging)}
+                </span>
+              )}
             </div>
           </div>
           <span className="sidebar-note">

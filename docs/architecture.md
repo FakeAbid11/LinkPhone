@@ -39,6 +39,12 @@ Android (Kotlin/Compose)                         Windows PC (Electron/React)
 - **Features**: SMS provider/send/receiver, notification listener, MediaStore photos, telecom
   control, clipboard bridge + Quick Settings tile, share target, MediaProjection mirror,
   Accessibility gesture service.
+- **Notification mirror**: the phone's `LinkNotificationListener` pushes every post/remove and
+  announces changes (`notif.changed`); the PC asks for the phone's current set (`notif.list`) and
+  replaces its list, so a notification whose count changed is rewritten in place. `NotificationSnapshot`
+  holds the pure text and ordering rules.
+- **Battery**: `BatteryReader` reads Android's battery broadcast (no permission) and the foreground
+  service pushes the charge level (`phone.battery`) whenever it changes.
 
 ### PC
 
@@ -104,7 +110,7 @@ certificate is the PC's identity; the signature is the phone's identity.
 - A second, different phone is refused with `BUSY`.
 - PC commands use request/response correlation: each request has an id, the phone replies with
   `replyTo` and `ok`.
-- Phone events (new SMS hint, notifications, call state, clipboard, handoff, mirror) are
+- Phone events (new SMS hint, notifications, call state, clipboard, handoff, mirror, battery) are
   unsolicited envelopes.
 - WebSocket pings every 20 s from the phone, plus server heartbeats every 25 s.
 

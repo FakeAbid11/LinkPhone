@@ -229,6 +229,38 @@ button {
   color: var(--faint);
 }
 
+.connect-state .battery-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 2px 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  font-size: 10.5px;
+  color: var(--muted);
+  width: fit-content;
+}
+
+.connect-state .battery-chip svg {
+  flex: 0 0 auto;
+}
+
+.connect-state .battery-chip.battery-good {
+  border-color: rgba(123, 224, 176, 0.3);
+  color: var(--good);
+}
+
+.connect-state .battery-chip.battery-warn {
+  border-color: rgba(255, 207, 122, 0.3);
+  color: var(--warn);
+}
+
+.connect-state .battery-chip.battery-bad {
+  border-color: rgba(255, 158, 158, 0.3);
+  color: var(--danger);
+}
+
 .status-dot {
   width: 8px;
   height: 8px;
@@ -501,7 +533,7 @@ button {
 
 .meta-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin-top: 14px;
 }

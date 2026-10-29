@@ -42,6 +42,11 @@ locally.
 - `core/update/UpdateEngineTest` — the update state machine: download and verification, checksum
   and signature failures, up-to-date, disabled builds, the automatic-check timer, the six-hour
   throttle, manual checks with auto-check off, stale-file cleanup, and error reporting.
+- `features/notifications/NotificationSnapshotTest` — the notification text rules (short text, then
+  expanded text, then the message lines) and the snapshot ordering (newest first, own app dropped,
+  capped).
+- `features/BatteryParserTest` — the charge level from the battery broadcast, rounding, the range
+  clamp, the charging states, and unusable readings.
 
 Run in CI:
 
@@ -70,6 +75,11 @@ gradle -p android :app:testDebugUnitTest :app:lintDebug
   per-device SMS read-state ids (cap/remove/reset).
 - `sms-service.test.ts` — local read marking, per-device persistence, mark-all, and the
   `sms.openThread` request payload.
+- `notifications.test.ts` — the live mirror: the initial sync does not pop old notifications up, a
+  changed count is rewritten in place without a second popup, `notif.changed` re-reads the phone, a
+  notification the phone dropped disappears, a failed sync keeps the last list, and muted apps stay
+  out.
+- `battery.test.ts` — the battery label (percentage, charging, unknown) and the low-battery tone.
 - `thread-filter.test.ts` — conversation search by name, address, and latest message, including
   case/whitespace handling and no-match results.
 - `palette.test.ts` — parses the `:root` tokens in `styles.css` and asserts WCAG contrast for body,
@@ -118,6 +128,9 @@ The following require real hardware and are **not** verified by this repository'
   a conversation read when Open on phone opens it
 - Real contact-provider behavior across accounts/OEMs and the contact permission flow
 - Notification listener behavior on Android 15+ (redaction, rebind)
+- The live notification mirror: that a changed count really reaches the PC, and that the phone's
+  current notification set is reported correctly
+- The phone's battery reading, and that the charge level reaches the PC as the battery changes
 - Call answer/decline and caller ID on a real carrier
 - MediaProjection consent, secure-window blacking, lock/rotation behavior
 - Accessibility gesture injection
@@ -197,7 +210,21 @@ Use two devices on the same Wi-Fi. Check each item and keep the diagnostics log 
 - [ ] Dismiss from the PC; it disappears on the phone.
 - [ ] Mute an app; its notifications stop appearing.
 - [ ] Android 15+: check whether an OTP notification is redacted (expected: possible).
-- [ ] Notifications received while disconnected are absent on reconnect (expected).
+- [ ] Change a notification's count on the phone (for example 1 → 4 unread); the PC's card is
+      rewritten in place with the new number, and **no second popup** appears.
+- [ ] Post a genuinely new notification; a Windows popup appears and the card is added.
+- [ ] Disconnect the PC, post two notifications, reconnect; both appear without a manual refresh.
+- [ ] Press **Refresh** in the Notifications tab; the list is re-read from the phone.
+- [ ] Dismiss a notification on the phone; the card disappears from the PC.
+- [ ] Unmute an app; its notifications come back without a burst of popups.
+
+### Phone battery
+
+- [ ] The Connection tab shows the phone's charge level.
+- [ ] Plug the phone in; the label changes to "charging" and the colour changes.
+- [ ] Unplug it; the label drops the "charging" suffix.
+- [ ] The sidebar chip shows the level and updates by itself when the charge changes.
+- [ ] Let the phone drop below 30 % and then below 15 %; the chip turns amber and then red.
 
 ### Photos
 

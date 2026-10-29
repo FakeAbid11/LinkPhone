@@ -11,12 +11,13 @@ what would require a different product or system privileges.
 | SMS view/send | Implemented | Sideload only; unread is PC-local; Open on phone hands the thread to the stock SMS app (one tap); no MMS/RCS; no default-SMS role, so sent items may not enter stock threads |
 | Calls from PC | Limited | Dial/answer/decline/end, caller state, contact search, SIM choice on Android 11+, and a best-effort speaker toggle where OEM permits; **no call audio on PC**; caller ID needs call-log access |
 | Photos | Implemented | All MediaStore image albums with paging; JPEG transcode; Android 14 partial access respected |
-| Notification mirroring | Implemented | Per-app mute, dismiss; Android 15+ may redact sensitive content; no action buttons |
+| Notification mirroring | Implemented | Live mirror: the PC shows the phone's current notifications and a changed count is rewritten in place; per-app mute, dismiss; Android 15+ may redact sensitive content; no action buttons |
 | Apps streaming | Experimental substitute | Hardware H.264 mirroring up to ~720×1600 at 30 fps (or opt-in 60 fps) where the phone and PC support it, with JPEG fallback; tap/swipe only; no app virtualization; consent each session; stops on lock |
 | Clipboard/handoff | Limited | PC→phone works; phone→PC explicit; “Continue on PC” via share sheet |
 | Background operation | Best effort | Foreground service, boot restart, locks; OEM/Doze/force-stop can still stop it |
 | Windows updates | Implemented | Installed NSIS build only; portable is manual; SHA-256 verified, unsigned |
 | Android updates | Implemented | In-app check and download on release builds; SHA-256 **and** signing-certificate verified; Android performs the install; the user must allow "install unknown apps" once; debug builds never contact GitHub |
+| Phone battery | Implemented | Charge level and charging state only; no battery history, no temperature, no charge-time estimate |
 
 ## Android version requirements
 
@@ -115,10 +116,25 @@ more” to update.
 A `NotificationListenerService` receives posted/removed notifications and forwards title, text, app
 label, category, and time. The PC can mute an app or dismiss a notification (`cancelNotification`).
 
+The PC does not keep an event log: the phone reports its current notification set (`notif.list`) and
+announces every change (`notif.changed`), so the PC re-reads the phone and shows what the phone has
+right now. A notification whose text or count changed is rewritten in place, and a Windows popup
+appears only for a notification the PC has not shown before.
+
 Limits: Android 15+ hides sensitive content (OTP codes) from listeners. Action buttons are not
 mirrored because firing another app's `PendingIntent` can be blocked by trampoline restrictions and
-is not reliably representable. Ongoing/system notifications may not be dismissible. Notifications
-posted while the service is dead are lost; reconnect and new notifications work.
+is not reliably representable. Ongoing/system notifications may not be dismissible. A count that
+lives only in a launcher badge is not part of the notification and cannot be read. Notifications
+posted while the service is dead are caught up on the next sync.
+
+### Phone battery — implemented
+
+The phone reads Android's own battery broadcast (no permission needed) and sends the charge level
+and charging state to the PC. The Connection tab shows it, and a chip in the sidebar keeps it
+visible from every tab.
+
+Limits: the level is only as accurate as Android's own reading, and some OEM skins report a coarse
+value. There is no battery history, no temperature, and no estimate of the time left.
 
 ### Apps — experimental screen mirroring, not app streaming
 

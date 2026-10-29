@@ -44,6 +44,7 @@ const api: LinkPhoneApi = {
   markAllSmsRead: () => ipcRenderer.invoke('sms:markAllRead'),
   openSmsThreadOnPhone: (address) => ipcRenderer.invoke('sms:openOnPhone', address),
   dismissNotification: (key) => ipcRenderer.invoke('notif:dismiss', key),
+  refreshNotifications: () => ipcRenderer.invoke('notif:refresh'),
   setPackageMuted: (pkg, muted) => ipcRenderer.invoke('notif:mute', pkg, muted),
   refreshPhotos: () => ipcRenderer.invoke('photos:refresh'),
   refreshPhotoAlbums: () => ipcRenderer.invoke('photos:albums'),

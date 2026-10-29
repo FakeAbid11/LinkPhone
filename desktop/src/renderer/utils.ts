@@ -74,3 +74,23 @@ export function capabilityLabel(capability: string): string {
 export function truncate(value: string, max: number): string {
   return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 }
+
+export type BatteryTone = 'neutral' | 'good' | 'warn' | 'bad';
+
+/** The phone's charge level, or a dash when the phone cannot report it. */
+export function batteryLabel(level: number | undefined, charging: boolean | undefined): string {
+  if (typeof level !== 'number' || !Number.isFinite(level)) return '—';
+  const percent = `${Math.max(0, Math.min(100, Math.round(level)))}%`;
+  return charging ? `${percent} · charging` : percent;
+}
+
+export function batteryTone(
+  level: number | undefined,
+  charging: boolean | undefined,
+): BatteryTone {
+  if (charging) return 'good';
+  if (typeof level !== 'number' || !Number.isFinite(level)) return 'neutral';
+  if (level <= 15) return 'bad';
+  if (level <= 30) return 'warn';
+  return 'neutral';
+}

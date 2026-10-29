@@ -1,3 +1,44 @@
+## LinkPhone v0.7.2
+
+A direct, LAN-only companion link between an Android phone and a Windows PC. This release makes the
+notification mirror live and shows the phone's battery on the PC.
+
+### What's new
+
+- **The Notifications tab now mirrors the phone live.** It used to be an event log: it showed only
+  the notifications that arrived while the PC was connected, and it had no way to ask the phone what
+  was on screen. The phone now reports its current notification set, so the PC shows what the phone
+  has right now — including notifications that arrived while the PC was away.
+- **A notification whose number changed is rewritten in place.** When a messaging app updates its
+  notification from "3 unread" to "4 unread", the card on the PC updates to "4 unread" instead of
+  sitting there with the old count.
+- **A Windows popup appears only for a genuinely new notification.** A changed count updates the
+  card quietly, so a busy counter does not fill the screen with popups.
+- **The Refresh button now really refreshes.** It asks the phone for its current notifications
+  instead of re-drawing what the PC already had.
+- **The phone's battery level is shown on the PC.** The Connection tab reports the charge level and
+  whether the phone is charging, and a small chip in the sidebar keeps it visible from every tab.
+  A low battery is coloured amber, and red under 15 %.
+- Nothing else changed. Messages, photos, calls, mirroring, and the updaters behave exactly as they
+  did in v0.7.1.
+
+### Which updates do I need?
+
+- **PC v0.7.2** for the live notifications and the battery indicator. The Android app needs
+  **v0.7.2** too, because the phone has to be able to report its current notifications and its
+  battery level; a v0.7.1 phone keeps working but the PC falls back to the old one-way feed.
+- Updating only one side is safe; the two apps are versioned independently.
+
+### Download
+
+- `LinkPhone-0.7.2.apk` — Android 10+ companion (sideload; same release key)
+- `LinkPhone-Portable-0.7.2.exe` — Windows portable app
+- `LinkPhone-Setup-0.7.2.exe` — Windows installer (recommended for automatic updates)
+- `SHA256SUMS.txt` — verify your downloads
+
+Built, unit-tested, linted, and E2E-tested in GitHub Actions. The live notification mirror and the
+battery indicator need the hardware checklist in `docs/testing.md`.
+
 ## LinkPhone v0.7.1
 
 A direct, LAN-only companion link between an Android phone and a Windows PC. This release replaces
