@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CAPABILITIES, type AppSnapshot } from '../../shared/types';
+import { CAPABILITIES, type AppSnapshot, type SmsThreadUi } from '../../shared/types';
 import { api } from '../api';
 import {
   Button,
@@ -29,6 +29,7 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   const [query, setQuery] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const loadedRef = useRef(false);
+  const markingRef = useRef(new Set<string>());
 
   const filteredThreads = useMemo(() => filterThreads(threads, query), [threads, query]);
 
@@ -72,6 +73,15 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
       'Message sent to the phone',
     );
     setSending(false);
+  };
+
+  const openThread = (thread: SmsThreadUi) => {
+    setSelected(thread.address);
+    if (thread.unread <= 0 || markingRef.current.has(thread.address)) return;
+    markingRef.current.add(thread.address);
+    void ui
+      .run(() => api.markSmsRead(thread.address))
+      .finally(() => markingRef.current.delete(thread.address));
   };
 
   if (!connected) {
@@ -143,8 +153,8 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
         <div className="messages-banner">
           {!canOpenOnPhone && (
             <p className="muted small messages-hint">
-              Phone read sync needs the v0.1.2 phone app. Mark read still clears unread in
-              LinkPhone.
+              Phone read sync needs the v0.1.2 phone app. Opening a conversation clears its unread
+              badge in LinkPhone.
             </p>
           )}
 
@@ -197,7 +207,7 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
                   type="button"
                   className={`thread-item ${active?.address === thread.address ? 'is-active' : ''}`}
                   aria-current={active?.address === thread.address ? 'true' : undefined}
-                  onClick={() => setSelected(thread.address)}
+                  onClick={() => openThread(thread)}
                 >
                   <span className="thread-avatar">{initials(thread.displayName)}</span>
                   <span className="thread-copy">
@@ -229,22 +239,6 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
                 <span className="muted small">
                   {active ? formatDateTime(active.latest) : ''}
                 </span>
-                {active && active.unread > 0 && (
-                  <Button
-                    small
-                    variant="ghost"
-                    icon="check"
-                    title="Clears unread in LinkPhone only."
-                    onClick={() =>
-                      void ui.run(
-                        () => api.markSmsRead(active.address),
-                        'Marked read on this PC',
-                      )
-                    }
-                  >
-                    Mark read
-                  </Button>
-                )}
                 {active && canOpenOnPhone && (
                   <Button
                     small

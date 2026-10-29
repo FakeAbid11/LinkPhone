@@ -107,12 +107,13 @@ override the platform; there is no public API that prevents that.
 - **Conversation list does not scroll:** fixed in v0.1.2; update the PC app. The conversation list
   and message history now have independent scroll areas.
 - **No threads:** grant READ_SMS, then reconnect or reopen Messages. The provider may be empty.
-- **Mark read only clears LinkPhone:** expected. Android only lets the default SMS app write the
-  phone's read flag. Use **Open on phone**; a notification appears on the phone, and tapping it
-  opens the conversation in your stock SMS app, which marks it read. Allow notifications on the
-  phone, and note that OEM SMS apps may behave differently.
+- **Opening a thread clears unread only in LinkPhone:** expected. Android only lets the default SMS
+  app write the phone's read flag. Use **Open on phone**; a notification appears on the phone, and
+  tapping it opens the conversation in your stock SMS app, which marks it read. Allow notifications
+  on the phone, and note that OEM SMS apps may behave differently.
 - **Open on phone is missing:** update the phone app to v0.1.2 and grant SMS. The PC hides the button
-  when the phone does not advertise `sms.openThread`; the PC can still mark read locally.
+  when the phone does not advertise `sms.openThread`; opening a conversation still clears PC-local
+  unread.
 - **Sent but not in the stock app:** expected without the default-SMS role. LinkPhone reports what
   it handed to the phone; delivery reports are not implemented.
 - **Sending fails:** check SEND_SMS, network/carrier service, and the destination format. Short
@@ -151,8 +152,13 @@ override the platform; there is no public API that prevents that.
 
 - **No caller number:** Android 10+ requires READ_CALL_LOG for the incoming number. Grant it and
   reconnect; without it the PC shows “Incoming call”.
-- **Answer/decline fails:** grant ANSWER_PHONE_CALLS. Some OEMs restrict programmatic answering to
-  the default dialer; use the phone notification in that case.
+- **Answer/decline/end fails:** grant ANSWER_PHONE_CALLS. Some OEMs restrict programmatic call
+  control to the default dialer; use the phone notification/in-call screen in that case.
+- **End call is missing:** open the Calls tab or look for the global **Call in progress** banner.
+  The button is disabled while ANSWER_PHONE_CALLS is missing; grant it on the phone.
+- **Speaker toggle does nothing:** expected on phones that reserve cellular routing for the default
+  dialer. The control is best effort; use the phone's in-call screen or a headset. The PC shows a
+  notice instead of claiming the route changed.
 - **No audio on the PC:** expected and unavoidable for a third-party app. Use the phone's
   speakerphone or a headset. See [feasibility.md](feasibility.md).
 - **Dial fails:** grant CALL_PHONE and ensure a SIM is active. Emergency calls are handled by

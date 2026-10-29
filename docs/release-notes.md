@@ -1,59 +1,52 @@
-## LinkPhone v0.4.0
+## LinkPhone v0.5.0
 
-A direct, LAN-only companion link between an Android phone and a Windows PC. This release adds a
-built-in updater for the installed Windows build.
+A direct, LAN-only companion link between an Android phone and a Windows PC. This release improves
+call controls and SMS unread behavior.
 
 ### What's new
 
-- **In-app Windows updates.** The installed Setup build checks the official GitHub Releases page
-  after launch and every six hours, downloads a newer Setup EXE in the background, and shows an
-  **Update ready** banner with **Restart and install**.
-- **Settings → Updates** shows the current version, check status, download progress, release notes,
-  and a toggle for automatic checks. A **Check for updates** action is also in the tray menu.
-- Downloads are verified against the release's `SHA256SUMS.txt` before the installer can run. A
-  mismatched or truncated download is deleted and reported; it is never executed.
-- **Portable builds** cannot replace their running EXE, so they show a **Download portable** link
-  instead of automatic installation.
-- The installer opens after LinkPhone has stopped its connection service; you can cancel it if
-  needed.
+**Calls**
 
-### Security note
+- **End call is available outside the Calls tab.** The global banner now appears for an active call
+  as well as an incoming one, with **End call** and (where supported) a speaker toggle.
+- The Calls tab keeps **End call** and adds a **Speaker off/on** button during an active call.
+- **Speaker control is best effort.** Android normally reserves the cellular audio route for the
+  Telecom/default dialer. LinkPhone requests the speaker device where the platform allows it and
+  clearly says to use the phone's in-call screen or a headset if the route does not change.
+- End/answer/decline still require the Answer calls permission; the UI explains this when missing.
+- The success message after ending is now “End request sent to the phone,” not a premature “Call
+  ended” before the phone reports idle.
 
-The Windows binaries are still unsigned. The updater uses HTTPS and SHA-256 from the same official
-release, but it does not provide Authenticode publisher verification. Only install updates from this
-repository's releases. If a Windows code-signing certificate is added later, the updater should be
-switched to signature verification.
+**Messages**
+
+- Clicking an unread conversation now marks it read automatically and clears its unread badge/nav
+  count. The per-thread **Mark read** button was removed; **Mark all read** remains.
+- This is still a PC-local read state, because Android only lets the default SMS app write the
+  phone's read flag. Use **Open on phone** to hand the thread to the stock SMS app.
+
+The v0.4.0 Windows updater continues to work; v0.4.0 installs can update to this release in-app.
 
 ### Which updates do I need?
 
-- **Both apps** for the same feature set; the updater itself is Windows-only.
-- This is the first updater-enabled release, so existing installs must install v0.4.0 manually once.
-  Later v0.4.x releases can update in-app.
-- The v0.3.2 photo-save fixes are included.
+- **Both apps** for the call speaker/end improvements and the consistent UI.
+- SMS auto-read is PC-only.
 
 ### Download
 
-- `LinkPhone-0.4.0.apk` — Android 10+ companion (sideload; same release key)
-- `LinkPhone-Portable-0.4.0.exe` — Windows portable app
-- `LinkPhone-Setup-0.4.0.exe` — Windows installer (use this for automatic updates)
+- `LinkPhone-0.5.0.apk` — Android 10+ companion (sideload; same release key)
+- `LinkPhone-Portable-0.5.0.exe` — Windows portable app
+- `LinkPhone-Setup-0.5.0.exe` — Windows installer (recommended for automatic updates)
 - `SHA256SUMS.txt` — verify your downloads
-
-### First run
-
-1. Install the Windows Setup build (not the portable EXE) to enable automatic updates.
-2. Allow LinkPhone through Windows Firewall on **Private** networks.
-3. Open the PC app and choose **Pair a phone**.
-4. Install the APK, open LinkPhone, and follow the setup guide.
-5. Scan the QR code and approve the pairing prompt on the PC.
 
 ### Known limitations
 
-- The updater downloads the full installer; there are no delta updates.
-- The NSIS installer opens after restart; installation is not silent.
-- Portable builds require a manual download/replacement.
-- Doze, OEM task killers, and unsigned-build SmartScreen warnings still apply.
+- Cellular call audio cannot be routed to the PC. Speaker toggling is best effort and may be ignored
+  by the phone's telecom stack or OEM dialer.
+- End call can be restricted to the default dialer on some devices; grant Answer calls and check the
+  phone's in-call screen.
+- The Windows updater remains unsigned and SHA-256 verified; portable builds update manually.
 - Mirroring remains experimental and is not app streaming.
-- SMS remains sideload-only with no MMS/RCS.
+- SMS is sideload-only with no MMS/RCS.
 
-Built, unit-tested, linted, and E2E-tested in GitHub Actions. The updater's real install/upgrade path
-still needs the manual Windows checklist in `docs/testing.md`; CI cannot install an update.
+Built, unit-tested, linted, and E2E-tested in GitHub Actions. Real call routing and per-OEM end-call
+behavior still need the hardware checklist in `docs/testing.md`.

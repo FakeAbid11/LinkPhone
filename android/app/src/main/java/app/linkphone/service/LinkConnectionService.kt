@@ -29,6 +29,7 @@ import app.linkphone.R
 import app.linkphone.core.crypto.DeviceIdentity
 import app.linkphone.core.crypto.normalizeFingerprint
 import app.linkphone.core.model.CallDialRequest
+import app.linkphone.core.model.CallSpeakerRequest
 import app.linkphone.core.model.CallState
 import app.linkphone.core.model.ContactListRequest
 import app.linkphone.core.model.ContactListResult
@@ -201,7 +202,12 @@ class LinkConnectionService : Service() {
                     stopSelfResult(startId)
                     return START_NOT_STICKY
                 }
-                if (ConnectionHub.isConnected()) sendPhoneInfo() else startLoop()
+                if (ConnectionHub.isConnected()) {
+                    sendPhoneInfo()
+                    mainHandler.post { calls.start() }
+                } else {
+                    startLoop()
+                }
             }
             else -> {
                 if (!prefs.isPaired || !prefs.desiredConnected) {
@@ -556,6 +562,10 @@ class LinkConnectionService : Service() {
 
             Types.CALL_ANSWER -> resultReply(envelope, calls.answer())
             Types.CALL_DECLINE -> resultReply(envelope, calls.decline())
+            Types.CALL_SPEAKER -> {
+                val request = envelope.decodeData<CallSpeakerRequest>()
+                resultReply(envelope, calls.setSpeaker(request.enabled))
+            }
 
             Types.CONTACTS_LIST -> {
                 val request = envelope.decodeData<ContactListRequest>()

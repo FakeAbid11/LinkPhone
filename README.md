@@ -4,7 +4,7 @@
 
 Your Android phone and Windows PC, connected directly over your own Wi-Fi. Messages, notifications, photos, call control, clipboard handoff, and experimental screen mirroring — encrypted, LAN-only, no cloud account.
 
-> **Status:** v0.4.0. The Android and Windows apps compile, pass their unit/integration tests, and are packaged in GitHub Actions. They have **not** been tested on a physical phone in this environment; OEM permissions, calls, notifications, MediaProjection, and background behavior require the device acceptance checklist. See [testing.md](docs/testing.md#device-acceptance-checklist) and the limitations below before installing.
+> **Status:** v0.5.0. The Android and Windows apps compile, pass their unit/integration tests, and are packaged in GitHub Actions. They have **not** been tested on a physical phone in this environment; OEM permissions, calls, notifications, MediaProjection, and background behavior require the device acceptance checklist. See [testing.md](docs/testing.md#device-acceptance-checklist) and the limitations below before installing.
 
 Documentation: [feasibility & limits](docs/feasibility.md) · [architecture](docs/architecture.md) · [protocol](docs/protocol.md) · [permissions](docs/permissions.md) · [security](docs/security.md) · [troubleshooting](docs/troubleshooting.md) · [building](docs/building.md).
 
@@ -74,10 +74,10 @@ Do not interpret a green CI run as proof that those device-specific paths work. 
 | Feature | Status | Notes |
 |---|---|---|
 | Secure pairing and reconnect | Implemented | QR pairing, pinned TLS, ECDSA device authentication, automatic reconnect |
-| SMS read/send/receive | Implemented | Requires `READ_SMS`/`SEND_SMS`/`RECEIVE_SMS`; unread is tracked on the PC; **Open on phone** syncs the stock SMS app; no MMS/RCS |
+| SMS read/send/receive | Implemented | Requires `READ_SMS`/`SEND_SMS`/`RECEIVE_SMS`; opening a thread clears PC-local unread; **Open on phone** syncs the stock SMS app; no MMS/RCS |
 | Notification mirroring | Implemented | Per-app mute and dismiss; Android 15+ may redact sensitive content |
 | Photos | Implemented | Album browsing with paging, save to PC, copy image to clipboard |
-| Call control | Limited | Dial/answer/decline, caller state, contact search, and SIM selection on Android 11+; **call audio stays on the phone** |
+| Call control | Limited | Dial/answer/decline/end, caller state, contact search, SIM selection on Android 11+, and a best-effort speaker toggle; **call audio stays on the phone** |
 | Clipboard and Continue on PC | Limited | PC→phone clipboard; phone→PC on explicit action only |
 | Apps / screen mirroring | Experimental | Per-session consent, stops on lock, no audio, no keyboard |
 | Background operation | Best effort | Ongoing notification and battery-optimization exemption required |
@@ -96,7 +96,7 @@ Each feature is opt-in. LinkPhone asks at the point of use and explains why.
 
 - **Notifications:** `POST_NOTIFICATIONS` (Android 13+) for the ongoing connection notification.
 - **SMS:** `READ_SMS`, `RECEIVE_SMS`, `SEND_SMS`. These are restricted for Play Store distribution, so the app is sideloaded. LinkPhone does not take the default-SMS role; read state is tracked locally on the PC, and **Open on phone** uses a notification (requires `POST_NOTIFICATIONS`) to open the thread in your stock SMS app.
-- **Calls:** `READ_PHONE_STATE`, `CALL_PHONE`, `ANSWER_PHONE_CALLS`; optional `READ_CALL_LOG` for caller ID, `READ_CONTACTS` for contact search and caller names.
+- **Calls:** `READ_PHONE_STATE`, `CALL_PHONE`, `ANSWER_PHONE_CALLS`; optional `READ_CALL_LOG` for caller ID, `READ_CONTACTS` for contact search and caller names. `MODIFY_AUDIO_SETTINGS` is a normal permission used for the best-effort speaker request.
 - **Photos:** `READ_MEDIA_IMAGES` (Android 13+) or `READ_EXTERNAL_STORAGE` (Android 10–12). Android 14 may grant only selected photos.
 - **Notification mirroring:** Notification access (special settings screen).
 - **Screen mirroring:** MediaProjection consent each session, plus the Accessibility service for remote taps.

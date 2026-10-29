@@ -224,6 +224,7 @@ export class AppController {
       calls: {
         ...this.calls.status(),
         answerSupported: this.capabilities.includes(CAPABILITIES.CALLS_ANSWER),
+        speakerSupported: this.capabilities.includes(CAPABILITIES.CALLS_SPEAKER),
       },
       clipboard: this.clipboardService.status(),
       handoff: this.handoff.list(),
@@ -654,6 +655,10 @@ export class AppController {
 
   async declineCall(): Promise<void> {
     await this.calls.decline();
+  }
+
+  async setCallSpeaker(enabled: boolean): Promise<void> {
+    await this.calls.setSpeaker(Boolean(enabled));
   }
 
   async sendClipboard(text: string): Promise<void> {

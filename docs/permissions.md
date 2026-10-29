@@ -17,6 +17,7 @@ next time the feature is used (reconnect to refresh the capability list).
 | `ANSWER_PHONE_CALLS` | 26+ | Answer/decline and end a call | Calls card (optional group) | Answer/decline buttons are disabled |
 | `READ_CALL_LOG` | all | Caller number on incoming calls | Calls card (optional) | Android 10+ hides the incoming number; the PC shows “Incoming call” |
 | `READ_CONTACTS` | all | Contact search on the PC and caller names | Calls card (optional) | The number is shown instead of a name; the PC contact picker is unavailable |
+| `MODIFY_AUDIO_SETTINGS` | all | Best-effort speaker route request | Manifest (normal) | The speaker control is hidden or rejected |
 | `READ_MEDIA_IMAGES` | 13+ | Camera-roll photos | Photos card | No photos |
 | `READ_MEDIA_VISUAL_USER_SELECTED` | 14+ | Partial photo access | Photos card (requested with images) | Only full/partial access chosen in the system dialog |
 | `READ_EXTERNAL_STORAGE` | 10–12 | Camera-roll photos | Photos card | No photos |
@@ -38,9 +39,9 @@ LinkPhone does **not** request the default-SMS role (`ROLE_SMS`). That means:
 
 - It can read the provider and send through `SmsManager`.
 - Messages sent from the PC may not appear in the phone's stock SMS app or in LinkPhone's own list.
-- It cannot write the provider's read flag. **Mark read** clears unread in LinkPhone on the PC;
-  **Open on phone** posts a notification whose tap opens the conversation in the stock SMS app, so
-  that app can mark it read. `POST_NOTIFICATIONS` is required for the prompt.
+- It cannot write the provider's read flag. Opening a conversation clears unread in LinkPhone on the
+  PC; **Open on phone** posts a notification whose tap opens the conversation in the stock SMS app,
+  so that app can mark it read. `POST_NOTIFICATIONS` is required for the prompt.
 - MMS/RCS are not supported.
 
 Taking the default-SMS role would require a complete SMS/MMS client and would replace the user's

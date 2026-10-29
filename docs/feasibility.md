@@ -1,15 +1,15 @@
 # Feasibility, platform limits, and scope
 
-This document records what Android and Windows actually allow, what LinkPhone v0.4.0 implements, and
+This document records what Android and Windows actually allow, what LinkPhone v0.5.0 implements, and
 what would require a different product or system privileges.
 
 ## Summary
 
-| Requested feature | v0.4.0 | Honest limit |
+| Requested feature | v0.5.0 | Honest limit |
 |---|---|---|
 | Secure pair/reconnect | Implemented | QR + pinned TLS + ECDSA challenge; one phone at a time |
 | SMS view/send | Implemented | Sideload only; unread is PC-local; Open on phone hands the thread to the stock SMS app (one tap); no MMS/RCS; no default-SMS role, so sent items may not enter stock threads |
-| Calls from PC | Limited | Dial/answer/decline, caller state, contact search, and SIM choice on Android 11+ where OEM permits; **no call audio on PC**; caller ID needs call-log access |
+| Calls from PC | Limited | Dial/answer/decline/end, caller state, contact search, SIM choice on Android 11+, and a best-effort speaker toggle where OEM permits; **no call audio on PC**; caller ID needs call-log access |
 | Photos | Implemented | All MediaStore image albums with paging; JPEG transcode; Android 14 partial access respected |
 | Notification mirroring | Implemented | Per-app mute, dismiss; Android 15+ may redact sensitive content; no action buttons |
 | Apps streaming | Experimental substitute | Screen mirroring + tap/swipe only; no app virtualization; consent each session; stops on lock |
@@ -66,7 +66,10 @@ What works:
 - Incoming number when `READ_CALL_LOG` is granted; contact name when `READ_CONTACTS` is granted.
 - Placing a call with `TelecomManager.placeCall()` and `CALL_PHONE` (works from a service; unlike
   `ACTION_CALL`, which is subject to background activity-start restrictions).
-- Answer/decline with `ANSWER_PHONE_CALLS` and `TelecomManager.acceptRingingCall()`/`endCall()`.
+- Answer/decline/end with `ANSWER_PHONE_CALLS` and `TelecomManager.acceptRingingCall()`/`endCall()`.
+- A **best-effort speaker toggle** using `AudioManager.setCommunicationDevice()` on Android 12+ or the
+  deprecated `isSpeakerphoneOn` on Android 10–11. The telecom/default dialer owns the cellular audio
+  route, so this may return success without changing the route or may be overridden by the phone.
 - Choosing a SIM for an outgoing call on Android 11+: the PC sends the subscription id; the phone
   finds the matching call-capable Telecom `PhoneAccount` using
   `TelephonyManager.getSubscriptionId(handle)` and passes `EXTRA_PHONE_ACCOUNT_HANDLE` to
@@ -81,7 +84,10 @@ What does **not** work and cannot be fixed by a normal app:
   `CAPTURE_AUDIO_OUTPUT`. `AudioPlaybackCapture` captures only `USAGE_MEDIA`/`GAME`/`UNKNOWN` and
   excludes `VOICE_COMMUNICATION`. VoLTE/VoWiFi audio is also protected. The PC cannot be a
   speakerphone for a cellular call.
-- Answer/decline reliability. These APIs are deprecated; OEMs vary. Some devices require the
+- Speaker routing is **not guaranteed**: Android does not expose reliable cellular call-route
+  control to a non-default-dialer companion. LinkPhone labels the control best effort and tells the
+  user to fall back to the phone's in-call screen or a headset.
+- Answer/decline/end reliability. These APIs are deprecated; OEMs vary. Some devices require the
   default-dialer role for full in-call control. LinkPhone does not take that role because a buggy
   `InCallService` would break the user's ability to answer calls at all.
 - Caller ID without call-log access. Android 10+ blanked the incoming number for ordinary listeners.

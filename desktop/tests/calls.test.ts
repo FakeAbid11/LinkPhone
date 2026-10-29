@@ -70,8 +70,37 @@ describe('call dialing', () => {
     });
   });
 
-  it('loads contacts on demand', async () => {
+  it('sends answer, end, and speaker requests', async () => {
     const { service, requests } = harness();
+    await service.answer();
+    await service.decline();
+    await service.setSpeaker(true);
+    await service.setSpeaker(false);
+
+    expect(requests.slice(0, 4)).toEqual([
+      { type: TYPES.CALL_ANSWER, data: {} },
+      { type: TYPES.CALL_DECLINE, data: {} },
+      { type: TYPES.CALL_SPEAKER, data: { enabled: true } },
+      { type: TYPES.CALL_SPEAKER, data: { enabled: false } },
+    ]);
+  });
+
+  it('maps call state including speaker status', () => {
+    const { service } = harness();
+    service.onPhoneState({
+      state: 'offhook',
+      number: '+15550101000',
+      timestamp: 1_700_000_000_000,
+      speakerOn: true,
+    });
+    expect(service.status().state).toMatchObject({
+      state: 'offhook',
+      number: '+15550101000',
+      speakerOn: true,
+    });
+  });
+
+  it('loads contacts on demand', async () => {    const { service, requests } = harness();
     await service.refreshContacts();
 
     expect(requests.find((request) => request.type === TYPES.CONTACTS_LIST)?.data).toEqual({

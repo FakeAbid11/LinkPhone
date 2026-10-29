@@ -84,10 +84,11 @@ server verifies with Node `crypto.verify('sha256', payload, { key, dsaEncoding: 
 | `photo.list` | PC → phone | request `{limit, bucket?, beforeDate?, beforeId?}`; response `{photos[], hasMore}`. `bucket` is an opaque album id; `beforeDate`/`beforeId` form a keyset page |
 | `photo.albums` | PC → phone | response `{albums[]}` with `id, name, count, coverId, latest`; requires the `photos.albums` capability |
 | `photo.fetch` | PC → phone | `{id, kind: "thumb"\|"full", volume?}`; response `PhotoStreamMeta` then binary type 1 |
-| `call.state` | phone → PC | `state (idle\|ringing\|offhook\|unknown), number?, contactName?, timestamp` |
+| `call.state` | phone → PC | `state (idle\|ringing\|offhook\|unknown), number?, contactName?, timestamp, speakerOn?` |
 | `call.dial` | PC → phone | `{number, subId?}` |
 | `call.answer` | PC → phone | none |
 | `call.decline` | PC → phone | none — declines a ringing call or ends an active one |
+| `call.speaker` | PC → phone | `{enabled: boolean}` — best-effort cellular speaker route; may be rejected/ignored by the phone |
 | `clipboard.set` | PC → phone | `{text}` |
 | `clipboard.fromPhone` | phone → PC | `{text}` — explicit user action only |
 | `handoff.share` | phone → PC | `kind (url\|text), text?, url?` |

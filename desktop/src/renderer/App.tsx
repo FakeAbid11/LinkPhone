@@ -167,6 +167,8 @@ export function App() {
   const handoffCount = state.handoff.length;
   const request = state.pairing.request;
   const ringing = state.calls.state.state === 'ringing';
+  const inCall = state.calls.state.state === 'offhook';
+  const activeCall = ringing || inCall;
   const offline = !state.connection.connected && state.devices.length > 0;
 
   return (
@@ -288,35 +290,73 @@ export function App() {
           </div>
         )}
 
-        {ringing && view !== 'calls' && (
-          <div className="incoming-call" role="alert">
+        {activeCall && view !== 'calls' && (
+          <div className="incoming-call" role={ringing ? 'alert' : 'status'}>
             <span className="incoming-icon">
               <Icon name="phone" size={20} />
             </span>
             <div className="incoming-copy">
-              <strong>Incoming call</strong>
+              <strong>{ringing ? 'Incoming call' : 'Call in progress'}</strong>
               <span>
                 {state.calls.state.contactName ||
                   state.calls.state.number ||
-                  'Your phone is ringing'}
+                  (ringing ? 'Your phone is ringing' : 'Active on your phone')}
               </span>
-              <small>Audio stays on the phone.</small>
+              <small>
+                Audio stays on the phone.
+                {!state.calls.answerSupported
+                  ? ' Grant Answer calls on the phone to end it from here.'
+                  : ''}
+              </small>
             </div>
             <div className="incoming-actions">
-              <Button
-                variant="primary"
-                disabled={!state.calls.answerSupported}
-                onClick={() => void ui.run(() => api.answerCall(), 'Answering on the phone')}
-              >
-                Answer
-              </Button>
-              <Button
-                variant="danger"
-                disabled={!state.calls.answerSupported}
-                onClick={() => void ui.run(() => api.declineCall(), 'Call declined')}
-              >
-                Decline
-              </Button>
+              {ringing ? (
+                <>
+                  <Button
+                    variant="primary"
+                    disabled={!state.calls.answerSupported}
+                    onClick={() => void ui.run(() => api.answerCall(), 'Answering on the phone')}
+                  >
+                    Answer
+                  </Button>
+                  <Button
+                    variant="danger"
+                    disabled={!state.calls.answerSupported}
+                    onClick={() => void ui.run(() => api.declineCall(), 'Call declined')}
+                  >
+                    Decline
+                  </Button>
+                </>
+              ) : (
+                <>
+                  {state.calls.speakerSupported && (
+                    <Button
+                      small
+                      variant={state.calls.state.speakerOn ? 'secondary' : 'ghost'}
+                      icon="speaker"
+                      onClick={() =>
+                        void ui.run(
+                          () => api.setCallSpeaker(!state.calls.state.speakerOn),
+                          state.calls.state.speakerOn
+                            ? 'Speaker off requested'
+                            : 'Speaker on requested',
+                        )
+                      }
+                    >
+                      {state.calls.state.speakerOn ? 'Speaker on' : 'Speaker off'}
+                    </Button>
+                  )}
+                  <Button
+                    variant="danger"
+                    disabled={!state.calls.answerSupported}
+                    onClick={() =>
+                      void ui.run(() => api.declineCall(), 'End request sent to the phone')
+                    }
+                  >
+                    End call
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         )}

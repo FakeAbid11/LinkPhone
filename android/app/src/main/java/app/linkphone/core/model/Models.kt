@@ -182,6 +182,7 @@ data class CallState(
     val number: String? = null,
     val contactName: String? = null,
     val timestamp: Long,
+    val speakerOn: Boolean? = null,
 )
 
 @Serializable
@@ -189,6 +190,9 @@ data class CallDialRequest(
     val number: String,
     val subId: Int? = null,
 )
+
+@Serializable
+data class CallSpeakerRequest(val enabled: Boolean)
 
 @Serializable
 data class ClipboardSetRequest(val text: String)
@@ -261,6 +265,7 @@ object Capabilities {
     const val PHOTOS_ALBUMS = "photos.albums"
     const val CALLS = "calls"
     const val CALLS_ANSWER = "calls.answer"
+    const val CALLS_SPEAKER = "calls.speaker"
     const val CALLS_CALLER_ID = "calls.callerId"
     const val CALLS_SIM_SELECTION = "calls.simSelection"
     const val MIRROR = "mirror"

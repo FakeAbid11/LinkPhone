@@ -154,21 +154,50 @@ export function CallsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
               </>
             )}
             {inCall && (
-              <Button
-                variant="danger"
-                disabled={!state.calls.answerSupported}
-                onClick={() => void ui.run(() => api.declineCall(), 'Call ended')}
-              >
-                End call
-              </Button>
+              <>
+                {state.calls.speakerSupported && (
+                  <Button
+                    variant={call.speakerOn ? 'secondary' : 'ghost'}
+                    icon="speaker"
+                    onClick={() =>
+                      void ui.run(
+                        () => api.setCallSpeaker(!call.speakerOn),
+                        call.speakerOn ? 'Speaker off requested' : 'Speaker on requested',
+                      )
+                    }
+                  >
+                    {call.speakerOn ? 'Speaker on' : 'Speaker off'}
+                  </Button>
+                )}
+                <Button
+                  variant="danger"
+                  disabled={!state.calls.answerSupported}
+                  onClick={() =>
+                    void ui.run(() => api.declineCall(), 'End request sent to the phone')
+                  }
+                >
+                  End call
+                </Button>
+              </>
             )}
           </div>
 
-          {ringing && !state.calls.answerSupported && (
-            <Notice tone="warn" title="Answer/decline unavailable">
-              Grant the Answer calls permission on the phone. Some manufacturers restrict
-              programmatic call answering to the default dialer.
+          {activeCall && !state.calls.answerSupported && (
+            <Notice tone="warn" title="Call control unavailable">
+              Grant the Answer calls permission on the phone to answer, decline, or end calls. Some
+              manufacturers restrict programmatic call control to the default dialer.
             </Notice>
+          )}
+          {inCall && state.calls.speakerSupported && (
+            <Notice tone="neutral" title="Speaker is best effort">
+              Android may ignore this request during a cellular call. If the route does not change,
+              use the phone's in-call screen or a headset.
+            </Notice>
+          )}
+          {inCall && !state.calls.speakerSupported && (
+            <p className="muted small">
+              Speaker control is unavailable with this phone app; use the phone's in-call screen.
+            </p>
           )}
           {state.calls.error && <Notice tone="bad">{state.calls.error}</Notice>}
         </Card>

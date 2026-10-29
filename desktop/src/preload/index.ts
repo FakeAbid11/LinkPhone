@@ -55,6 +55,7 @@ const api: LinkPhoneApi = {
   refreshContacts: () => ipcRenderer.invoke('contacts:refresh'),
   answerCall: () => ipcRenderer.invoke('call:answer'),
   declineCall: () => ipcRenderer.invoke('call:decline'),
+  setCallSpeaker: (enabled) => ipcRenderer.invoke('call:speaker', enabled),
   sendClipboard: (text) => ipcRenderer.invoke('clipboard:send', text),
   sendPcClipboard: () => ipcRenderer.invoke('clipboard:sendPc'),
   openUrl: (url) => ipcRenderer.invoke('handoff:open', url),

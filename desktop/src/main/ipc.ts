@@ -81,6 +81,10 @@ export function registerIpc(controller: AppController): void {
   });
   ipcMain.handle('call:answer', () => controller.answerCall());
   ipcMain.handle('call:decline', () => controller.declineCall());
+  ipcMain.handle('call:speaker', (_event, enabled: unknown) => {
+    if (typeof enabled !== 'boolean') throw new Error('Invalid speaker state');
+    return controller.setCallSpeaker(enabled);
+  });
   ipcMain.handle('contacts:refresh', () => controller.refreshContacts());
 
   ipcMain.handle('clipboard:send', (_event, text: unknown) =>
