@@ -36,6 +36,7 @@ import {
   CAPABILITIES,
   TYPES,
   type AppSnapshot,
+  type BatteryWire,
   type CallStateWire,
   type ConnectionInfo,
   type Envelope,
@@ -87,6 +88,8 @@ export class AppController {
   private serverError: string | undefined;
   private lastError: string | undefined;
   private phoneInfo: PhoneInfoWire | undefined;
+  private batteryLevel: number | undefined;
+  private batteryCharging: boolean | undefined;
   private capabilities: string[] = [];
   private subscriptions: SimInfoWire[] = [];
   private connectedAt: number | undefined;
@@ -186,6 +189,8 @@ export class AppController {
       phoneModel: this.phoneInfo?.model,
       phoneVersion: this.phoneInfo?.androidVersion,
       appVersion: this.phoneInfo?.appVersion,
+      batteryLevel: this.batteryLevel,
+      batteryCharging: this.batteryCharging,
       capabilities: [...this.capabilities],
       subscriptions: [...this.subscriptions],
       since: this.connectedAt,
@@ -217,7 +222,7 @@ export class AppController {
       },
       settings: this.store.settings,
       sms: this.sms.status(),
-      notifications: this.notifications.list(),
+      notifications: this.notifications.status(),
       photos: {
         ...this.photos.status(),
         partial: this.capabilities.includes(CAPABILITIES.PHOTOS_PARTIAL),
@@ -359,6 +364,8 @@ export class AppController {
     if (session !== this.session) return;
     this.session = undefined;
     this.phoneInfo = undefined;
+    this.batteryLevel = undefined;
+    this.batteryCharging = undefined;
     this.capabilities = [];
     this.subscriptions = [];
     this.connectedAt = undefined;
@@ -417,6 +424,17 @@ export class AppController {
           (envelope.data as NotificationRemovedWire | undefined)?.key,
         );
         return;
+      case TYPES.NOTIF_CHANGED:
+        this.notifications.markDirty(session);
+        return;
+      case TYPES.PHONE_BATTERY: {
+        const battery = envelope.data as BatteryWire | undefined;
+        if (typeof battery?.level !== 'number') return;
+        this.batteryLevel = Math.max(0, Math.min(100, Math.round(battery.level)));
+        this.batteryCharging = Boolean(battery.charging);
+        this.scheduleBroadcast();
+        return;
+      }
       case TYPES.CALL_STATE:
         this.calls.onPhoneState(envelope.data as CallStateWire | undefined);
         return;
@@ -614,6 +632,10 @@ export class AppController {
 
   async dismissNotification(key: string): Promise<void> {
     await this.notifications.dismiss(key);
+  }
+
+  async refreshNotifications(): Promise<void> {
+    await this.notifications.refresh();
   }
 
   async refreshPhotos(): Promise<void> {

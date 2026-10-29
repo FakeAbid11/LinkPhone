@@ -11,6 +11,8 @@ import {
 } from '../components';
 import type { Ui } from '../ui';
 import {
+  batteryLabel,
+  batteryTone,
   capabilityLabel,
   formatDateTime,
   formatExpiry,
@@ -89,6 +91,12 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
               <div>
                 <span className="meta-label">Phone app</span>
                 <span>{connection.appVersion ?? '—'}</span>
+              </div>
+              <div>
+                <span className="meta-label">Phone battery</span>
+                <Badge tone={batteryTone(connection.batteryLevel, connection.batteryCharging)}>
+                  {batteryLabel(connection.batteryLevel, connection.batteryCharging)}
+                </Badge>
               </div>
             </div>
           )}

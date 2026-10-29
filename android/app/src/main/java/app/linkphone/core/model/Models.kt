@@ -99,6 +99,15 @@ data class NotificationDto(
 data class NotificationRemoved(val key: String)
 
 @Serializable
+data class NotificationListResult(val notifications: List<NotificationDto>)
+
+@Serializable
+data class NotificationChanged(val timestamp: Long)
+
+@Serializable
+data class BatteryStatusWire(val level: Int, val charging: Boolean)
+
+@Serializable
 data class PhotoDto(
     val id: String,
     val name: String,

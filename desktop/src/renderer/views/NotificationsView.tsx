@@ -9,17 +9,18 @@ export function NotificationsView({ state, ui }: { state: AppSnapshot; ui: Ui })
   const connected = state.connection.connected;
   const supported = state.connection.capabilities.includes('notifications');
   const muted = useMemo(() => new Set(state.settings.mutePackages), [state.settings.mutePackages]);
+  const notifications = state.notifications.items;
 
   const apps = useMemo(() => {
     const packages = new Map<string, string>();
-    for (const item of state.notifications) {
+    for (const item of notifications) {
       packages.set(item.packageName, item.appName);
     }
     for (const pkg of state.settings.mutePackages) {
       if (!packages.has(pkg)) packages.set(pkg, pkg);
     }
     return [...packages.entries()];
-  }, [state.notifications, state.settings.mutePackages]);
+  }, [notifications, state.settings.mutePackages]);
 
   if (!connected) {
     return (
@@ -59,29 +60,40 @@ export function NotificationsView({ state, ui }: { state: AppSnapshot; ui: Ui })
     <>
       <PageHeader
         title="Notifications"
-        subtitle="Live mirror with per-app controls. Dismissing here dismisses the phone notification."
+        subtitle="Live mirror of the phone's notifications. Dismissing here dismisses the phone notification."
         actions={
-          <Button variant="ghost" icon="refresh" onClick={() => void ui.refresh()}>
+          <Button
+            variant="ghost"
+            icon="refresh"
+            loading={state.notifications.refreshing}
+            onClick={() => void ui.run(() => api.refreshNotifications(), 'Notifications refreshed')}
+          >
             Refresh
           </Button>
         }
       />
 
+      {state.notifications.error && (
+        <Notice tone="bad" title="Could not refresh notifications">
+          {state.notifications.error}
+        </Notice>
+      )}
+
       <div className="grid grid-2">
         <Card
           icon="bell"
           title="Live feed"
-          subtitle={`${state.notifications.length} notification${state.notifications.length === 1 ? '' : 's'}`}
+          subtitle={`${notifications.length} notification${notifications.length === 1 ? '' : 's'}`}
         >
-          {state.notifications.length === 0 ? (
+          {notifications.length === 0 ? (
             <EmptyState
               icon="bell"
-              title="No notifications yet"
-              body="New notifications appear here while the phone is connected. Nothing is stored on the PC."
+              title="No notifications on the phone"
+              body="The phone has no notifications right now. They appear here as they arrive. Nothing is stored on the PC."
             />
           ) : (
             <ul className="notification-list">
-              {state.notifications.map((item) => (
+              {notifications.map((item) => (
                 <li key={item.key} className="notification-item">
                   <span className="notification-avatar">{initials(item.appName)}</span>
                   <div className="notification-copy">

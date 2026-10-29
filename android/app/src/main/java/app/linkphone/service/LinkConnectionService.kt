@@ -7,8 +7,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.net.ConnectivityManager
 import android.net.Network
@@ -28,6 +30,7 @@ import app.linkphone.MainActivity
 import app.linkphone.R
 import app.linkphone.core.crypto.DeviceIdentity
 import app.linkphone.core.crypto.normalizeFingerprint
+import app.linkphone.core.model.BatteryStatusWire
 import app.linkphone.core.model.CallDialRequest
 import app.linkphone.core.model.CallSpeakerRequest
 import app.linkphone.core.model.CallState
@@ -39,6 +42,7 @@ import app.linkphone.core.model.MirrorStartRequest
 import app.linkphone.core.model.MirrorState
 import app.linkphone.core.model.MirrorTouchRequest
 import app.linkphone.core.model.NotificationDismissRequest
+import app.linkphone.core.model.NotificationListResult
 import app.linkphone.core.model.OkResult
 import app.linkphone.core.model.PhotoAlbumListResult
 import app.linkphone.core.model.PhotoFetchRequest
@@ -70,6 +74,8 @@ import app.linkphone.core.util.FeaturePermissionException
 import app.linkphone.core.util.LinkState
 import app.linkphone.core.util.LinkStatus
 import app.linkphone.core.util.SafeInput
+import app.linkphone.features.BatteryReader
+import app.linkphone.features.BatteryStatus
 import app.linkphone.features.Permissions
 import app.linkphone.features.PhoneInfoBuilder
 import app.linkphone.features.calls.CallController
@@ -123,6 +129,9 @@ class LinkConnectionService : Service() {
     private var multicastLock: WifiManager.MulticastLock? = null
     private var reconnectWakeLock: PowerManager.WakeLock? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var batteryReceiver: BroadcastReceiver? = null
+    private var lastBatteryLevel = -1
+    private var lastBatteryCharging = false
     private var destroyed = false
     private var explicitStop = false
     private var lastStartId = 0
@@ -153,6 +162,7 @@ class LinkConnectionService : Service() {
         createChannels()
         acquireLocks()
         registerNetworkCallback()
+        registerBatteryReceiver()
         if (!Permissions.ignoringBatteryOptimizations(this)) {
             LinkStatus.log(
                 "Service",
@@ -212,6 +222,7 @@ class LinkConnectionService : Service() {
                 }
                 if (ConnectionHub.isConnected()) {
                     sendPhoneInfo()
+                    sendBattery(force = true)
                     mainHandler.post { calls.start() }
                 } else {
                     startLoop()
@@ -252,6 +263,7 @@ class LinkConnectionService : Service() {
             }
         }
         networkCallback = null
+        unregisterBatteryReceiver()
         releaseLocks()
         mainHandler.removeCallbacksAndMessages(null)
         scope.cancel()
@@ -341,6 +353,7 @@ class LinkConnectionService : Service() {
                 refreshNotification()
                 startFeatureObservers()
                 sendPhoneInfo()
+                sendBattery(force = true)
                 sendSmsChanged()
                 val reason = closed.await()
                 LinkStatus.log("Net", "Connection ended: $reason")
@@ -454,6 +467,57 @@ class LinkConnectionService : Service() {
         )
     }
 
+    /**
+     * Sends the phone's charge level. The battery broadcast fires more often
+     * than the charge actually changes, so unchanged readings are skipped.
+     */
+    private fun sendBattery(force: Boolean = false) {
+        val status = BatteryReader.read(this) ?: return
+        publishBattery(status, force)
+    }
+
+    private fun publishBattery(status: BatteryStatus, force: Boolean = false) {
+        if (!ConnectionHub.isConnected()) return
+        if (!force && status.level == lastBatteryLevel && status.charging == lastBatteryCharging) {
+            return
+        }
+        lastBatteryLevel = status.level
+        lastBatteryCharging = status.charging
+        ConnectionHub.sendEvent(
+            Types.PHONE_BATTERY,
+            ProtocolCodec.data(BatteryStatusWire(status.level, status.charging)),
+        )
+    }
+
+    private fun registerBatteryReceiver() {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                val status = BatteryReader.parse(intent) ?: return
+                publishBattery(status)
+            }
+        }
+        val registered = runCatching {
+            ContextCompat.registerReceiver(
+                this,
+                receiver,
+                IntentFilter(Intent.ACTION_BATTERY_CHANGED),
+                ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
+        }
+        if (registered.isFailure) {
+            LinkStatus.log("Service", "Could not watch the battery level")
+            return
+        }
+        batteryReceiver = receiver
+    }
+
+    private fun unregisterBatteryReceiver() {
+        batteryReceiver?.let { receiver ->
+            runCatching { unregisterReceiver(receiver) }
+        }
+        batteryReceiver = null
+    }
+
     private fun sendCallState(state: CallState) {
         if (!ConnectionHub.isConnected()) return
         ConnectionHub.sendEvent(Types.CALL_STATE, ProtocolCodec.data(state))
@@ -540,6 +604,19 @@ class LinkConnectionService : Service() {
                         ErrorCodes.PERMISSION_DENIED,
                         "Notification access is not available on the phone",
                     )
+                }
+            }
+
+            Types.NOTIF_LIST -> {
+                val notifications = LinkNotificationListener.active()
+                if (notifications == null) {
+                    replyError(
+                        envelope,
+                        ErrorCodes.PERMISSION_DENIED,
+                        "Notification access is not available on the phone",
+                    )
+                } else {
+                    reply(envelope, ProtocolCodec.data(NotificationListResult(notifications)))
                 }
             }
 

@@ -73,6 +73,7 @@ server verifies with Node `crypto.verify('sha256', payload, { key, dsaEncoding: 
 | `auth.ok` | PC → phone | `pcId, pcName, protocol` |
 | `auth.error` | PC → phone | `error {code, message}` |
 | `phone.info` | phone → PC | `model, androidVersion, appVersion, capabilities[], subscriptions[]` |
+| `phone.battery` | phone → PC | `{level, charging}` — the charge level as 0..100 and whether the phone is charging |
 | `sms.list` | PC → phone | request `{limit}`; response `{messages[]}` |
 | `sms.send` | PC → phone | `address, body, subId?`; response `{accepted, parts, subId}` |
 | `sms.openThread` | PC → phone | `{address}` — posts a tappable notification that opens the conversation in the stock SMS app; it does not write the SMS provider |
@@ -81,6 +82,11 @@ server verifies with Node `crypto.verify('sha256', payload, { key, dsaEncoding: 
 | `notif.post` | phone → PC | `key, packageName, appName, title?, text?, subText?, category?, ongoing, time` |
 | `notif.removed` | phone → PC | `{key}` |
 | `notif.dismiss` | PC → phone | `{key}` |
+| `notif.list` | PC → phone | request; response `{notifications[]}` — the phone's current notifications, newest first, at most 100 |
+| `notif.changed` | phone → PC | `{timestamp}` — the phone's notifications moved; the PC should refresh `notif.list` |
+
+`notif.post` and `notif.removed` are still sent so an older PC keeps working against a newer phone.
+A current PC uses them to update a card straight away and then reconciles against `notif.list`.
 | `photo.list` | PC → phone | request `{limit, bucket?, beforeDate?, beforeId?}`; response `{photos[], hasMore}`. `bucket` is an opaque album id; `beforeDate`/`beforeId` form a keyset page |
 | `photo.albums` | PC → phone | response `{albums[]}` with `id, name, count, coverId, latest`; requires the `photos.albums` capability |
 | `photo.fetch` | PC → phone | `{id, kind: "thumb"\|"full", volume?}`; response `PhotoStreamMeta` then binary type 1 |

@@ -19,6 +19,9 @@ export const TYPES = {
   NOTIF_POST: 'notif.post',
   NOTIF_REMOVED: 'notif.removed',
   NOTIF_DISMISS: 'notif.dismiss',
+  NOTIF_LIST: 'notif.list',
+  NOTIF_CHANGED: 'notif.changed',
+  PHONE_BATTERY: 'phone.battery',
   PHOTO_LIST: 'photo.list',
   PHOTO_ALBUMS: 'photo.albums',
   PHOTO_FETCH: 'photo.fetch',
@@ -161,6 +164,15 @@ export interface NotificationWire {
 
 export interface NotificationRemovedWire {
   key: string;
+}
+
+export interface NotificationListResultWire {
+  notifications: NotificationWire[];
+}
+
+export interface BatteryWire {
+  level: number;
+  charging: boolean;
 }
 
 export interface PhotoWire {
@@ -391,6 +403,8 @@ export interface ConnectionInfo {
   phoneModel?: string;
   phoneVersion?: string;
   appVersion?: string;
+  batteryLevel?: number;
+  batteryCharging?: boolean;
   capabilities: string[];
   subscriptions: SimInfoWire[];
   since?: number;
@@ -413,7 +427,11 @@ export interface AppSnapshot {
     error?: string;
     refreshing: boolean;
   };
-  notifications: NotificationUi[];
+  notifications: {
+    items: NotificationUi[];
+    error?: string;
+    refreshing: boolean;
+  };
   photos: {
     items: PhotoUi[];
     albums: PhotoAlbumWire[];
@@ -469,6 +487,7 @@ export interface LinkPhoneApi {
   markAllSmsRead(): Promise<void>;
   openSmsThreadOnPhone(address: string): Promise<void>;
   dismissNotification(key: string): Promise<void>;
+  refreshNotifications(): Promise<void>;
   setPackageMuted(pkg: string, muted: boolean): Promise<void>;
   refreshPhotos(): Promise<void>;
   refreshPhotoAlbums(): Promise<void>;
