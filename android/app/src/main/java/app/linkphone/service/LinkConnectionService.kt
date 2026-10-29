@@ -648,7 +648,7 @@ class LinkConnectionService : Service() {
         }
         photoGate.acquireUninterruptibly()
         val bytes = try {
-            photos.loadJpeg(request.id, request.kind)
+            photos.loadJpeg(request.id, request.kind, request.volume)
         } finally {
             photoGate.release()
         }

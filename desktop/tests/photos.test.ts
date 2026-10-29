@@ -10,7 +10,12 @@ import { CAPABILITIES, TYPES } from '../src/shared/types';
 
 const dirs: string[] = [];
 
-function photo(id: string, bucket = 'Camera', date = 1_700_000_000_000) {
+function photo(
+  id: string,
+  bucket = 'Camera',
+  date = 1_700_000_000_000,
+  volume = 'external_primary',
+) {
   return {
     id,
     name: `${id}.jpg`,
@@ -20,6 +25,7 @@ function photo(id: string, bucket = 'Camera', date = 1_700_000_000_000) {
     width: 10,
     height: 10,
     bucket,
+    volume,
   };
 }
 
@@ -126,6 +132,18 @@ describe('photo albums', () => {
     expect(first).toBe(second);
     expect(first).toContain('data:image/jpeg;base64,');
     expect(requests.filter((item) => item.type === TYPES.PHOTO_FETCH)).toHaveLength(1);
+  });
+
+  it('passes the photo volume to the phone when fetching', async () => {
+    const { service, requests } = harness();
+    await service.refresh();
+    await service.thumbnail('a');
+    const fetch = requests.find((item) => item.type === TYPES.PHOTO_FETCH);
+    expect(fetch?.data).toMatchObject({
+      id: 'a',
+      kind: 'thumb',
+      volume: 'external_primary',
+    });
   });
 
   it('rejects album selection on an older phone', async () => {

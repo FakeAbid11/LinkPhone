@@ -258,20 +258,28 @@ export class PhotoService {
   }
 
   async thumbnail(id: string): Promise<string | null> {
-    const cached = this.thumbnails.get(id);
+    const volume = this.items.find((photo) => photo.id === id)?.volume ?? null;
+    const cacheKey = volume ? `${volume}:${id}` : id;
+    const cached = this.thumbnails.get(cacheKey);
     if (cached) return cached;
-    const running = this.inFlight.get(id);
+    const running = this.inFlight.get(cacheKey);
     if (running) return running;
-    const promise = this.fetchThumbnail(id).finally(() => this.inFlight.delete(id));
-    this.inFlight.set(id, promise);
+    const promise = this.fetchThumbnail(cacheKey, id, volume).finally(() =>
+      this.inFlight.delete(cacheKey),
+    );
+    this.inFlight.set(cacheKey, promise);
     return promise;
   }
 
-  private async fetchThumbnail(id: string): Promise<string | null> {
+  private async fetchThumbnail(
+    cacheKey: string,
+    id: string,
+    volume: string | null,
+  ): Promise<string | null> {
     try {
-      const buffer = await this.fetchImage(id, 'thumb', THUMB_MAX_BYTES);
+      const buffer = await this.fetchImage(id, 'thumb', THUMB_MAX_BYTES, volume);
       const url = `data:image/jpeg;base64,${buffer.toString('base64')}`;
-      this.thumbnails.set(id, url);
+      this.thumbnails.set(cacheKey, url);
       while (this.thumbnails.size > MAX_CACHED_THUMBS) {
         const oldest = this.thumbnails.keys().next().value;
         if (oldest === undefined) break;
@@ -316,12 +324,17 @@ export class PhotoService {
     };
   }
 
-  private async fetchImage(id: string, kind: 'thumb' | 'full', maxBytes: number): Promise<Buffer> {
+  private async fetchImage(
+    id: string,
+    kind: 'thumb' | 'full',
+    maxBytes: number,
+    volume: string | null,
+  ): Promise<Buffer> {
     const session = this.session;
     if (!session) throw new Error('Connect to your phone first');
     const response = await session.request<PhotoStreamMetaWire>(
       TYPES.PHOTO_FETCH,
-      { id, kind },
+      volume ? { id, kind, volume } : { id, kind },
       25_000,
     );
     const meta = response.data;
@@ -343,7 +356,7 @@ export class PhotoService {
 
   async save(id: string): Promise<string> {
     const item = this.items.find((photo) => photo.id === id);
-    const buffer = await this.fetchImage(id, 'full', FULL_MAX_BYTES);
+    const buffer = await this.fetchImage(id, 'full', FULL_MAX_BYTES, item?.volume ?? null);
     const directory = path.join(this.picturesDir(), 'LinkPhone');
     fs.mkdirSync(directory, { recursive: true });
     const base = sanitizeFileName(
@@ -358,7 +371,8 @@ export class PhotoService {
   }
 
   async copy(id: string): Promise<void> {
-    const buffer = await this.fetchImage(id, 'full', FULL_MAX_BYTES);
+    const item = this.items.find((photo) => photo.id === id);
+    const buffer = await this.fetchImage(id, 'full', FULL_MAX_BYTES, item?.volume ?? null);
     this.copyImage(buffer);
     this.logger.log('Photos', 'Copied a photo to the clipboard');
   }

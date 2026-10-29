@@ -108,6 +108,7 @@ data class PhotoDto(
     val width: Int,
     val height: Int,
     val bucket: String? = null,
+    val volume: String? = null,
 )
 
 @Serializable
@@ -149,6 +150,7 @@ data class OkResult(val ok: Boolean = true)
 data class PhotoFetchRequest(
     val id: String,
     val kind: String = "thumb",
+    val volume: String? = null,
 )
 
 @Serializable
