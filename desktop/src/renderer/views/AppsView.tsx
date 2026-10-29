@@ -15,8 +15,17 @@ export function AppsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
-    if (active) setRequested(false);
-  }, [active]);
+    if (active || state.mirror.error) setRequested(false);
+  }, [active, state.mirror.error, state.mirror.state.message]);
+
+  useEffect(() => {
+    if (!requested) return;
+    const timer = window.setTimeout(() => {
+      setRequested(false);
+      ui.toast('error', 'The phone did not approve screen sharing. Try again.');
+    }, 90_000);
+    return () => window.clearTimeout(timer);
+  }, [requested, ui]);
 
   useEffect(() => {
     const unsubscribe = api.onMirrorFrame(({ data }) => {
@@ -43,7 +52,12 @@ export function AppsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
 
   const start = async () => {
     setRequested(true);
-    await ui.run(() => api.startMirror(), 'Approve screen sharing on your phone');
+    try {
+      await api.startMirror();
+    } catch (error) {
+      setRequested(false);
+      ui.toast('error', error instanceof Error ? error.message : String(error));
+    }
   };
 
   const stop = async () => {

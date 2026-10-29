@@ -25,6 +25,7 @@ export class MirrorService {
   onDisconnected(): void {
     this.session = undefined;
     this.state = { active: false, width: 0, height: 0 };
+    this.error = undefined;
     this.onChange();
   }
 

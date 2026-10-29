@@ -186,6 +186,24 @@ override the platform; there is no public API that prevents that.
 - **Mirroring stops when the PC window is in the background:** the phone keeps capturing until you
   stop it; frames are simply not visible. Stop it from the notification to save battery.
 
+## Apps
+
+- **PC stuck on “Awaiting phone”:** v0.3.1 reports denials, dismissed notifications, and projection
+  failures back to the PC and times out after 90 seconds. If it still happens, check whether the
+  phone showed the “Screen mirroring requested” notification; if not, grant POST_NOTIFICATIONS and
+  make sure the mirror notification channel is not blocked. If the phone shows an alert, read the
+  phone diagnostics log for `Mirror: Start failed`.
+- **Black screen:** `FLAG_SECURE`/DRM apps opt out of capture; banking apps commonly do this.
+- **Stops on lock/rotation:** Android ends the projection on lock and allows one virtual display per
+  consent token. Start mirroring again from the Apps tab.
+- **No tap/swipe:** enable the LinkPhone Accessibility service (phone → Permissions → Remote taps).
+  The PC shows “View only” until it is enabled.
+- **Low frame rate:** expected; the phone sends ≤5 fps at ≤1280 px to limit CPU/battery use.
+- **Taps land in the wrong place:** the mirrored portrait video can be letterboxed in the PC canvas;
+  this is a known issue separate from the consent-state fix.
+- **Single-app capture:** on Android 14, choosing one app can make full-screen tap coordinates
+  inaccurate; use full-screen capture for remote input.
+
 ## PC app
 
 - **SmartScreen warning:** the Windows build is unsigned. Verify the SHA-256 from the release page,
