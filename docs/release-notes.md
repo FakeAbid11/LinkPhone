@@ -1,35 +1,33 @@
-## LinkPhone v0.3.1
+## LinkPhone v0.3.2
 
-A direct, LAN-only companion link between an Android phone and a Windows PC. This release fixes the
-Apps tab getting stuck on “Awaiting phone.”
+A direct, LAN-only companion link between an Android phone and a Windows PC. This release fixes
+“Photo not found or could not be decoded” when saving or copying an image.
 
 ### What's new
 
-- Denying or cancelling Android’s screen-capture prompt now reports the cancellation to the PC, so
-  the Apps tab returns to **Start mirroring** with an error instead of waiting forever.
-- Dismissing the consent notification now reports “not approved” through a notification delete
-  intent.
-- Screen-capture startup failures (foreground-service rejection, MediaProjection errors) now send a
-  `mirror.state` failure to the PC and post a phone alert.
-- The PC clears the pending request on any mirror error and after 90 seconds if the phone never
-  responds. Pressing Start and immediately failing no longer leaves the button disabled.
-- Mirror setup is transactional: a failure after the projection is acquired closes the projection,
-  ImageReader, and handler thread instead of leaking them.
-- Stale mirror errors are cleared on disconnect.
+- Photo fetches now carry the MediaStore volume name, so images stored on an SD card or a
+  non-primary volume resolve to the correct URI instead of the primary-volume URI.
+- Full-size decoding now tries Android’s `ImageDecoder` first and falls back to `BitmapFactory`.
+  This handles more formats (including HEIC where the platform supports it) and applies orientation
+  automatically.
+- The bitmap sampling calculation was corrected so very large photos are decoded near 2048 px
+  instead of peaking at 3000–4000 px, which could run out of memory on lower-end phones.
+- Diagnostics now log the photo id and volume when a decode fails.
+- Thumbnails, previews, Save to PC, and Copy image all use the same volume-aware request. Older PCs
+  omit the volume and still work for primary-storage photos.
 
-No protocol, permission, or layout changes.
+No permission or UI changes.
 
 ### Which updates do I need?
 
-- **Both apps.** The phone now reports every consent outcome; the PC understands the failure and
-  clears the request.
+- **Both apps.** The PC must send the photo volume; the phone uses it to resolve the image.
 - Existing pairings and the signing identity are retained.
 
 ### Download
 
-- `LinkPhone-0.3.1.apk` — Android 10+ companion (sideload; same release key)
-- `LinkPhone-Portable-0.3.1.exe` — Windows portable app
-- `LinkPhone-Setup-0.3.1.exe` — Windows installer
+- `LinkPhone-0.3.2.apk` — Android 10+ companion (sideload; same release key)
+- `LinkPhone-Portable-0.3.2.exe` — Windows portable app
+- `LinkPhone-Setup-0.3.2.exe` — Windows installer
 - `SHA256SUMS.txt` — verify your downloads
 
 ### First run
@@ -42,14 +40,12 @@ No protocol, permission, or layout changes.
 
 ### Known limitations
 
-- Mirroring is not app streaming and has no audio. It requires consent every session and stops on
-  screen lock, rotation, or projection revocation; DRM/secure windows appear black.
-- Remote taps require the LinkPhone Accessibility service. Android 14 single-app capture can make
-  full-screen tap coordinates inaccurate.
-- OEM task killers and Doze can still stop the background connection; allow battery optimization
-  exemption and OEM autostart.
-- SMS is sideload-only; MMS/RCS are not supported, and read sync still uses **Open on phone**.
+- If the photo was deleted, moved, or its access was revoked after the list loaded, refresh and try
+  again. Android may also reject corrupt or cloud-backed files that have only a cached thumbnail.
+- HEIC/AVIF support ultimately depends on the phone’s platform codecs; if the full image cannot be
+  decoded, LinkPhone reports the failure instead of saving a truncated file.
+- Mirroring remains experimental and is not app streaming; see the v0.3.1 notes.
 - The Windows binaries are unsigned, so SmartScreen may warn.
 
-Built, unit-tested, linted, and E2E-tested in GitHub Actions. Consent dialogs and real mirroring
-still need the hardware checklist in `docs/testing.md`.
+Built, unit-tested, linted, and E2E-tested in GitHub Actions. Saving SD-card, HEIC, and very large
+photos still needs the hardware checklist in `docs/testing.md`.

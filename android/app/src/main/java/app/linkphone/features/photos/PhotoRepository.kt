@@ -5,6 +5,7 @@ import android.content.Context
 import android.database.Cursor
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import android.provider.MediaStore
 import android.util.Size
 import app.linkphone.core.model.PhotoAlbumDto
@@ -42,6 +43,7 @@ class PhotoRepository(private val context: Context) {
             MediaStore.Images.Media.WIDTH,
             MediaStore.Images.Media.HEIGHT,
             MediaStore.Images.Media.BUCKET_DISPLAY_NAME,
+            MediaStore.Images.Media.VOLUME_NAME,
         )
         val query = PhotoQuery.selection(bucket, beforeDate, beforeId)
         val photos = ArrayList<PhotoDto>(safeLimit)
@@ -63,6 +65,7 @@ class PhotoRepository(private val context: Context) {
                 val widthIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.WIDTH)
                 val heightIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.HEIGHT)
                 val bucketIndex = cursor.getColumnIndex(MediaStore.Images.Media.BUCKET_DISPLAY_NAME)
+                val volumeIndex = cursor.getColumnIndex(MediaStore.Images.Media.VOLUME_NAME)
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idIndex)
                     if (id <= 0) continue
@@ -79,6 +82,11 @@ class PhotoRepository(private val context: Context) {
                         width = cursor.getInt(widthIndex),
                         height = cursor.getInt(heightIndex),
                         bucket = if (bucketIndex >= 0) cursor.getString(bucketIndex) else null,
+                        volume = if (volumeIndex >= 0) {
+                            cursor.getString(volumeIndex)?.takeIf { it.isNotBlank() }
+                        } else {
+                            null
+                        },
                     )
                 }
             }
@@ -159,22 +167,41 @@ class PhotoRepository(private val context: Context) {
         return accumulator.result()
     }
 
-    fun loadJpeg(id: String, kind: String): ByteArray? {
+    fun loadJpeg(id: String, kind: String, volume: String? = null): ByteArray? {
         if (!Permissions.photos(context)) {
             throw FeaturePermissionException("Photo access is not granted")
         }
         val numericId = id.toLongOrNull()?.takeIf { it > 0 } ?: return null
-        val uri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, numericId)
+        val uri = photoUri(numericId, volume)
         val thumbnail = kind == "thumb"
         return try {
             if (thumbnail) loadThumbnail(uri) else loadScaled(uri, MAX_FULL_DIMENSION)
         } catch (error: OutOfMemoryError) {
-            LinkStatus.log("Photos", "Out of memory decoding photo $numericId")
+            LinkStatus.log(
+                "Photos",
+                "Out of memory decoding photo $numericId (volume=${volume ?: "external"})",
+            )
             null
         } catch (error: Exception) {
-            LinkStatus.log("Photos", "Photo decode failed: ${error.javaClass.simpleName}")
+            LinkStatus.log(
+                "Photos",
+                "Photo decode failed for $numericId (volume=${volume ?: "external"}): " +
+                    error.javaClass.simpleName,
+            )
             null
         }
+    }
+
+    private fun photoUri(id: Long, volume: String?): android.net.Uri {
+        if (!volume.isNullOrBlank()) {
+            runCatching {
+                return ContentUris.withAppendedId(
+                    MediaStore.Images.Media.getContentUri(volume),
+                    id,
+                )
+            }
+        }
+        return ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
     }
 
     private fun readDateSeconds(cursor: Cursor, addedIndex: Int, modifiedIndex: Int): Long {
@@ -189,6 +216,61 @@ class PhotoRepository(private val context: Context) {
     }
 
     private fun loadScaled(uri: android.net.Uri, maxDimension: Int): ByteArray? {
+        decodeWithImageDecoder(uri, maxDimension)?.let { return it }
+        return decodeWithBitmapFactory(uri, maxDimension)
+    }
+
+    private fun decodeWithImageDecoder(uri: android.net.Uri, maxDimension: Int): ByteArray? {
+        return try {
+            val source = ImageDecoder.createSource(resolver, uri)
+            var scaled: Bitmap? = null
+            try {
+                val decoded = ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                    val width = info.size.width
+                    val height = info.size.height
+                    if (width <= 0 || height <= 0) {
+                        throw IllegalStateException("Invalid image bounds")
+                    }
+                    val longest = maxOf(width, height)
+                    if (longest > maxDimension) {
+                        val ratio = maxDimension.toFloat() / longest
+                        decoder.setTargetSize(
+                            (width * ratio).toInt().coerceAtLeast(1),
+                            (height * ratio).toInt().coerceAtLeast(1),
+                        )
+                    }
+                    decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                }
+                val longest = maxOf(decoded.width, decoded.height)
+                val output = if (longest > maxDimension) {
+                    val ratio = maxDimension.toFloat() / longest
+                    Bitmap.createScaledBitmap(
+                        decoded,
+                        (decoded.width * ratio).toInt().coerceAtLeast(1),
+                        (decoded.height * ratio).toInt().coerceAtLeast(1),
+                        true,
+                    ).also {
+                        scaled = it
+                        decoded.recycle()
+                    }
+                } else {
+                    scaled = decoded
+                    decoded
+                }
+                compressJpeg(output, 90)
+            } finally {
+                scaled?.recycle()
+            }
+        } catch (error: OutOfMemoryError) {
+            LinkStatus.log("Photos", "ImageDecoder ran out of memory")
+            null
+        } catch (error: Exception) {
+            LinkStatus.log("Photos", "ImageDecoder failed: ${error.javaClass.simpleName}")
+            null
+        }
+    }
+
+    private fun decodeWithBitmapFactory(uri: android.net.Uri, maxDimension: Int): ByteArray? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: return null
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
@@ -239,7 +321,7 @@ class PhotoRepository(private val context: Context) {
         fun calculateInSampleSize(width: Int, height: Int, maxDimension: Int): Int {
             if (width <= 0 || height <= 0 || maxDimension <= 0) return 1
             var sample = 1
-            while (maxOf(width, height) / (sample * 2) >= maxDimension) {
+            while (maxOf(width, height) / sample > maxDimension) {
                 sample *= 2
             }
             return sample

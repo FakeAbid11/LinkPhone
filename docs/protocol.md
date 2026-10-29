@@ -83,7 +83,7 @@ server verifies with Node `crypto.verify('sha256', payload, { key, dsaEncoding: 
 | `notif.dismiss` | PC → phone | `{key}` |
 | `photo.list` | PC → phone | request `{limit, bucket?, beforeDate?, beforeId?}`; response `{photos[], hasMore}`. `bucket` is an opaque album id; `beforeDate`/`beforeId` form a keyset page |
 | `photo.albums` | PC → phone | response `{albums[]}` with `id, name, count, coverId, latest`; requires the `photos.albums` capability |
-| `photo.fetch` | PC → phone | `{id, kind: "thumb"\|"full"}`; response `PhotoStreamMeta` then binary type 1 |
+| `photo.fetch` | PC → phone | `{id, kind: "thumb"\|"full", volume?}`; response `PhotoStreamMeta` then binary type 1 |
 | `call.state` | phone → PC | `state (idle\|ringing\|offhook\|unknown), number?, contactName?, timestamp` |
 | `call.dial` | PC → phone | `{number, subId?}` |
 | `call.answer` | PC → phone | none |

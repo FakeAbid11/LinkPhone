@@ -168,6 +168,7 @@ export interface PhotoWire {
   width: number;
   height: number;
   bucket?: string | null;
+  volume?: string | null;
 }
 
 export interface PhotoListResultWire {

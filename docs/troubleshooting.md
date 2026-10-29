@@ -140,6 +140,10 @@ override the platform; there is no public API that prevents that.
   grant full access in system settings for the full camera roll.
 - **Thumbnail is slow:** the phone generates JPEG thumbnails on demand; scroll to load lazily.
 - **Save fails:** check free disk space in `Pictures`; the target is `Pictures\LinkPhone`.
+- **“Photo not found or could not be decoded”:** v0.3.2 sends the media volume so SD-card photos
+  resolve correctly and falls back to Android’s `ImageDecoder` for HEIC/AVIF. Refresh the album and
+  retry. If it persists, the file may be corrupt, cloud-backed, deleted, or only have a cached
+  thumbnail; check the phone diagnostics for `Photo decode failed` and the photo id/volume.
 - **HEIC looks different:** the phone transcodes to JPEG, so the saved copy is a JPEG, not the
   original HEIC file.
 

@@ -5,6 +5,7 @@ import app.linkphone.core.model.ContactDto
 import app.linkphone.core.model.ContactListResult
 import app.linkphone.core.model.PhotoAlbumDto
 import app.linkphone.core.model.PhotoAlbumListResult
+import app.linkphone.core.model.PhotoFetchRequest
 import app.linkphone.core.model.PhotoListRequest
 import app.linkphone.core.model.Pong
 import app.linkphone.core.model.SmsOpenThreadRequest
@@ -200,6 +201,26 @@ class ProtocolCodecTest {
         assertEquals("v:external_primary:42", decoded.bucket)
         assertEquals(1_700_000_000_000L, decoded.beforeDate)
         assertEquals("900", decoded.beforeId)
+    }
+
+    @Test
+    fun photoFetchRequestCarriesVolumeAndDefaultsForOlderClients() {
+        val encoded = ProtocolCodec.json.encodeToString(
+            PhotoFetchRequest.serializer(),
+            PhotoFetchRequest(id = "42", kind = "full", volume = "external_primary"),
+        )
+        assertTrue(encoded.contains("external_primary"))
+        val decoded = ProtocolCodec.json.decodeFromString(
+            PhotoFetchRequest.serializer(),
+            encoded,
+        )
+        assertEquals("external_primary", decoded.volume)
+
+        val old = ProtocolCodec.json.decodeFromString(
+            PhotoFetchRequest.serializer(),
+            """{"id":"42","kind":"full"}""",
+        )
+        assertNull(old.volume)
     }
 
     @Test

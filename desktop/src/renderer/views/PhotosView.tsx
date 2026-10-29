@@ -210,7 +210,11 @@ export function PhotosView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
         <>
           <div className="photo-grid">
             {state.photos.items.map((photo) => (
-              <PhotoTile key={photo.id} photo={photo} onOpen={() => setPreview(photo)} />
+              <PhotoTile
+                key={`${photo.volume ?? ''}:${photo.id}`}
+                photo={photo}
+                onOpen={() => setPreview(photo)}
+              />
             ))}
           </div>
           {state.photos.hasMore && (

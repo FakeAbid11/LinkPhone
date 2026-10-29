@@ -26,6 +26,7 @@ locally.
   primary text, button labels, outlines, and status-pill containers.
 - `PhotoAlbumAccumulatorTest` — album counts, date-based covers, latest timestamps, and name fallback.
 - `PhotoQueryTest` — MediaStore bucket ids, keyset args, zero-date fallback, and valid-row paging.
+- `PhotoRepositoryTest` — sampling for large images and invalid dimensions.
 - `ConnectionPolicyTest` — auto-start/boot gating on paired, auto-connect, and persisted intent.
 
 Run in CI:
@@ -181,6 +182,8 @@ Use two devices on the same Wi-Fi. Check each item and keep the diagnostics log 
 - [ ] Select each album; only that album’s photos appear; counts in the strip match the phone.
 - [ ] Open a large album and press **Load more** until the end; no duplicates and the button stops.
 - [ ] Save an image; it opens from `Pictures\LinkPhone`.
+- [ ] Save an image stored on an SD card/secondary volume.
+- [ ] Save a large panorama and a HEIC image; the saved file opens.
 - [ ] Copy an image; paste it into Paint/Word.
 - [ ] Android 14: choose selected photos; only those appear, with a warning and reduced album counts.
 - [ ] Test a HEIC photo (transcoded to JPEG).
