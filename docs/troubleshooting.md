@@ -156,9 +156,10 @@ override the platform; there is no public API that prevents that.
   control to the default dialer; use the phone notification/in-call screen in that case.
 - **End call is missing:** open the Calls tab or look for the global **Call in progress** banner.
   The button is disabled while ANSWER_PHONE_CALLS is missing; grant it on the phone.
-- **Speaker toggle does nothing:** expected on phones that reserve cellular routing for the default
-  dialer. The control is best effort; use the phone's in-call screen or a headset. The PC shows a
-  notice instead of claiming the route changed.
+- **Speaker toggle does nothing / reverts:** v0.5.2 tries both public AudioManager routes and
+  verifies the reported state. If the PC shows “This phone blocked speaker control,” the phone's
+  Telecom/OEM dialer owns the route; use its in-call screen or a headset. This is not a missing
+  permission.
 - **No audio on the PC:** expected and unavoidable for a third-party app. Use the phone's
   speakerphone or a headset. See [feasibility.md](feasibility.md).
 - **Dial fails:** grant CALL_PHONE and ensure a SIM is active. Emergency calls are handled by

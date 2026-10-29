@@ -200,8 +200,9 @@ Use two devices on the same Wi-Fi. Check each item and keep the diagnostics log 
       **End call**. End it from the banner and confirm the state returns to idle.
 - [ ] In the Calls tab, use **End call**; confirm the success text says the request was sent, not
       that the call ended before the phone reports idle.
-- [ ] Toggle **Speaker off/on** during an active call. Confirm the label updates; on phones that
-      ignore the request, confirm the best-effort notice is visible and use the phone's in-call UI.
+- [ ] Toggle **Speaker off/on** during an active call. Confirm the label updates only when the
+      phone reports the route changed; otherwise the PC shows the explicit blocked error and stays
+      off. Test Android 10, 12, and 14/15, with and without Bluetooth/headset.
 - [ ] Grant Contacts; search by name/number; tap a contact and confirm the number fills the dialer.
 - [ ] Dial a number; the phone places the call.
 - [ ] Dual SIM on Android 11+: select each SIM in the Calls tab and confirm the phone's in-call UI
