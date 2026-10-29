@@ -75,7 +75,7 @@ export function AppsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
           canvas.width = width;
           canvas.height = height;
         }
-        canvas.getContext('2d')?.drawImage(frame, 0, 0);
+        canvas.getContext('2d')?.drawImage(frame as unknown as CanvasImageSource, 0, 0);
       },
       requestKeyframe: () => {
         void api.requestMirrorKeyframe().catch(() => undefined);
