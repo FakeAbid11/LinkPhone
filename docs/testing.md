@@ -124,8 +124,11 @@ Use two devices on the same Wi-Fi. Check each item and keep the diagnostics log 
       phone skips it.
 - [ ] Phone app opens; version and identity fingerprint are visible.
 - [ ] Switch Android between light and dark mode; every screen remains readable.
-- [ ] Confirm the indigo/violet accent is used consistently on the PC and phone, and the launcher
-      icon matches the new palette.
+- [ ] Confirm the indigo/violet accent is used consistently on the PC and phone.
+- [ ] Windows shortcut, taskbar window, and tray show the new phone/monitor mark; the PC sidebar
+      logo matches it.
+- [ ] Android launcher, round icon, and (on Android 13+) themed icon show the same mark without
+      clipped edges.
 
 ### Interface and accessibility
 

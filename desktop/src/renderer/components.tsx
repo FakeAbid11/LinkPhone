@@ -8,6 +8,7 @@ import {
   useId,
   useRef,
 } from 'react';
+import logoUrl from './assets/logo.png';
 
 export type IconName =
   | 'link'
@@ -215,25 +216,16 @@ export function Icon({
 
 export function Logo({ size = 34 }: { size?: number }) {
   return (
-    <svg
+    <img
+      src={logoUrl}
       width={size}
       height={size}
-      viewBox="0 0 64 64"
-      fill="none"
+      alt=""
       aria-hidden="true"
+      draggable={false}
       className="logo-mark"
-    >
-      <rect x="1" y="1" width="62" height="62" rx="16" fill="#12182b" stroke="#2a3550" />
-      <rect x="13" y="16" width="15" height="30" rx="3.5" stroke="#e7ecf5" strokeWidth="2.4" />
-      <rect x="38" y="19" width="14" height="18" rx="2.5" stroke="#e7ecf5" strokeWidth="2.4" />
-      <path d="M45 37v5h-5" stroke="#e7ecf5" strokeWidth="2.4" strokeLinecap="round" />
-      <path
-        d="M28 26c1.8-1.8 4.7-1.8 6.5 0M29.4 29.4c1.1-1.1 2.9-1.1 4 0M31.5 32.8c.2-.2.4-.2.6 0"
-        stroke="#8b93ff"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-      />
-    </svg>
+      style={{ borderRadius: Math.round(size * 0.24) }}
+    />
   );
 }
 
