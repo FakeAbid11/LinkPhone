@@ -45,8 +45,8 @@ gradle -p android :app:testDebugUnitTest :app:lintDebug
   cross-device rejection.
 - `pairing.test.ts` — token single use, five-minute expiry, per-IP lockout, replacement.
 - `safety.test.ts` — dialing, URL allowlist, filename traversal, fingerprints, SMS grouping/merge.
-- `calls.test.ts` — dial payload with/without a SIM, validation, connected-session requirement, and
-  on-demand contact loading.
+- `calls.test.ts` — dial payload with/without a SIM, answer/end/speaker requests, speaker state
+  mapping, validation, connected-session requirement, and on-demand contact loading.
 - `server.test.ts` — **real TLS/WebSocket integration**: pair a phone, store its key, reject bad
   tokens/rejections, authenticate with a real ECDSA signature, reject a bad signature/unknown phone,
   reject pairing while busy, route a phone event.
@@ -158,8 +158,9 @@ Use two devices on the same Wi-Fi. Check each item and keep the diagnostics log 
 
 - [ ] Grant SMS; recent threads load.
 - [ ] With 30+ conversations, the conversation list scrolls independently of the message history.
-- [ ] Mark one thread read; its unread badge and the nav count clear. Mark all; all clear. Restart
-      the PC app; the read state persists. A new incoming SMS becomes unread again.
+- [ ] Click an unread conversation; it opens and its unread badge/nav count clear immediately.
+- [ ] Confirm the per-thread **Mark read** button is gone and **Mark all read** still works.
+- [ ] Restart the PC app; the click-marked read state persists. A new incoming SMS becomes unread again.
 - [ ] Open on phone: a notification appears on the phone; tapping it opens the stock SMS app and
       that app marks the conversation read. Denying notifications returns a clear error.
 - [ ] Send a short message; it arrives on the recipient.
@@ -195,6 +196,12 @@ Use two devices on the same Wi-Fi. Check each item and keep the diagnostics log 
 - [ ] Grant phone + answer permissions.
 - [ ] Incoming call shows on the PC with number/contact if call-log/contacts granted.
 - [ ] Answer from the PC where supported; decline on a second call.
+- [ ] Start an active call, switch away from Calls; the global banner shows **Call in progress** and
+      **End call**. End it from the banner and confirm the state returns to idle.
+- [ ] In the Calls tab, use **End call**; confirm the success text says the request was sent, not
+      that the call ended before the phone reports idle.
+- [ ] Toggle **Speaker off/on** during an active call. Confirm the label updates; on phones that
+      ignore the request, confirm the best-effort notice is visible and use the phone's in-call UI.
 - [ ] Grant Contacts; search by name/number; tap a contact and confirm the number fills the dialer.
 - [ ] Dial a number; the phone places the call.
 - [ ] Dual SIM on Android 11+: select each SIM in the Calls tab and confirm the phone's in-call UI

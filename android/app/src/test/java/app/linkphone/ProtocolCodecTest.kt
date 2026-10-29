@@ -1,6 +1,8 @@
 package app.linkphone
 
 import app.linkphone.core.model.CallDialRequest
+import app.linkphone.core.model.CallSpeakerRequest
+import app.linkphone.core.model.CallState
 import app.linkphone.core.model.ContactDto
 import app.linkphone.core.model.ContactListResult
 import app.linkphone.core.model.PhotoAlbumDto
@@ -142,6 +144,28 @@ class ProtocolCodecTest {
         assertEquals(1, decoded.contacts.size)
         assertEquals("Ada", decoded.contacts[0].name)
         assertEquals("+15550101000", decoded.contacts[0].number)
+    }
+
+    @Test
+    fun callSpeakerAndStateRoundTrip() {
+        val speaker = ProtocolCodec.json.encodeToString(
+            CallSpeakerRequest.serializer(),
+            CallSpeakerRequest(true),
+        )
+        assertTrue(ProtocolCodec.json.decodeFromString(CallSpeakerRequest.serializer(), speaker).enabled)
+
+        val state = CallState(
+            state = "offhook",
+            number = "+15550101000",
+            timestamp = 1_700_000_000_000L,
+            speakerOn = true,
+        )
+        val decoded = ProtocolCodec.json.decodeFromString(
+            CallState.serializer(),
+            ProtocolCodec.json.encodeToString(CallState.serializer(), state),
+        )
+        assertEquals("offhook", decoded.state)
+        assertEquals(true, decoded.speakerOn)
     }
 
     @Test

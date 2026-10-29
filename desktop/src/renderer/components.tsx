@@ -34,6 +34,7 @@ export type IconName =
   | 'battery'
   | 'wifi'
   | 'download'
+  | 'speaker'
   | 'chevron';
 
 const ICONS: Record<IconName, ReactNode> = {
@@ -173,6 +174,12 @@ const ICONS: Record<IconName, ReactNode> = {
       <path d="M12 3v12" />
       <path d="m7 10 5 5 5-5" />
       <path d="M4 20h16" />
+    </>
+  ),
+  speaker: (
+    <>
+      <path d="M4 9v6h4l5 4V5L8 9H4Z" />
+      <path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" />
     </>
   ),
   chevron: <path d="m6 9 6 6 6-6" />,

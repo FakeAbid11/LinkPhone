@@ -4,6 +4,8 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -28,10 +30,15 @@ class CallController(
         context.getSystemService(TelephonyManager::class.java)
     private val telecom: TelecomManager? =
         context.getSystemService(TelecomManager::class.java)
+    private val audio: AudioManager? =
+        context.getSystemService(AudioManager::class.java)
     private var listener: PhoneStateListener? = null
+    private var speakerOn = false
+    private var lastState: CallState? = null
 
     fun isSupported(): Boolean =
-        context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) ||
+            context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_GSM)
 
     @SuppressLint("MissingPermission")
     @Suppress("DEPRECATION")
@@ -47,20 +54,37 @@ class CallController(
                     TelephonyManager.CALL_STATE_IDLE -> "idle"
                     else -> "unknown"
                 }
+                if (mapped == "idle") resetSpeakerRoute()
                 val number = phoneNumber?.takeIf { it.isNotBlank() }
-                onState(
-                    CallState(
-                        state = mapped,
-                        number = number,
-                        contactName = number?.let(::contactName),
-                        timestamp = System.currentTimeMillis(),
-                    ),
+                val next = CallState(
+                    state = mapped,
+                    number = number,
+                    contactName = number?.let(::contactName),
+                    timestamp = System.currentTimeMillis(),
+                    speakerOn = speakerOn,
                 )
+                lastState = next
+                onState(next)
             }
         }
         try {
             manager.listen(stateListener, PhoneStateListener.LISTEN_CALL_STATE)
             listener = stateListener
+            val initial = runCatching { manager.callState }.getOrNull()
+            if (initial != null && initial != TelephonyManager.CALL_STATE_IDLE) {
+                val mapped = when (initial) {
+                    TelephonyManager.CALL_STATE_RINGING -> "ringing"
+                    TelephonyManager.CALL_STATE_OFFHOOK -> "offhook"
+                    else -> "unknown"
+                }
+                val next = CallState(
+                    state = mapped,
+                    timestamp = System.currentTimeMillis(),
+                    speakerOn = speakerOn,
+                )
+                lastState = next
+                onState(next)
+            }
         } catch (error: SecurityException) {
             LinkStatus.log("Calls", "Call-state listener needs phone permission")
         }
@@ -68,9 +92,13 @@ class CallController(
 
     @Suppress("DEPRECATION")
     fun stop() {
-        val current = listener ?: return
-        runCatching { telephony?.listen(current, PhoneStateListener.LISTEN_NONE) }
-        listener = null
+        val current = listener
+        if (current != null) {
+            runCatching { telephony?.listen(current, PhoneStateListener.LISTEN_NONE) }
+            listener = null
+        }
+        resetSpeakerRoute()
+        lastState = null
     }
 
     @SuppressLint("MissingPermission")
@@ -149,6 +177,64 @@ class CallController(
         }
         val manager = telecom ?: return Result.failure(IllegalStateException("Telecom is unavailable"))
         return runCatching { manager.endCall() }
+    }
+
+    @SuppressLint("MissingPermission")
+    @Suppress("DEPRECATION")
+    fun setSpeaker(enabled: Boolean): Result<Unit> {
+        if (!Permissions.has(context, Manifest.permission.MODIFY_AUDIO_SETTINGS)) {
+            return Result.failure(
+                FeaturePermissionException("MODIFY_AUDIO_SETTINGS permission is not granted"),
+            )
+        }
+        if (lastState?.state != "offhook") {
+            return Result.failure(IllegalStateException("There is no active call"))
+        }
+        val manager = audio ?: return Result.failure(IllegalStateException("Audio is unavailable"))
+        val changed = runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (enabled) {
+                    val speaker = manager.availableCommunicationDevices.firstOrNull {
+                        it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+                    } ?: error("This phone does not expose a speaker audio device")
+                    if (!manager.setCommunicationDevice(speaker)) {
+                        error("This phone blocked the speaker request")
+                    }
+                } else {
+                    manager.clearCommunicationDevice()
+                }
+            } else {
+                manager.isSpeakerphoneOn = enabled
+            }
+        }
+        return changed.fold(
+            onSuccess = {
+                speakerOn = enabled
+                lastState?.let { onState(it.copy(speakerOn = speakerOn)) }
+                Result.success(Unit)
+            },
+            onFailure = {
+                Result.failure(
+                    IllegalStateException(
+                        "This phone blocked speaker control. Use the phone's in-call screen.",
+                        it,
+                    ),
+                )
+            },
+        )
+    }
+
+    private fun resetSpeakerRoute() {
+        if (!speakerOn) return
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                audio?.clearCommunicationDevice()
+            } else {
+                @Suppress("DEPRECATION")
+                audio?.isSpeakerphoneOn = false
+            }
+        }
+        speakerOn = false
     }
 
     @SuppressLint("MissingPermission")

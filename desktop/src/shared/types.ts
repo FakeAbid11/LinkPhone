@@ -27,6 +27,7 @@ export const TYPES = {
   CALL_DIAL: 'call.dial',
   CALL_ANSWER: 'call.answer',
   CALL_DECLINE: 'call.decline',
+  CALL_SPEAKER: 'call.speaker',
   CLIPBOARD_SET: 'clipboard.set',
   CLIPBOARD_FROM_PHONE: 'clipboard.fromPhone',
   HANDOFF_SHARE: 'handoff.share',
@@ -65,6 +66,7 @@ export const CAPABILITIES = {
   PHOTOS_ALBUMS: 'photos.albums',
   CALLS: 'calls',
   CALLS_ANSWER: 'calls.answer',
+  CALLS_SPEAKER: 'calls.speaker',
   CALLS_CALLER_ID: 'calls.callerId',
   CALLS_SIM_SELECTION: 'calls.simSelection',
   MIRROR: 'mirror',
@@ -201,6 +203,7 @@ export interface CallStateWire {
   number?: string | null;
   contactName?: string | null;
   timestamp: number;
+  speakerOn?: boolean | null;
 }
 
 export interface ClipboardFromPhoneWire {
@@ -415,6 +418,7 @@ export interface AppSnapshot {
     state: CallStateWire;
     error?: string;
     answerSupported: boolean;
+    speakerSupported: boolean;
     contacts: ContactWire[];
     contactsLoading: boolean;
     contactsError?: string;
@@ -464,6 +468,7 @@ export interface LinkPhoneApi {
   refreshContacts(): Promise<void>;
   answerCall(): Promise<void>;
   declineCall(): Promise<void>;
+  setCallSpeaker(enabled: boolean): Promise<void>;
   sendClipboard(text: string): Promise<void>;
   sendPcClipboard(): Promise<void>;
   openUrl(url: string): Promise<void>;

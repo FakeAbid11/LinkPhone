@@ -24,6 +24,7 @@ object PhoneInfoBuilder {
         }
         if (Permissions.calls(context) && hasTelephony(context)) {
             capabilities += Capabilities.CALLS
+            capabilities += Capabilities.CALLS_SPEAKER
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 capabilities += Capabilities.CALLS_SIM_SELECTION
             }

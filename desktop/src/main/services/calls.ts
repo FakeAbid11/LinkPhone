@@ -51,6 +51,7 @@ export class CallService {
       number: typeof data.number === 'string' ? data.number.slice(0, 40) : null,
       contactName: typeof data.contactName === 'string' ? data.contactName.slice(0, 120) : null,
       timestamp: Number.isFinite(data.timestamp) ? data.timestamp : Date.now(),
+      speakerOn: typeof data.speakerOn === 'boolean' ? data.speakerOn : null,
     };
     this.error = undefined;
     this.logger.log('Calls', `Call state: ${this.state.state}`);
@@ -129,6 +130,12 @@ export class CallService {
     const session = this.requireSession();
     await session.request(TYPES.CALL_DECLINE, {}, 15_000);
     this.logger.log('Calls', 'Asked the phone to decline/end');
+  }
+
+  async setSpeaker(enabled: boolean): Promise<void> {
+    const session = this.requireSession();
+    await session.request(TYPES.CALL_SPEAKER, { enabled }, 10_000);
+    this.logger.log('Calls', `Asked the phone to turn the speaker ${enabled ? 'on' : 'off'}`);
   }
 
   status(): {

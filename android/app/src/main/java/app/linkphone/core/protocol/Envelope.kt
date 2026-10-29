@@ -59,6 +59,7 @@ object Types {
     const val CALL_DIAL = "call.dial"
     const val CALL_ANSWER = "call.answer"
     const val CALL_DECLINE = "call.decline"
+    const val CALL_SPEAKER = "call.speaker"
     const val CLIPBOARD_SET = "clipboard.set"
     const val CLIPBOARD_FROM_PHONE = "clipboard.fromPhone"
     const val HANDOFF_SHARE = "handoff.share"
