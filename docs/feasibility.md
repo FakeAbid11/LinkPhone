@@ -1,11 +1,11 @@
 # Feasibility, platform limits, and scope
 
-This document records what Android and Windows actually allow, what LinkPhone v0.5.1 implements, and
+This document records what Android and Windows actually allow, what LinkPhone v0.5.2 implements, and
 what would require a different product or system privileges.
 
 ## Summary
 
-| Requested feature | v0.5.1 | Honest limit |
+| Requested feature | v0.5.2 | Honest limit |
 |---|---|---|
 | Secure pair/reconnect | Implemented | QR + pinned TLS + ECDSA challenge; one phone at a time |
 | SMS view/send | Implemented | Sideload only; unread is PC-local; Open on phone hands the thread to the stock SMS app (one tap); no MMS/RCS; no default-SMS role, so sent items may not enter stock threads |
@@ -67,9 +67,11 @@ What works:
 - Placing a call with `TelecomManager.placeCall()` and `CALL_PHONE` (works from a service; unlike
   `ACTION_CALL`, which is subject to background activity-start restrictions).
 - Answer/decline/end with `ANSWER_PHONE_CALLS` and `TelecomManager.acceptRingingCall()`/`endCall()`.
-- A **best-effort speaker toggle** using `AudioManager.setCommunicationDevice()` on Android 12+ or the
-  deprecated `isSpeakerphoneOn` on Android 10–11. The telecom/default dialer owns the cellular audio
-  route, so this may return success without changing the route or may be overridden by the phone.
+- A **best-effort speaker toggle** using `AudioManager.setCommunicationDevice()` on Android 12+,
+  plus the deprecated `isSpeakerphoneOn` request as an OEM fallback on all supported versions. The app
+  waits briefly and verifies the reported route; if the phone still reports the old route, it keeps
+  the toggle off and returns an explicit error. Telecom/default dialer ownership means this may still
+  be refused entirely.
 - Choosing a SIM for an outgoing call on Android 11+: the PC sends the subscription id; the phone
   finds the matching call-capable Telecom `PhoneAccount` using
   `TelephonyManager.getSubscriptionId(handle)` and passes `EXTRA_PHONE_ACCOUNT_HANDLE` to

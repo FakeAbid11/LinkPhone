@@ -9,6 +9,7 @@ import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import android.provider.ContactsContract
 import android.telecom.PhoneAccount
 import android.telecom.PhoneAccountHandle
@@ -191,20 +192,37 @@ class CallController(
             return Result.failure(IllegalStateException("There is no active call"))
         }
         val manager = audio ?: return Result.failure(IllegalStateException("Audio is unavailable"))
+        var actual = speakerOn
         val changed = runCatching {
+            var deviceSelected = false
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 if (enabled) {
                     val speaker = manager.availableCommunicationDevices.firstOrNull {
                         it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
-                    } ?: error("This phone does not expose a speaker audio device")
-                    if (!manager.setCommunicationDevice(speaker)) {
-                        error("This phone blocked the speaker request")
                     }
+                    if (speaker != null) {
+                        deviceSelected = runCatching {
+                            manager.setCommunicationDevice(speaker)
+                        }.getOrDefault(false)
+                    }
+                    // Some OEM telecom stacks still honor the legacy route request.
+                    runCatching { manager.isSpeakerphoneOn = true }
                 } else {
-                    manager.clearCommunicationDevice()
+                    runCatching { manager.clearCommunicationDevice() }
+                    runCatching { manager.isSpeakerphoneOn = false }
                 }
             } else {
                 manager.isSpeakerphoneOn = enabled
+            }
+
+            // The route is applied asynchronously; read it back before reporting success.
+            SystemClock.sleep(SPEAKER_SETTLE_MS)
+            actual = manager.isSpeakerphoneOn
+            if (actual != enabled) {
+                error(
+                    "Speaker route not applied " +
+                        "(requested=$enabled, reported=$actual, deviceSelected=$deviceSelected)",
+                )
             }
         }
         return changed.fold(
@@ -214,6 +232,17 @@ class CallController(
                 Result.success(Unit)
             },
             onFailure = {
+                if (!actual) {
+                    runCatching {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            audio?.clearCommunicationDevice()
+                        }
+                    }
+                    runCatching { audio?.isSpeakerphoneOn = false }
+                }
+                speakerOn = actual
+                lastState?.let { onState(it.copy(speakerOn = speakerOn)) }
+                LinkStatus.log("Calls", "Speaker request blocked (reported=$actual)")
                 Result.failure(
                     IllegalStateException(
                         "This phone blocked speaker control. Use the phone's in-call screen.",
@@ -229,10 +258,11 @@ class CallController(
         runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 audio?.clearCommunicationDevice()
-            } else {
-                @Suppress("DEPRECATION")
-                audio?.isSpeakerphoneOn = false
             }
+        }
+        runCatching {
+            @Suppress("DEPRECATION")
+            audio?.isSpeakerphoneOn = false
         }
         speakerOn = false
     }
@@ -254,5 +284,9 @@ class CallController(
                 if (cursor.moveToFirst()) cursor.getString(0) else null
             }
         }.getOrNull()
+    }
+
+    private companion object {
+        const val SPEAKER_SETTLE_MS = 180L
     }
 }
