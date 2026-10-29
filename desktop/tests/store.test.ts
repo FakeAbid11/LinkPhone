@@ -23,6 +23,7 @@ describe('settings store', () => {
     expect(store.pcId).toMatch(/^[0-9a-f-]{36}$/);
     expect(store.pcName.length).toBeGreaterThan(0);
     expect(store.devices).toHaveLength(0);
+    expect(store.settings.autoCheckUpdates).toBe(true);
 
     store.addDevice({
       id: 'phone-1',
@@ -32,12 +33,13 @@ describe('settings store', () => {
       fingerprint: 'ab'.repeat(32),
       pairedAt: Date.now(),
     });
-    store.updateSettings({ notificationsToasts: false, mutePackages: ['a', 'a', 'b'] });
+    store.updateSettings({ notificationsToasts: false, autoCheckUpdates: false, mutePackages: ['a', 'a', 'b'] });
 
     const reloaded = new Store(file);
     expect(reloaded.devices).toHaveLength(1);
     expect(reloaded.devices[0].name).toBe('Pixel');
     expect(reloaded.settings.notificationsToasts).toBe(false);
+    expect(reloaded.settings.autoCheckUpdates).toBe(false);
     expect(reloaded.settings.mutePackages).toEqual(['a', 'b']);
   });
 

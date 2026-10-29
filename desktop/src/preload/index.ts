@@ -65,6 +65,10 @@ const api: LinkPhoneApi = {
   mirrorTouch: (touch: MirrorTouchWire) => ipcRenderer.invoke('mirror:touch', touch),
   openLogs: () => ipcRenderer.invoke('app:openLogs'),
   openDocs: () => ipcRenderer.invoke('app:openDocs'),
+  checkForUpdates: () => ipcRenderer.invoke('updater:check'),
+  downloadUpdate: () => ipcRenderer.invoke('updater:download'),
+  installUpdate: () => ipcRenderer.invoke('updater:install'),
+  openReleasePage: () => ipcRenderer.invoke('updater:openRelease'),
   refresh: () => ipcRenderer.invoke('app:refresh'),
 };
 

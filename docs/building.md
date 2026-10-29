@@ -121,6 +121,10 @@ then commit the updated lockfile.
 
 `npm run dist:win` packages the app into `desktop/release/`. The Windows build is unsigned.
 
+The Windows updater reads the release's `LinkPhone-Setup-<version>.exe` and `SHA256SUMS.txt` from
+GitHub Releases. Keep both assets attached to every published release; the portable EXE is not used
+for automatic updates. No `latest.yml` or electron-updater metadata is required.
+
 ### Full CI commands
 
 ```bash

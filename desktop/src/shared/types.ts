@@ -275,7 +275,32 @@ export interface Settings {
   notificationsToasts: boolean;
   autoClipboard: boolean;
   launchAtLogin: boolean;
+  autoCheckUpdates: boolean;
   mutePackages: string[];
+}
+
+export type UpdatePhase =
+  | 'unsupported'
+  | 'idle'
+  | 'checking'
+  | 'up-to-date'
+  | 'available'
+  | 'downloading'
+  | 'ready'
+  | 'error';
+
+export type UpdateMode = 'installed' | 'portable' | 'disabled';
+
+export interface UpdateStatus {
+  supported: boolean;
+  mode: UpdateMode;
+  phase: UpdatePhase;
+  currentVersion: string;
+  version?: string;
+  notes?: string;
+  progress?: number;
+  checkedAt?: number;
+  error?: string;
 }
 
 export interface SmsMessageUi extends SmsMessageWire {
@@ -404,6 +429,7 @@ export interface AppSnapshot {
     inputEnabled: boolean;
     error?: string;
   };
+  updates: UpdateStatus;
   logs: string[];
   lastError?: string;
 }
@@ -448,5 +474,9 @@ export interface LinkPhoneApi {
   mirrorTouch(touch: MirrorTouchWire): Promise<void>;
   openLogs(): Promise<void>;
   openDocs(): Promise<void>;
+  checkForUpdates(): Promise<void>;
+  downloadUpdate(): Promise<void>;
+  installUpdate(): Promise<void>;
+  openReleasePage(): Promise<void>;
   refresh(): Promise<void>;
 }

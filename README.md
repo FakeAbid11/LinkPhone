@@ -4,7 +4,7 @@
 
 Your Android phone and Windows PC, connected directly over your own Wi-Fi. Messages, notifications, photos, call control, clipboard handoff, and experimental screen mirroring — encrypted, LAN-only, no cloud account.
 
-> **Status:** v0.3.2. The Android and Windows apps compile, pass their unit/integration tests, and are packaged in GitHub Actions. They have **not** been tested on a physical phone in this environment; OEM permissions, calls, notifications, MediaProjection, and background behavior require the device acceptance checklist. See [testing.md](docs/testing.md#device-acceptance-checklist) and the limitations below before installing.
+> **Status:** v0.4.0. The Android and Windows apps compile, pass their unit/integration tests, and are packaged in GitHub Actions. They have **not** been tested on a physical phone in this environment; OEM permissions, calls, notifications, MediaProjection, and background behavior require the device acceptance checklist. See [testing.md](docs/testing.md#device-acceptance-checklist) and the limitations below before installing.
 
 Documentation: [feasibility & limits](docs/feasibility.md) · [architecture](docs/architecture.md) · [protocol](docs/protocol.md) · [permissions](docs/permissions.md) · [security](docs/security.md) · [troubleshooting](docs/troubleshooting.md) · [building](docs/building.md).
 
@@ -20,6 +20,19 @@ Grab the latest files from [Releases](https://github.com/FakeAbid11/LinkPhone/re
 | `SHA256SUMS.txt` | Checksums for the above |
 
 The Windows binaries are unsigned, so SmartScreen may warn. The APK is signed with a personal release key, not distributed through Google Play.
+
+## Updates
+
+The installed Windows Setup build checks GitHub Releases after launch and every six hours, downloads
+a newer Setup EXE in the background, verifies its SHA-256 checksum, and shows an **Update ready**
+banner. **Restart and install** opens the installer after LinkPhone stops its connection service.
+Automatic checks can be disabled in **Settings → Updates**; manual checks still work.
+
+- Portable builds cannot update in place; use the **Download portable** link in Settings.
+- Update installers are unsigned. The updater verifies SHA-256 from the official release but cannot
+  verify an Authenticode publisher signature. Only install updates from this repository's releases.
+- v0.4.0 is the first updater-enabled build, so install it manually once. Later v0.4.x builds can
+  update in-app.
 
 ## Quick start
 

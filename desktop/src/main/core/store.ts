@@ -30,6 +30,7 @@ const DEFAULT_SETTINGS: Settings = {
   notificationsToasts: true,
   autoClipboard: false,
   launchAtLogin: false,
+  autoCheckUpdates: true,
   mutePackages: [],
 };
 

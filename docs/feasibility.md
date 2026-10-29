@@ -1,11 +1,11 @@
 # Feasibility, platform limits, and scope
 
-This document records what Android and Windows actually allow, what LinkPhone v0.3.2 implements, and
+This document records what Android and Windows actually allow, what LinkPhone v0.4.0 implements, and
 what would require a different product or system privileges.
 
 ## Summary
 
-| Requested feature | v0.3.2 | Honest limit |
+| Requested feature | v0.4.0 | Honest limit |
 |---|---|---|
 | Secure pair/reconnect | Implemented | QR + pinned TLS + ECDSA challenge; one phone at a time |
 | SMS view/send | Implemented | Sideload only; unread is PC-local; Open on phone hands the thread to the stock SMS app (one tap); no MMS/RCS; no default-SMS role, so sent items may not enter stock threads |
@@ -15,6 +15,7 @@ what would require a different product or system privileges.
 | Apps streaming | Experimental substitute | Screen mirroring + tap/swipe only; no app virtualization; consent each session; stops on lock |
 | Clipboard/handoff | Limited | PC→phone works; phone→PC explicit; “Continue on PC” via share sheet |
 | Background operation | Best effort | Foreground service, boot restart, locks; OEM/Doze/force-stop can still stop it |
+| Windows updates | Implemented | Installed NSIS build only; portable is manual; SHA-256 verified, unsigned |
 
 ## Android version requirements
 

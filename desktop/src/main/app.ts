@@ -30,6 +30,8 @@ import { MirrorService } from './services/mirror';
 import { NotificationService } from './services/notifications';
 import { PhotoService } from './services/photos';
 import { SmsService } from './services/sms';
+import { GitHubUpdateClient } from './updater/github';
+import { UpdateService } from './updater/UpdateService';
 import {
   CAPABILITIES,
   TYPES,
@@ -47,6 +49,7 @@ import {
   type PhoneInfoWire,
   type Settings,
   type SimInfoWire,
+  type UpdateMode,
 } from '../shared/types';
 
 interface PendingPairing {
@@ -75,6 +78,7 @@ export class AppController {
   private clipboardService!: ClipboardService;
   private handoff!: HandoffService;
   private mirrorService!: MirrorService;
+  private updates!: UpdateService;
 
   private pairingOffer: PairingOffer | undefined;
   private pendingPairing: PendingPairing | undefined;
@@ -87,6 +91,7 @@ export class AppController {
   private connectedAt: number | undefined;
   private broadcastTimer: NodeJS.Timeout | undefined;
   private autoClipboardTimer: NodeJS.Timeout | undefined;
+  private pendingInstaller: string | undefined;
   private started = false;
 
   constructor(
@@ -137,6 +142,7 @@ export class AppController {
         void this.clipboardService.maybeAutoSend(this.store.settings.autoClipboard);
       }, 1_200);
       this.autoClipboardTimer.unref?.();
+      this.updates.start();
       this.scheduleBroadcast();
     } catch (error) {
       this.serverError =
@@ -225,6 +231,7 @@ export class AppController {
         ...this.mirrorService.status(),
         inputEnabled: this.capabilities.includes(CAPABILITIES.MIRROR_INPUT),
       },
+      updates: this.updates.statusSnapshot(),
       logs: this.logger.lines(120),
       lastError: this.lastError,
     };
@@ -274,6 +281,35 @@ export class AppController {
       onChange,
       (payload, seq) => this.sendMirrorFrame(payload, seq),
     );
+    const mode: UpdateMode = this.e2e
+      ? 'disabled'
+      : process.env.PORTABLE_EXECUTABLE_DIR || process.env.PORTABLE_EXECUTABLE_FILE
+        ? 'portable'
+        : app.isPackaged
+          ? 'installed'
+          : 'disabled';
+    this.updates = new UpdateService({
+      mode,
+      currentVersion: app.getVersion(),
+      autoCheck: this.store.settings.autoCheckUpdates,
+      updatesDir: path.join(this.userDataDir, 'updates'),
+      client: mode === 'installed' ? new GitHubUpdateClient() : null,
+      logger: this.logger,
+      onChange,
+      notify: (title, body) => this.notify(title, body),
+      install: (installer) => this.requestInstall(installer),
+    });
+  }
+
+  private requestInstall(installerPath: string): void {
+    this.pendingInstaller = installerPath;
+    app.quit();
+  }
+
+  takePendingInstaller(): string | undefined {
+    const installer = this.pendingInstaller;
+    this.pendingInstaller = undefined;
+    return installer;
   }
 
   private serverCallbacks(): ServerCallbacks {
@@ -536,6 +572,10 @@ export class AppController {
         );
       }
     }
+    if (typeof patch.autoCheckUpdates === 'boolean') {
+      sanitized.autoCheckUpdates = patch.autoCheckUpdates;
+      this.updates.setAutoCheck(patch.autoCheckUpdates);
+    }
     this.store.updateSettings(sanitized);
     this.scheduleBroadcast();
   }
@@ -719,6 +759,22 @@ export class AppController {
     await shell.openExternal('https://github.com/FakeAbid11/LinkPhone#readme');
   }
 
+  async checkForUpdates(): Promise<void> {
+    await this.updates.check();
+  }
+
+  async downloadUpdate(): Promise<void> {
+    await this.updates.download();
+  }
+
+  installUpdate(): void {
+    this.updates.install();
+  }
+
+  async openReleasePage(): Promise<void> {
+    await shell.openExternal('https://github.com/FakeAbid11/LinkPhone/releases/latest');
+  }
+
   getSnapshot(): AppSnapshot {
     return this.snapshot();
   }
@@ -774,6 +830,7 @@ export class AppController {
   }
 
   async stop(): Promise<void> {
+    this.updates.stop();
     if (this.autoClipboardTimer) clearInterval(this.autoClipboardTimer);
     this.autoClipboardTimer = undefined;
     if (this.broadcastTimer) clearTimeout(this.broadcastTimer);

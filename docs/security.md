@@ -83,7 +83,11 @@ The phone side keeps only what it needs; it does not cache SMS bodies or notific
 
 ## Logging and privacy
 
-- No analytics, telemetry, crash reporting, or third-party network calls.
+- No analytics, telemetry, or crash reporting. The only outbound request besides the phone's LAN
+  connection is the Windows update check/download from the official GitHub Releases page, performed
+  in the main process. Disable automatic checks in Settings; manual checks still use the same feed.
+- Update installers are verified with the release's SHA-256 checksum before execution. They are not
+  Authenticode-signed; see the supply-chain section.
 - Logs contain connection events, device names, addresses, and error classes. They do not contain
   SMS bodies, notification text, clipboard contents, photo data, tokens, or private keys.
 - The phone's log export is a plain text share; review it before sending.
@@ -96,8 +100,12 @@ The phone side keeps only what it needs; it does not cache SMS bodies or notific
 - No signing keys, keystores, PEM files, or tokens are committed. `.gitignore` blocks the common
   names.
 - Workflows run on GitHub-hosted runners. Release assets include a SHA-256 checksum file.
+- The Windows updater downloads the Setup EXE and `SHA256SUMS.txt` from the official GitHub
+  release over HTTPS and verifies the SHA-256 before execution. It does not verify an Authenticode
+  publisher signature because the build is unsigned.
 - The Windows binaries are **not code-signed**; SmartScreen may warn. Verify the checksum from the
-  release page and consider building from source.
+  release page and consider building from source. Do not accept updates from mirrors or third
+  parties.
 - The APK is **not** distributed through Google Play. Sideload only from this repository's releases.
 - Third-party libraries: OkHttp, kotlinx.serialization, CameraX, ZXing core, AndroidX; Electron,
   React, ws, selfsigned (node-forge), bonjour-service, qrcode, Vite, Vitest, Playwright. No analytics

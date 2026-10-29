@@ -208,8 +208,23 @@ override the platform; there is no public API that prevents that.
 - **Single-app capture:** on Android 14, choosing one app can make full-screen tap coordinates
   inaccurate; use full-screen capture for remote input.
 
-## PC app
+## Updates
 
+- **Check fails:** the updater needs HTTPS access to `api.github.com` and
+  `github.com/FakeAbid11/LinkPhone/releases`. A proxy, firewall, or GitHub outage can block it;
+  the error is shown in Settings → Updates.
+- **“The downloaded installer failed its SHA-256 check”:** the download was corrupted or the release
+  assets changed. The file is deleted; use **Check for updates** again.
+- **Restart and install does not open the installer:** the Setup EXE is in
+  `%APPDATA%\LinkPhone\updates`. Run it manually; if it is missing, the download did not finish.
+- **Portable build:** automatic updates are unavailable; use **Download portable** and replace the
+  EXE while LinkPhone is closed.
+- **First update after v0.3.x:** v0.4.0 is the first updater-enabled build. Install it manually once;
+  only later versions can update in-app.
+- **SmartScreen warning:** expected for the unsigned installer; the updater verifies SHA-256 but not
+  an Authenticode publisher.
+
+## PC app
 - **SmartScreen warning:** the Windows build is unsigned. Verify the SHA-256 from the release page,
   or build from source. Do not run a binary from an untrusted mirror.
 - **Blank window / renderer error:** update Windows/WebView2 (Electron bundles Chromium), restart the
