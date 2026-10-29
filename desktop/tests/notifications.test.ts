@@ -55,8 +55,8 @@ function harness(options?: { notifications?: NotificationWire[] }) {
     },
   } as unknown as PeerSession;
   const service = new NotificationService(
-    new Logger(path.join(dir, 'log.txt')),
     store,
+    new Logger(path.join(dir, 'log.txt')),
     () => undefined,
     (title, body) => toasts.push({ title, body }),
   );
