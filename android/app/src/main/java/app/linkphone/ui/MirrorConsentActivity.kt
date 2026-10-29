@@ -19,15 +19,21 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import app.linkphone.core.model.MirrorState
 import app.linkphone.core.net.ConnectionHub
+import app.linkphone.core.protocol.ProtocolCodec
+import app.linkphone.core.protocol.Types
 import app.linkphone.service.LinkConnectionService
 
 class MirrorConsentActivity : ComponentActivity() {
+    private var handled = false
+
     private val projectionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
         val data = result.data
         if (result.resultCode == Activity.RESULT_OK && data != null) {
+            handled = true
             ContextCompat.startForegroundService(
                 this,
                 Intent(this, LinkConnectionService::class.java)
@@ -35,10 +41,10 @@ class MirrorConsentActivity : ComponentActivity() {
                     .putExtra(LinkConnectionService.EXTRA_RESULT_CODE, result.resultCode)
                     .putExtra(LinkConnectionService.EXTRA_RESULT_DATA, data),
             )
+            finish()
         } else {
-            Toast.makeText(this, "Screen sharing was not started", Toast.LENGTH_SHORT).show()
+            reportCancelled("Screen sharing was not approved")
         }
-        finish()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,23 +58,48 @@ class MirrorConsentActivity : ComponentActivity() {
                 ) {
                     MirrorConsentContent(
                         onAllow = ::requestCapture,
-                        onCancel = { finish() },
+                        onCancel = { reportCancelled("Screen sharing was cancelled") },
                     )
                 }
             }
         }
     }
 
+    override fun onDestroy() {
+        if (!handled && !isChangingConfigurations) {
+            sendCancelled("Screen sharing was cancelled")
+            Toast.makeText(this, "Screen sharing was cancelled", Toast.LENGTH_SHORT).show()
+        }
+        super.onDestroy()
+    }
+
+    private fun sendCancelled(message: String) {
+        if (handled) return
+        handled = true
+        if (ConnectionHub.isConnected()) {
+            ConnectionHub.sendEvent(
+                Types.MIRROR_STATE,
+                ProtocolCodec.data(MirrorState(active = false, message = message)),
+            )
+        }
+    }
+
+    private fun reportCancelled(message: String) {
+        sendCancelled(message)
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+        finish()
+    }
+
     private fun requestCapture() {
         if (!ConnectionHub.isConnected()) {
+            handled = true
             Toast.makeText(this, "Connect to your PC first", Toast.LENGTH_SHORT).show()
             finish()
             return
         }
         val manager = getSystemService(MediaProjectionManager::class.java)
         if (manager == null) {
-            Toast.makeText(this, "Screen capture is unavailable", Toast.LENGTH_SHORT).show()
-            finish()
+            reportCancelled("Screen capture is unavailable")
             return
         }
         val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {

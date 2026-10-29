@@ -61,6 +61,8 @@ gradle -p android :app:testDebugUnitTest :app:lintDebug
   muted, caption, primary, secondary, and primary-button text.
 - `photos.test.ts` — first page and album requests, selecting an album, keyset `beforeDate/beforeId`,
   paging/dedupe, unsupported phones, invalid responses, and thumbnail single-flight.
+- `mirror.test.ts` — start/stop requests, denial/error state propagation, binary-frame gating, and
+  touch validation.
 - `e2e/messages-layout.spec.ts` — the conversation list and message history scroll independently at
   1180×780 and 960×640, and the composer stays in view.
 
@@ -208,6 +210,12 @@ Use two devices on the same Wi-Fi. Check each item and keep the diagnostics log 
 ### Apps / mirroring
 
 - [ ] Start mirroring; approve the notification; choose full screen or one app.
+- [ ] Deny the capture prompt: the PC shows an error and returns to **Start mirroring**.
+- [ ] Tap the consent notification, then press Back/Cancel: the PC shows a cancellation, not
+      “Awaiting phone.”
+- [ ] Dismiss the consent notification: the PC reports that consent was not approved.
+- [ ] Ignore the consent notification: the PC clears the request after 90 seconds.
+- [ ] Start while notifications are denied: the PC shows an immediate error, not “Awaiting phone.”
 - [ ] Frames render at a usable rate.
 - [ ] Tap/swipe with Accessibility enabled.
 - [ ] Disable Accessibility: view-only mode, no remote input.

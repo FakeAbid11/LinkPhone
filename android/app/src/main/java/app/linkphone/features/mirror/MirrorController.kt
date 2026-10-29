@@ -57,39 +57,44 @@ class MirrorController(
             ?: throw IllegalStateException("Screen capture consent was not granted")
 
         projection = newProjection
-        val thread = HandlerThread("LinkPhoneMirror").also { it.start() }
-        handlerThread = thread
-        val workHandler = Handler(thread.looper)
-        handler = workHandler
+        try {
+            val thread = HandlerThread("LinkPhoneMirror").also { it.start() }
+            handlerThread = thread
+            val workHandler = Handler(thread.looper)
+            handler = workHandler
 
-        val (width, height) = scaledScreenSize()
-        val density = context.resources.displayMetrics.densityDpi
-        val reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
-        imageReader = reader
-        virtualDisplay = newProjection.createVirtualDisplay(
-            "LinkPhone",
-            width,
-            height,
-            density,
-            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            reader.surface,
-            null,
-            workHandler,
-        )
-        reader.setOnImageAvailableListener({ source -> handleImage(source) }, workHandler)
-        newProjection.registerCallback(
-            object : MediaProjection.Callback() {
-                override fun onStop() {
-                    stopInternal("Screen sharing was stopped on the phone")
-                }
-            },
-            workHandler,
-        )
+            val (width, height) = scaledScreenSize()
+            val density = context.resources.displayMetrics.densityDpi
+            val reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
+            imageReader = reader
+            virtualDisplay = newProjection.createVirtualDisplay(
+                "LinkPhone",
+                width,
+                height,
+                density,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                reader.surface,
+                null,
+                workHandler,
+            )
+            reader.setOnImageAvailableListener({ source -> handleImage(source) }, workHandler)
+            newProjection.registerCallback(
+                object : MediaProjection.Callback() {
+                    override fun onStop() {
+                        stopInternal("Screen sharing was stopped on the phone")
+                    }
+                },
+                workHandler,
+            )
 
-        initialRotation = currentRotation()
-        registerDisplayListener(workHandler)
-        LinkStatus.log("Mirror", "Mirroring started at ${width}x$height")
-        onState(MirrorState(active = true, width = width, height = height))
+            initialRotation = currentRotation()
+            registerDisplayListener(workHandler)
+            LinkStatus.log("Mirror", "Mirroring started at ${width}x$height")
+            onState(MirrorState(active = true, width = width, height = height))
+        } catch (error: Exception) {
+            stopInternal(error.message ?: "Screen sharing failed")
+            throw error
+        }
     }
 
     fun stop(message: String? = null) {

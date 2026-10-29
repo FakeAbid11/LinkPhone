@@ -184,6 +184,10 @@ class LinkConnectionService : Service() {
             }
 
             ACTION_MIRROR_START -> handleMirrorStart(intent)
+            ACTION_MIRROR_CANCEL -> {
+                cancelAlert(MIRROR_REQUEST_ID)
+                reportMirrorUnavailable("Screen sharing was not approved")
+            }
             ACTION_MIRROR_STOP -> mirror.stop("Stopped from the PC")
             ACTION_SYNC_SMS -> {
                 if (!prefs.isPaired) {
@@ -725,21 +729,34 @@ class LinkConnectionService : Service() {
         val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
         if (resultCode != Activity.RESULT_OK || resultData == null) {
             cancelAlert(MIRROR_REQUEST_ID)
+            reportMirrorUnavailable("Screen sharing was not approved")
             postAlert("Screen sharing not started", "Screen capture consent was cancelled.")
             return
         }
-        startForegroundCompat(includeMediaProjection = true)
+        if (!startForegroundCompat(includeMediaProjection = true)) {
+            reportMirrorUnavailable("Screen sharing could not start")
+            return
+        }
         try {
             mirror.start(resultCode, resultData)
             cancelAlert(MIRROR_REQUEST_ID)
         } catch (error: Exception) {
             LinkStatus.log("Mirror", "Start failed: ${error.message}")
+            reportMirrorUnavailable(error.message ?: "Could not start screen capture.")
             startForegroundCompat(includeMediaProjection = false)
             postAlert(
                 "Screen sharing failed",
                 error.message ?: "Could not start screen capture.",
             )
         }
+    }
+
+    private fun reportMirrorUnavailable(message: String) {
+        if (mirror.isActive()) return
+        ConnectionHub.sendEvent(
+            Types.MIRROR_STATE,
+            ProtocolCodec.data(MirrorState(active = false, message = message)),
+        )
     }
 
     private fun startForegroundCompat(includeMediaProjection: Boolean = false): Boolean {
@@ -929,6 +946,13 @@ class LinkConnectionService : Service() {
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
+        val cancelIntent = PendingIntent.getService(
+            this,
+            204,
+            Intent(this, LinkConnectionService::class.java)
+                .setAction(ACTION_MIRROR_CANCEL),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
         val builder = NotificationCompat.Builder(this, CHANNEL_MIRROR)
             .setSmallIcon(R.drawable.ic_stat_link)
             .setContentTitle("Screen mirroring requested")
@@ -940,6 +964,7 @@ class LinkConnectionService : Service() {
                 ),
             )
             .setContentIntent(pending)
+            .setDeleteIntent(cancelIntent)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_RECOMMENDATION)
@@ -1071,6 +1096,7 @@ class LinkConnectionService : Service() {
         const val ACTION_SYNC_SMS = "app.linkphone.action.SYNC_SMS"
         const val ACTION_REFRESH_INFO = "app.linkphone.action.REFRESH_INFO"
         const val ACTION_MIRROR_START = "app.linkphone.action.MIRROR_START"
+        const val ACTION_MIRROR_CANCEL = "app.linkphone.action.MIRROR_CANCEL"
         const val ACTION_MIRROR_STOP = "app.linkphone.action.MIRROR_STOP"
 
         const val EXTRA_RESULT_CODE = "app.linkphone.extra.RESULT_CODE"
