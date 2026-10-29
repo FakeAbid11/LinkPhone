@@ -52,6 +52,7 @@ export function App() {
   const [fatal, setFatal] = useState<string | null>(null);
   const [view, setView] = useState<ViewKey>('connect');
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [updateBannerHidden, setUpdateBannerHidden] = useState(false);
   const toastId = useRef(1);
   const mainRef = useRef<HTMLElement>(null);
 
@@ -127,6 +128,10 @@ export function App() {
     setView(next);
     window.requestAnimationFrame(() => mainRef.current?.focus());
   }, []);
+
+  useEffect(() => {
+    if (!state || state.updates.phase !== 'ready') setUpdateBannerHidden(false);
+  }, [state]);
 
   if (fatal) {
     return (
@@ -253,6 +258,32 @@ export function App() {
             </div>
             <Button small variant="secondary" icon="link" onClick={() => navigate('connect')}>
               Connection
+            </Button>
+          </div>
+        )}
+
+        {state.updates.phase === 'ready' && !updateBannerHidden && (
+          <div className="offline-banner" role="status">
+            <span className="banner-icon">
+              <Icon name="download" size={18} />
+            </span>
+            <div className="banner-copy">
+              <strong>Update ready</strong>
+              <span>
+                LinkPhone {state.updates.version} is downloaded. Restart to install it.
+              </span>
+            </div>
+            <Button
+              small
+              variant="primary"
+              onClick={() =>
+                void ui.run(() => api.installUpdate(), 'Restarting to install the update')
+              }
+            >
+              Restart
+            </Button>
+            <Button small variant="ghost" onClick={() => setUpdateBannerHidden(true)}>
+              Later
             </Button>
           </div>
         )}

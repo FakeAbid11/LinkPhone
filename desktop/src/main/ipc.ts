@@ -107,5 +107,9 @@ export function registerIpc(controller: AppController): void {
 
   ipcMain.handle('app:openLogs', () => controller.openLogs());
   ipcMain.handle('app:openDocs', () => controller.openDocs());
+  ipcMain.handle('updater:check', () => controller.checkForUpdates());
+  ipcMain.handle('updater:download', () => controller.downloadUpdate());
+  ipcMain.handle('updater:install', () => controller.installUpdate());
+  ipcMain.handle('updater:openRelease', () => controller.openReleasePage());
   ipcMain.handle('app:refresh', () => controller.getSnapshot());
 }

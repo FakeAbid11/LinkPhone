@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 import {
   BrowserWindow,
   Menu,
@@ -84,6 +85,12 @@ function createTray(): Tray {
           void controller?.createPairingOffer().catch(() => undefined);
         },
       },
+      {
+        label: 'Check for updates',
+        click: () => {
+          void controller?.checkForUpdates().catch(() => undefined);
+        },
+      },
       { type: 'separator' },
       {
         label: 'Quit LinkPhone',
@@ -101,10 +108,11 @@ function refreshTray(): void {
   if (!tray || !controller) return;
   const snapshot = controller.getSnapshot();
   const device = snapshot.connection.deviceName;
+  const updateReady = snapshot.updates.phase === 'ready';
   tray.setToolTip(
     snapshot.connection.connected
-      ? `LinkPhone — connected to ${device ?? 'phone'}`
-      : 'LinkPhone — not connected',
+      ? `LinkPhone — connected to ${device ?? 'phone'}${updateReady ? ' — update ready' : ''}`
+      : `LinkPhone — not connected${updateReady ? ' — update ready' : ''}`,
   );
 }
 
@@ -152,4 +160,22 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   stopping = true;
   void controller.stop().finally(() => app.quit());
+});
+
+app.on('will-quit', () => {
+  const installer = controller?.takePendingInstaller();
+  if (!installer) return;
+  try {
+    const child = spawn(installer, [], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: false,
+    });
+    child.on('error', (error) => {
+      console.error('Could not start the LinkPhone update installer', error);
+    });
+    child.unref();
+  } catch (error) {
+    console.error('Could not start the LinkPhone update installer', error);
+  }
 });

@@ -64,6 +64,8 @@ gradle -p android :app:testDebugUnitTest :app:lintDebug
   paging/dedupe, unsupported phones, invalid responses, and thumbnail single-flight.
 - `mirror.test.ts` — start/stop requests, denial/error state propagation, binary-frame gating, and
   touch validation.
+- `updater.test.ts` — version comparison, tag/checksum parsing, check/download/ready phases, progress
+  and checksum rejection, portable/disabled no-ops, install gating, and auto-check timers.
 - `e2e/messages-layout.spec.ts` — the conversation list and message history scroll independently at
   1180×780 and 960×640, and the composer stays in view.
 
@@ -239,6 +241,21 @@ Use two devices on the same Wi-Fi. Check each item and keep the diagnostics log 
 - [ ] OEM autostart settings applied; test after a reboot.
 - [ ] Force-stop: the service stops and does not restart until the app is opened (expected).
 - [ ] LinkPhone reports disconnection instead of pretending to be connected.
+
+### Windows updates
+
+- [ ] Install the Setup build (not portable) and confirm **Settings → Updates** shows the current version.
+- [ ] Toggle automatic checks off; confirm no check starts after the next launch and manual checks still work.
+- [ ] Publish a higher version; confirm auto-check finds it, downloads with progress, verifies the
+      checksum, and shows the **Update ready** banner.
+- [ ] Click **Restart and install**; confirm LinkPhone stops, the Setup wizard opens, and the app
+      reports the new version after installation.
+- [ ] Click **Later**; confirm the banner hides and Settings still shows **Restart and install**.
+- [ ] Simulate an offline check; confirm a readable error and no installer.
+- [ ] Simulate a checksum mismatch; confirm the file is rejected/deleted and never executed.
+- [ ] Portable build: confirm automatic updates are unavailable and **Download portable** opens Releases.
+- [ ] E2E/CDP launch: confirm the Updates card says automatic updates are unavailable and no network
+      request is made.
 
 ### Security and cleanup
 

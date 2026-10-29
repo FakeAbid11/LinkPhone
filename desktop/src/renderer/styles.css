@@ -1452,6 +1452,22 @@ button {
   padding: 4px 0 20px;
 }
 
+.update-progress {
+  height: 6px;
+  margin: 14px 0;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-3);
+}
+
+.update-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+  transition: width 160ms ease;
+}
+
 .photo-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));

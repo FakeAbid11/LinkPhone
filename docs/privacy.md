@@ -21,6 +21,12 @@ Nothing is sent to a server on the internet by LinkPhone. mDNS broadcasts the PC
 PC id, and certificate fingerprint on the local network so the phone can find it; this is public
 routing information, not message content.
 
+The Windows app's updater is the one internet-facing exception: it requests the latest release
+metadata and the installer/checksum files from the official GitHub Releases page. It sends no
+device identifiers, account information, message content, or telemetry. GitHub sees the usual HTTP
+request metadata (IP address, user agent, timestamps). Automatic checks can be disabled in Settings;
+manual checks use the same feed.
+
 ## What is stored
 
 | Data | Where | Retention |

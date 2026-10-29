@@ -41,6 +41,8 @@ test('desktop app launches, navigates, and keeps modal focus contained', async (
 
     await page.getByRole('button', { name: 'Settings' }).click();
     await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Updates' })).toBeVisible();
+    await expect(page.getByText('Automatic updates are unavailable in this build.')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Settings' })).toHaveAttribute(
       'aria-current',
       'page',
