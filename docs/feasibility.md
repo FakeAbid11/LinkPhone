@@ -1,11 +1,11 @@
 # Feasibility, platform limits, and scope
 
-This document records what Android and Windows actually allow, what LinkPhone v0.6.1 implements, and
+This document records what Android and Windows actually allow, what LinkPhone v0.7.0 implements, and
 what would require a different product or system privileges.
 
 ## Summary
 
-| Requested feature | v0.6.1 | Honest limit |
+| Requested feature | v0.7.0 | Honest limit |
 |---|---|---|
 | Secure pair/reconnect | Implemented | QR + pinned TLS + ECDSA challenge; one phone at a time |
 | SMS view/send | Implemented | Sideload only; unread is PC-local; Open on phone hands the thread to the stock SMS app (one tap); no MMS/RCS; no default-SMS role, so sent items may not enter stock threads |
@@ -16,6 +16,7 @@ what would require a different product or system privileges.
 | Clipboard/handoff | Limited | PC→phone works; phone→PC explicit; “Continue on PC” via share sheet |
 | Background operation | Best effort | Foreground service, boot restart, locks; OEM/Doze/force-stop can still stop it |
 | Windows updates | Implemented | Installed NSIS build only; portable is manual; SHA-256 verified, unsigned |
+| Android updates | Implemented | In-app check and download on release builds; SHA-256 **and** signing-certificate verified; Android performs the install; the user must allow "install unknown apps" once; debug builds never contact GitHub |
 
 ## Android version requirements
 
@@ -151,6 +152,37 @@ would violate the request to avoid hidden APIs and elevated system access.
 - **Continue on PC:** the phone share sheet sends links, text, or images to the PC. The PC shows them
   in Connection → Continue on PC; links open only after a click. “Send back” posts a tappable link
   notification on the phone. This is an explicit handoff, not automatic app continuity.
+
+### App updates — implemented on the phone, with Android's own installer
+
+The phone app can check GitHub Releases for a newer version, download the release APK, verify it,
+and hand it to Android's package installer. The Windows app has had this since v0.4.0; the Android
+app gets the same flow in v0.7.0.
+
+What works:
+- A check runs shortly after launch and every six hours, and on demand from **Home → Updates**. The
+  interval is persisted, so a process restart does not spend another request from GitHub's
+  unauthenticated quota (60 requests/hour per IP, and carrier NAT shares an IP between phones).
+- The download is streamed to `filesDir/updates/`, verified against `SHA256SUMS.txt`, and then
+  checked against the running app's signing certificate.
+- The APK is handed to Android's own package installer through a `FileProvider` content URI. Android
+  shows the app name, version, and permissions, then replaces the app. LinkPhone cannot install
+  anything without that system screen.
+
+Limits:
+- **The user must allow "install unknown apps" for LinkPhone once.** The permission is
+  per-app and revocable; the app explains it in a dialog before sending you to the settings screen.
+- **Android performs the install, not the app.** The OS kills the process when the update is
+  applied; the app cannot restart itself.
+- An APK signed with a different key is refused. A debug-signed build therefore cannot silently
+  replace an official installation, and vice versa.
+- The download runs in an app-scoped coroutine, not a foreground service. If the process dies
+  mid-download the partial file is discarded and the user taps **Check for updates** again. A
+  separate `dataSync` foreground service would add a permission, hit Android 15's six-hour
+  `dataSync` cap, and cannot be started from the background on API 31+.
+- GitHub's unauthenticated API rate limit can be reached on a shared mobile IP; the error message
+  says so and a later retry works.
+- Debug builds never contact GitHub at all.
 
 ### Background operation — best effort
 

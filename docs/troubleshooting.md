@@ -241,6 +241,10 @@ override the platform; there is no public API that prevents that.
 
 ## Updates
 
+The PC app updates from **Settings → Updates**; the phone app updates from **Home → Updates**.
+
+### Windows
+
 - **Check fails:** the updater needs HTTPS access to `api.github.com` and
   `github.com/FakeAbid11/LinkPhone/releases`. A proxy, firewall, or GitHub outage can block it;
   the error is shown in Settings → Updates.
@@ -254,6 +258,32 @@ override the platform; there is no public API that prevents that.
   only later versions can update in-app.
 - **SmartScreen warning:** expected for the unsigned installer; the updater verifies SHA-256 but not
   an Authenticode publisher.
+
+### Android
+
+- **“Automatic updates are unavailable in this build”:** debug builds never contact GitHub. Install
+  a release APK.
+- **“GitHub's update API rate limit was reached. Try again later.”:** the unauthenticated GitHub
+  API allows 60 requests per hour per IP, and mobile carrier NAT shares an IP between phones.
+  Wait an hour, or use **Check for updates** later. Turning off automatic checks reduces the
+  chance of hitting it.
+- **“This update is signed with a different key than the installed app.”:** the downloaded APK is
+  not signed with the key your copy was installed with — usually because you installed a
+  debug-signed build. Uninstall LinkPhone and install the release APK manually.
+- **“The downloaded update failed its SHA-256 check”:** the download was corrupted or the release
+  assets changed. The partial file is deleted; use **Check for updates** again.
+- **“SHA256SUMS.txt does not list …”:** the release does not carry the APK or the checksum file
+  under the expected name. The release assets are incomplete; install manually from the release page.
+- **“Allow LinkPhone to install updates?” then nothing happens:** Android requires *Allow from this
+  source* for LinkPhone in **Settings → Install unknown apps**. Tap **Open settings**, enable it,
+  come back, and tap **Install update** again. Without it the app cannot install anything.
+- **The installer does not open:** some devices have no package installer registered for the APK
+  mime type. Open the APK from a file manager instead.
+- **No update is detected:** the release asset must be named `LinkPhone-<version>.apk` and the
+  checksum file `SHA256SUMS.txt`, both attached to the same GitHub release.
+- **The download stops at some percent:** the app process was killed (an OEM task killer, or the
+  phone was unpaired and the connection dropped). The partial file is discarded on the next start;
+  tap **Check for updates** again.
 
 ## PC app
 - **SmartScreen warning:** the Windows build is unsigned. Verify the SHA-256 from the release page,

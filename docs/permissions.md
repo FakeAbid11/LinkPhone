@@ -26,6 +26,7 @@ next time the feature is used (reconnect to refresh the capability list).
 | Accessibility service (special) | all | Send taps/swipes to a mirrored screen | Remote taps row | View-only mirroring |
 | Battery optimization exemption (special) | all | Keep the foreground service alive | Background card | The service may be stopped more aggressively |
 | `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | 23+ | Opens the exemption prompt | Background card | The app falls back to the system list |
+| `REQUEST_INSTALL_PACKAGES` | 26+ | Install a downloaded update APK | Updates card | The app cannot install updates; Android's own installer still works if the APK is opened by hand |
 | `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_CONNECTED_DEVICE`, `FOREGROUND_SERVICE_MEDIA_PROJECTION` | 28/34+/34+ | Connection and mirroring services | Manifest (normal) | Cannot start the services |
 | `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`, `CHANGE_WIFI_STATE`, `CHANGE_WIFI_MULTICAST_STATE`, `WAKE_LOCK` | all | LAN socket, mDNS, keep-alive | Manifest (normal) | Connection fails or is unreliable |
 
@@ -88,6 +89,18 @@ notification content and a dismiss action are exposed.
 - Audio is never captured.
 - Remote taps require the Accessibility service. LinkPhone only dispatches gestures sent by the
   paired PC. No window content is read.
+
+### App updates
+
+`REQUEST_INSTALL_PACKAGES` lets an app ask Android to install an APK it has downloaded. It is not
+self-granting: the first time you tap **Install update**, LinkPhone shows a dialog and sends you to
+**Settings → Install unknown apps → LinkPhone**, where you turn on *Allow from this source*. That
+grant is per-app and can be revoked at any time.
+
+LinkPhone never installs anything on its own. The APK is downloaded, verified (SHA-256 and the
+release signing certificate), and then handed to Android's own package installer, which shows the
+app name, the version, and the requested permissions before anything is replaced. Android — not
+LinkPhone — performs the install and restarts the app afterwards.
 
 ### What LinkPhone never does
 

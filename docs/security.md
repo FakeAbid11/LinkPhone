@@ -83,9 +83,9 @@ The phone side keeps only what it needs; it does not cache SMS bodies or notific
 
 ## Logging and privacy
 
-- No analytics, telemetry, or crash reporting. The only outbound request besides the phone's LAN
-  connection is the Windows update check/download from the official GitHub Releases page, performed
-  in the main process. Disable automatic checks in Settings; manual checks still use the same feed.
+- No analytics, telemetry, or crash reporting. The only outbound requests besides the phone's LAN
+  connection are the Windows and Android update checks/downloads from the official GitHub Releases
+  page. Disable automatic checks; manual checks use the same feed.
 - Update installers are verified with the release's SHA-256 checksum before execution. They are not
   Authenticode-signed; see the supply-chain section.
 - Logs contain connection events, device names, addresses, and error classes. They do not contain
@@ -103,6 +103,16 @@ The phone side keeps only what it needs; it does not cache SMS bodies or notific
 - The Windows updater downloads the Setup EXE and `SHA256SUMS.txt` from the official GitHub
   release over HTTPS and verifies the SHA-256 before execution. It does not verify an Authenticode
   publisher signature because the build is unsigned.
+- The **Android** updater verifies the downloaded APK against `SHA256SUMS.txt` **and** against the
+  running app's signing certificate. The checksum alone would be insufficient: the APK and the
+  checksum file come from the same release, so a compromised release could satisfy both. The
+  certificate comparison accepts only the key the installed app is signed with today, or a key that
+  descends from it through a legitimate forward rotation — never a retired key, so a downgrade to
+  an old key is refused. The expected release signer digest is
+  `FD:F3:D0:3E:A4:11:EF:50:3A:1C:5A:17:90:DE:A6:1A:38:80:EE:1C:72:4C:63:C1:49:7B:03:E6:C1:C6:A4:E3`;
+  it is checked in CI with `apksigner verify --print-certs` rather than trusted blindly at runtime.
+- An APK signed with a different key is refused with a message telling the user to install it
+  manually. A debug-signed build therefore cannot silently take over an official installation.
 - The Windows binaries are **not code-signed**; SmartScreen may warn. Verify the checksum from the
   release page and consider building from source. Do not accept updates from mirrors or third
   parties.

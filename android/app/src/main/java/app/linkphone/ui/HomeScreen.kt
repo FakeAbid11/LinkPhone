@@ -37,6 +37,7 @@ import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.AlertDialog
@@ -47,6 +48,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -67,6 +69,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.linkphone.core.update.InstallResult
+import app.linkphone.core.update.UpdatePhase
+import app.linkphone.core.update.UpdateStatus
 import app.linkphone.core.util.LinkState
 import app.linkphone.core.util.LinkStatus
 import app.linkphone.features.Permissions
@@ -85,6 +90,7 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
     val revision by vm.permissionRevision.collectAsStateWithLifecycle()
     val logs by vm.logs.collectAsStateWithLifecycle()
     val lastError by LinkStatus.lastError.collectAsStateWithLifecycle()
+    val updateStatus by vm.updateStatus.collectAsStateWithLifecycle()
 
     val hasTelephony = remember { PhoneInfoBuilder.hasTelephony(context) }
     val smsGranted = remember(revision) { Permissions.sms(context) }
@@ -131,6 +137,9 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
     var showLogs by remember { mutableStateOf(false) }
     var fingerprint by remember { mutableStateOf("") }
     var prompt by remember { mutableStateOf<PermissionPrompt?>(null) }
+    var autoCheckUpdates by remember { mutableStateOf(vm.autoCheckUpdates) }
+    var showInstallPermission by remember { mutableStateOf(false) }
+    var installError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         fingerprint = withContext(Dispatchers.IO) { vm.identityFingerprint() }
@@ -489,6 +498,37 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
             }
 
             item {
+                UpdatesCard(
+                    status = updateStatus,
+                    autoCheck = autoCheckUpdates,
+                    installError = installError,
+                    onAutoCheckChange = { enabled ->
+                        autoCheckUpdates = enabled
+                        vm.autoCheckUpdates = enabled
+                    },
+                    onCheck = {
+                        installError = null
+                        vm.checkForUpdates()
+                    },
+                    onDownload = {
+                        installError = null
+                        vm.downloadUpdate()
+                    },
+                    onInstall = {
+                        installError = null
+                        when (val result = vm.installUpdate(activity)) {
+                            InstallResult.Launched -> Unit
+                            InstallResult.NeedsPermission -> showInstallPermission = true
+                            InstallResult.NotReady ->
+                                installError = "No verified update is ready to install."
+                            is InstallResult.Failed -> installError = result.message
+                        }
+                    },
+                    onReleaseNotes = { openReleaseNotes(context) },
+                )
+            }
+
+            item {
                 SectionCard(
                     title = "About",
                     subtitle = "LinkPhone ${vm.appVersion}",
@@ -544,6 +584,33 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
         )
     }
 
+    if (showInstallPermission) {
+        AlertDialog(
+            onDismissRequest = { showInstallPermission = false },
+            title = { Text("Allow LinkPhone to install updates?") },
+            text = {
+                Text(
+                    "Android needs your permission to install an update. The next screen lets " +
+                        "you allow installs from LinkPhone. Only install updates from this " +
+                        "project's GitHub releases.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showInstallPermission = false
+                        vm.openInstallPermissionSettings(activity)
+                    },
+                ) {
+                    Text("Open settings")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showInstallPermission = false }) { Text("Not now") }
+            },
+        )
+    }
+
     if (showForget) {
         AlertDialog(
             onDismissRequest = { showForget = false },
@@ -570,6 +637,207 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
         )
     }
 }
+
+@Composable
+private fun UpdatesCard(
+    status: UpdateStatus,
+    autoCheck: Boolean,
+    installError: String?,
+    onAutoCheckChange: (Boolean) -> Unit,
+    onCheck: () -> Unit,
+    onDownload: () -> Unit,
+    onInstall: () -> Unit,
+    onReleaseNotes: () -> Unit,
+) {
+    SectionCard(
+        title = "Updates",
+        subtitle = "Checks the official GitHub Releases page. No telemetry.",
+        icon = Icons.Outlined.SystemUpdate,
+    ) {
+        if (!status.supported) {
+            Text(
+                "Automatic updates are unavailable in this build. Debug builds never contact " +
+                    "GitHub.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            return@SectionCard
+        }
+
+        FactRow("Current version") { Text("LinkPhone ${status.currentVersion}") }
+        FactRow("Status") { StatusPill(updateLabel(status), updateTone(status)) }
+        FactRow("Last checked") { Text(timeAgo(status.checkedAt)) }
+
+        ToggleRow(
+            title = "Check for updates automatically",
+            description = "Checks shortly after launch and every six hours. Manual checks " +
+                "still work when this is off.",
+            checked = autoCheck,
+            onCheckedChange = onAutoCheckChange,
+        )
+
+        if (status.phase == UpdatePhase.Downloading) {
+            val progress = (status.progress ?: 0).coerceIn(0, 100)
+            LinearProgressIndicator(
+                progress = { progress / 100f },
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            )
+            Text(
+                "Downloading… $progress%",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+        }
+
+        installError?.let {
+            Notice(
+                title = "Could not install the update",
+                body = it,
+                tone = StatusTone.Bad,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+        }
+
+        val updateError = status.error
+        if (status.phase == UpdatePhase.Error && updateError != null) {
+            Notice(
+                title = "Update failed",
+                body = updateError,
+                tone = StatusTone.Bad,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+        }
+
+        val version = status.version
+        if (version != null &&
+            (status.phase == UpdatePhase.Available || status.phase == UpdatePhase.Ready)
+        ) {
+            Notice(
+                title = "LinkPhone $version",
+                body = status.notes?.takeIf { it.isNotBlank() } ?: "A new version is available.",
+                tone = StatusTone.Good,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+        }
+
+        Notice(
+            title = "Signed updates",
+            body = "Updates are verified with SHA-256 and checked against this app's signing " +
+                "certificate before Android installs them. Android asks you to allow installs " +
+                "from LinkPhone the first time.",
+            tone = StatusTone.Warn,
+            modifier = Modifier.padding(top = 10.dp),
+        )
+
+        Row(
+            modifier = Modifier.padding(top = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Button(
+                onClick = onCheck,
+                enabled = status.phase != UpdatePhase.Checking &&
+                    status.phase != UpdatePhase.Downloading,
+            ) {
+                Text("Check for updates")
+            }
+            TextButton(onClick = onReleaseNotes) { Text("Release notes") }
+        }
+
+        if (status.phase == UpdatePhase.Available) {
+            Button(
+                onClick = onDownload,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            ) {
+                Text("Download update")
+            }
+        }
+
+        if (status.phase == UpdatePhase.Error && version != null) {
+            Button(
+                onClick = onDownload,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            ) {
+                Text("Retry download")
+            }
+        }
+
+        if (status.phase == UpdatePhase.Ready) {
+            Button(
+                onClick = onInstall,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            ) {
+                Text("Install update")
+            }
+        }
+    }
+}
+
+@Composable
+private fun FactRow(label: String, value: @Composable () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        value()
+    }
+}
+
+private fun updateLabel(status: UpdateStatus): String = when (status.phase) {
+    UpdatePhase.Unsupported -> "Not available"
+    UpdatePhase.Idle -> "Not checked yet"
+    UpdatePhase.Checking -> "Checking…"
+    UpdatePhase.UpToDate -> "Up to date"
+    UpdatePhase.Available -> status.version?.let { "Version $it available" } ?: "Update available"
+    UpdatePhase.Downloading -> {
+        val progress = status.progress ?: 0
+        if (progress > 0) "Downloading $progress%" else "Downloading…"
+    }
+    UpdatePhase.Ready -> status.version?.let { "Version $it ready" } ?: "Ready to install"
+    UpdatePhase.Error -> "Update failed"
+}
+
+private fun updateTone(status: UpdateStatus): StatusTone = when (status.phase) {
+    UpdatePhase.UpToDate, UpdatePhase.Ready -> StatusTone.Good
+    UpdatePhase.Available -> StatusTone.Warn
+    UpdatePhase.Error -> StatusTone.Bad
+    else -> StatusTone.Neutral
+}
+
+private fun timeAgo(checkedAt: Long?): String {
+    if (checkedAt == null || checkedAt <= 0L) return "Never"
+    val elapsed = System.currentTimeMillis() - checkedAt
+    val minutes = elapsed / 60_000L
+    val hours = elapsed / 3_600_000L
+    val days = elapsed / 86_400_000L
+    return when {
+        elapsed < 60_000L -> "Just now"
+        minutes < 60 -> "$minutes ${plural(minutes, "minute")} ago"
+        hours < 24 -> "$hours ${plural(hours, "hour")} ago"
+        else -> "$days ${plural(days, "day")} ago"
+    }
+}
+
+private fun plural(value: Long, word: String): String =
+    if (value == 1L) word else "${word}s"
+
+private fun openReleaseNotes(context: android.content.Context) {
+    runCatching {
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW, Uri.parse(RELEASE_PAGE_URL))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    }
+}
+
+private const val RELEASE_PAGE_URL = "https://github.com/FakeAbid11/LinkPhone/releases/latest"
 
 @Composable
 private fun ConnectionCard(

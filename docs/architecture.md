@@ -30,6 +30,12 @@ Android (Kotlin/Compose)                         Windows PC (Electron/React)
   and clipboard/handoff actions.
 - **Core** (`core/`): protocol codec, binary frames, pairing URI, AndroidKeyStore identity,
   certificate pinning, mDNS discovery, preferences, backoff, validation.
+- **Updater** (`core.update`): the in-app release checker. `UpdateVersion` and `UpdateChecksums` are
+  pure helpers; `UpdateClient`/`GitHubUpdateClient` read the GitHub Releases API over OkHttp with
+  manual HTTPS-only redirects; `UpdateEngine` is the platform-independent state machine
+  (`idle → checking → available → downloading → ready`, plus `up-to-date`, `error`, `unsupported`);
+  `UpdateInstaller` hands the verified APK to Android's package installer through a `FileProvider`.
+  `AppUpdater` wires it to the app lifecycle, preferences, and notifications.
 - **Features**: SMS provider/send/receiver, notification listener, MediaStore photos, telecom
   control, clipboard bridge + Quick Settings tile, share target, MediaProjection mirror,
   Accessibility gesture service.
@@ -146,7 +152,8 @@ certificate is the PC's identity; the signature is the phone's identity.
 | PC `userData/logs/linkphone.log` | Connection/diagnostic events (no message bodies) |
 | PC memory | SMS cache, notification feed, photo list, handoff list, contacts, mirror state |
 | PC user folders | Only files the user explicitly saves (`Pictures\LinkPhone`, `Downloads\LinkPhone`) |
-| Phone SharedPreferences | Phone id/name, paired PC details, auto-connect flag |
+| Phone SharedPreferences | Phone id/name, paired PC details, auto-connect flag, update auto-check flag, last update-check timestamp |
+| Phone `filesDir/updates` | The downloaded update APK awaiting installation (replaced on the next update) |
 | AndroidKeyStore | Non-exportable phone private key |
 | Phone memory | Current session, logs, notification filter state |
 
