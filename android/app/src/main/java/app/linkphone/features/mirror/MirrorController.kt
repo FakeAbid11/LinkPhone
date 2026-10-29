@@ -63,6 +63,17 @@ class MirrorController(
             val workHandler = Handler(thread.looper)
             handler = workHandler
 
+            // Android 14+ rejects capture when the callback is not registered before
+            // createVirtualDisplay() starts the MediaProjection.
+            newProjection.registerCallback(
+                object : MediaProjection.Callback() {
+                    override fun onStop() {
+                        stopInternal("Screen sharing was stopped on the phone")
+                    }
+                },
+                workHandler,
+            )
+
             val (width, height) = scaledScreenSize()
             val density = context.resources.displayMetrics.densityDpi
             val reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
@@ -78,14 +89,6 @@ class MirrorController(
                 workHandler,
             )
             reader.setOnImageAvailableListener({ source -> handleImage(source) }, workHandler)
-            newProjection.registerCallback(
-                object : MediaProjection.Callback() {
-                    override fun onStop() {
-                        stopInternal("Screen sharing was stopped on the phone")
-                    }
-                },
-                workHandler,
-            )
 
             initialRotation = currentRotation()
             registerDisplayListener(workHandler)

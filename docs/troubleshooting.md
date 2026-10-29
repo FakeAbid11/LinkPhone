@@ -185,6 +185,8 @@ override the platform; there is no public API that prevents that.
 
 ## Screen mirroring
 
+- **“Must register a callback before starting capture”:** fixed in v0.5.1. Update the phone app;
+  this was a MediaProjection callback-ordering bug, not a consent problem.
 - **Black screen:** `FLAG_SECURE`/DRM apps opt out of capture; banking apps commonly do this.
 - **Stops on lock/rotation:** Android ends the projection on lock and allows one virtual display per
   consent token. Start mirroring again from the Apps tab.
@@ -203,6 +205,8 @@ override the platform; there is no public API that prevents that.
   phone showed the “Screen mirroring requested” notification; if not, grant POST_NOTIFICATIONS and
   make sure the mirror notification channel is not blocked. If the phone shows an alert, read the
   phone diagnostics log for `Mirror: Start failed`.
+- **“Must register a callback before starting capture”:** fixed in v0.5.1. Update the phone app;
+  this was a MediaProjection callback-ordering bug, not a consent problem.
 - **Black screen:** `FLAG_SECURE`/DRM apps opt out of capture; banking apps commonly do this.
 - **Stops on lock/rotation:** Android ends the projection on lock and allows one virtual display per
   consent token. Start mirroring again from the Apps tab.
