@@ -684,8 +684,8 @@ export class AppController {
     await this.handoff.openOnPhone(url);
   }
 
-  async startMirror(codec: MirrorCodec = 'jpeg'): Promise<void> {
-    await this.mirrorService.start(codec);
+  async startMirror(codec: MirrorCodec = 'jpeg', fps = 30): Promise<void> {
+    await this.mirrorService.start(codec, fps);
   }
 
   async stopMirror(): Promise<void> {

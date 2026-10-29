@@ -233,6 +233,8 @@ Use two devices on the same Wi-Fi. Check each item and keep the diagnostics log 
 - [ ] Start mirroring with **Auto (H.264)**; approve the notification; choose full screen or one app.
 - [ ] Confirm it does **not** fail with “Must register a callback before starting capture.”
 - [ ] H.264: the Session card shows **H.264**, roughly 720×1600, and about 30 fps; text is sharp.
+- [ ] Select **60 fps**, start, and confirm either ~60 fps or the explicit “running at 30 fps” notice.
+- [ ] 60 fps on a phone that cannot encode it: mirroring still starts at 30 fps without an error.
 - [ ] Switch to **Compatible (JPEG)** and start again: the Session card shows **JPEG** and ≤5 fps.
 - [ ] Confirm the phone falls back to JPEG if H.264 is unavailable (Session card shows JPEG).
 - [ ] Deny the capture prompt: the PC shows an error and returns to **Start mirroring**.

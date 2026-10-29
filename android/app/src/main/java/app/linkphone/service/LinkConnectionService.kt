@@ -130,6 +130,9 @@ class LinkConnectionService : Service() {
     @Volatile
     private var pendingMirrorCodec = MirrorCodecChoice.JPEG
 
+    @Volatile
+    private var pendingMirrorFps = MirrorCodecChoice.FPS_30
+
     private val smsReader by lazy { SmsReader(this) }
     private val smsSender by lazy { SmsSender(this) }
     private val contactRepository by lazy { ContactRepository(this) }
@@ -616,6 +619,7 @@ class LinkConnectionService : Service() {
                 val request = runCatching { envelope.decodeData<MirrorStartRequest>() }
                     .getOrDefault(MirrorStartRequest())
                 pendingMirrorCodec = MirrorCodecChoice.normalize(request.codec)
+                pendingMirrorFps = MirrorCodecChoice.normalizeFps(request.fps)
                 postMirrorConsentNotification()
                 replyOk(envelope)
             }
@@ -761,7 +765,7 @@ class LinkConnectionService : Service() {
             return
         }
         try {
-            mirror.start(resultCode, resultData, pendingMirrorCodec)
+            mirror.start(resultCode, resultData, pendingMirrorCodec, pendingMirrorFps)
             cancelAlert(MIRROR_REQUEST_ID)
         } catch (error: Exception) {
             LinkStatus.log("Mirror", "Start failed: ${error.message}")

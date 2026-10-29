@@ -7,6 +7,7 @@ interface MirrorSink {
     val kind: String
     val width: Int
     val height: Int
+    val fps: Int
     val surface: Surface
 
     fun start()

@@ -17,6 +17,13 @@ class MirrorCodecChoiceTest {
     }
 
     @Test
+    fun normalizesTheFrameRate() {
+        assertEquals(MirrorCodecChoice.FPS_60, MirrorCodecChoice.normalizeFps(60))
+        assertEquals(MirrorCodecChoice.FPS_30, MirrorCodecChoice.normalizeFps(59))
+        assertEquals(MirrorCodecChoice.FPS_30, MirrorCodecChoice.normalizeFps(null))
+    }
+
+    @Test
     fun treatsUnknownValuesAsCompatibleMode() {
         assertEquals(MirrorCodecChoice.JPEG, MirrorCodecChoice.normalize("vp9"))
         assertEquals(MirrorCodecChoice.H264, MirrorCodecChoice.normalize(" H264 "))

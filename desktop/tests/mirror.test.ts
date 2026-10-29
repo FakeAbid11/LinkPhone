@@ -55,11 +55,11 @@ describe('mirror service', () => {
   it('requests consent and stop over the session', async () => {
     const { service, requests } = harness();
     await service.start();
-    await service.start('h264');
+    await service.start('h264', 60);
     await service.stop();
     expect(requests).toEqual([
-      { type: TYPES.MIRROR_START, data: { codec: 'jpeg' } },
-      { type: TYPES.MIRROR_START, data: { codec: 'h264' } },
+      { type: TYPES.MIRROR_START, data: { codec: 'jpeg', fps: 30 } },
+      { type: TYPES.MIRROR_START, data: { codec: 'h264', fps: 60 } },
       { type: TYPES.MIRROR_STOP, data: {} },
     ]);
   });
@@ -81,10 +81,11 @@ describe('mirror service', () => {
     });
     expect(service.status().error).toBe('Screen sharing was not approved');
 
-    service.onPhoneState({ active: true, width: 1080, height: 2400, codec: 'h264' });
+    service.onPhoneState({ active: true, width: 1080, height: 2400, codec: 'h264', fps: 60 });
     expect(service.status().error).toBeUndefined();
     expect(service.status().state.active).toBe(true);
     expect(service.status().state.codec).toBe('h264');
+    expect(service.status().state.fps).toBe(60);
 
     service.onDisconnected();
     expect(service.status().state.active).toBe(false);

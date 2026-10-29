@@ -26,6 +26,19 @@ class MirrorSizingTest {
     }
 
     @Test
+    fun longestEdgeOnlyRejectsSmallerFallbacks() {
+        assertEquals(
+            720 to 1600,
+            MirrorSizing.chooseVideoSize(1080, 2400, 16, 16, onlyLongestEdge = true) { _, _ -> true },
+        )
+        assertNull(
+            MirrorSizing.chooseVideoSize(1080, 2400, 16, 16, onlyLongestEdge = true) { width, _ ->
+                width < 700
+            },
+        )
+    }
+
+    @Test
     fun returnsNullWhenNothingIsSupported() {
         assertNull(MirrorSizing.chooseVideoSize(1080, 2400, 16, 16) { _, _ -> false })
     }

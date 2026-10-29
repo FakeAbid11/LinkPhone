@@ -95,9 +95,9 @@ server verifies with Node `crypto.verify('sha256', payload, { key, dsaEncoding: 
 | `handoff.file` | phone → PC | `streamId, name, mime, size` then binary type 3 |
 | `handoff.fileEnd` | phone → PC | `{streamId}` |
 | `handoff.open` | PC → phone | `{url}` — phone posts a tappable notification |
-| `mirror.start` | PC → phone | `{codec?: "h264"\|"jpeg"}` — phone posts a consent notification; missing/unknown means JPEG |
+| `mirror.start` | PC → phone | `{codec?: "h264"\|"jpeg", fps?: 30\|60}` — phone posts a consent notification; missing/unknown codec means JPEG, missing fps means 30 |
 | `mirror.stop` | PC → phone | none |
-| `mirror.state` | phone → PC | `active, width, height, message?, codec?` (`h264` or `jpeg`; missing means JPEG) |
+| `mirror.state` | phone → PC | `active, width, height, message?, codec?, fps?` (`h264`/`jpeg`; missing codec means JPEG; fps is the encoder target, 5 for JPEG) |
 | `mirror.touch` | PC → phone | `action (tap\|swipe), x, y, x2?, y2?, durationMs` (0..1 normalized) |
 | `mirror.keyframe` | PC → phone | none — requests an H.264 IDR from an active session |
 | `ping` / `pong` | both | `{timestamp}` (WebSocket pings are also used) |

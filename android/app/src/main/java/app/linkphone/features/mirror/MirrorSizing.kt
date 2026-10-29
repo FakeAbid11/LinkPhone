@@ -16,11 +16,13 @@ object MirrorSizing {
         height: Int,
         widthAlignment: Int,
         heightAlignment: Int,
+        onlyLongestEdge: Boolean = false,
         isSupported: (Int, Int) -> Boolean,
     ): Pair<Int, Int>? {
         val alignW = widthAlignment.coerceAtLeast(2)
         val alignH = heightAlignment.coerceAtLeast(2)
-        for (edge in VIDEO_EDGES) {
+        val edges = if (onlyLongestEdge) intArrayOf(VIDEO_EDGES.first()) else VIDEO_EDGES
+        for (edge in edges) {
             val scaled = scaleToLongEdge(width, height, edge)
             val candidateW = alignDown(scaled.first, alignW)
             val candidateH = alignDown(scaled.second, alignH)

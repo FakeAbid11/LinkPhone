@@ -102,9 +102,9 @@ export function registerIpc(controller: AppController): void {
     controller.showFile(requireString(filePath, 'file path', 1_024)),
   );
 
-  ipcMain.handle('mirror:start', (_event, codec: unknown) => {
+  ipcMain.handle('mirror:start', (_event, codec: unknown, fps: unknown) => {
     const value: MirrorCodec = codec === 'h264' ? 'h264' : 'jpeg';
-    return controller.startMirror(value);
+    return controller.startMirror(value, fps === 60 ? 60 : 30);
   });
   ipcMain.handle('mirror:stop', () => controller.stopMirror());
   ipcMain.handle('mirror:keyframe', () => controller.requestMirrorKeyframe());

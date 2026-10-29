@@ -5,7 +5,7 @@ import { TYPE_MIRROR, TYPE_VIDEO, type BinaryFrame } from '../core/binary';
 import type { Logger } from '../core/logger';
 
 export class MirrorService {
-  private state: MirrorStateWire = { active: false, width: 0, height: 0, codec: 'jpeg' };
+  private state: MirrorStateWire = { active: false, width: 0, height: 0, codec: 'jpeg', fps: null };
   private error: string | undefined;
   private session: PeerSession | undefined;
 
@@ -17,23 +17,24 @@ export class MirrorService {
 
   onConnected(session: PeerSession): void {
     this.session = session;
-    this.state = { active: false, width: 0, height: 0, codec: 'jpeg' };
+    this.state = { active: false, width: 0, height: 0, codec: 'jpeg', fps: null };
     this.error = undefined;
     this.onChange();
   }
 
   onDisconnected(): void {
     this.session = undefined;
-    this.state = { active: false, width: 0, height: 0, codec: 'jpeg' };
+    this.state = { active: false, width: 0, height: 0, codec: 'jpeg', fps: null };
     this.error = undefined;
     this.onChange();
   }
 
-  async start(codec: MirrorCodec = 'jpeg'): Promise<void> {
+  async start(codec: MirrorCodec = 'jpeg', fps = 30): Promise<void> {
     const session = this.requireSession();
     this.error = undefined;
-    await session.request(TYPES.MIRROR_START, { codec }, 15_000);
-    this.logger.log('Mirror', `Asked the phone for screen-sharing consent (${codec})`);
+    const rate = fps === 60 ? 60 : 30;
+    await session.request(TYPES.MIRROR_START, { codec, fps: rate }, 15_000);
+    this.logger.log('Mirror', `Asked the phone for screen-sharing consent (${codec}, ${rate} fps)`);
     this.onChange();
   }
 
@@ -48,7 +49,7 @@ export class MirrorService {
     try {
       await session.request(TYPES.MIRROR_STOP, {}, 10_000);
     } finally {
-      this.state = { active: false, width: 0, height: 0, codec: 'jpeg' };
+      this.state = { active: false, width: 0, height: 0, codec: 'jpeg', fps: null };
       this.onChange();
     }
   }
@@ -61,13 +62,17 @@ export class MirrorService {
       height: Number.isFinite(data.height) ? Math.max(0, data.height || 0) : 0,
       message: typeof data.message === 'string' ? data.message.slice(0, 300) : null,
       codec: data.codec === 'h264' ? 'h264' : 'jpeg',
+      fps:
+        typeof data.fps === 'number' && Number.isFinite(data.fps)
+          ? Math.max(1, Math.min(120, Math.round(data.fps)))
+          : null,
     };
     if (data.message) this.error = data.message;
     if (data.active) this.error = undefined;
     this.logger.log(
       'Mirror',
       data.active
-        ? `Mirroring active (${this.state.codec})`
+        ? `Mirroring active (${this.state.codec}, ${this.state.fps ?? '?'} fps)`
         : `Mirroring stopped${data.message ? `: ${data.message}` : ''}`,
     );
     this.onChange();

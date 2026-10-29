@@ -23,6 +23,7 @@ class JpegSink(
     private val onFrame: (ByteArray) -> Unit,
 ) : MirrorSink {
     override val kind: String = MirrorCodecChoice.JPEG
+    override val fps: Int = 5
     override val surface: Surface get() = reader.surface
 
     private val reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)

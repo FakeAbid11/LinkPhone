@@ -1,49 +1,41 @@
-## LinkPhone v0.6.0
+## LinkPhone v0.6.1
 
-A direct, LAN-only companion link between an Android phone and a Windows PC. This release replaces the
-slow JPEG mirror with hardware H.264 when both apps support it, and keeps JPEG as the compatible
-fallback.
+A direct, LAN-only companion link between an Android phone and a Windows PC. This release adds an
+opt-in 60 fps mode to the hardware H.264 mirror.
 
 ### What's new
 
-- **Hardware H.264 screen mirroring:** about 720×1600, 30 fps, 6 Mbps, encoded with MediaCodec and
-  decoded on the PC with WebCodecs. Text is sharper and motion is much smoother than the old ≤5 fps
-  JPEG stream.
-- **Automatic fallback:** if the phone has no hardware AVC encoder or the PC cannot decode the stream,
-  mirroring uses the existing JPEG path. The Apps tab also has an explicit **Compatible (JPEG)** mode.
-- **Fast recovery:** the PC requests IDR keyframes after a decode backlog or a Wi-Fi stall, and SPS/PPS
-  are carried with keyframes so playback can resync.
-- **Backward compatible:** an old Windows build with a new APK gets JPEG; a new Windows build with a
-  v0.5.x APK also gets JPEG. Consent, lock/rotation stops, secure-window blackouts, and remote taps are
-  unchanged.
-- Session status now shows the active codec, dimensions, and measured frame rate.
-
-No audio, keyboard input, clipboard-inside-the-app, or app virtualization was added.
+- The Apps tab now has a **Frame rate** choice: **30 fps (balanced)** or **60 fps (smoother)**.
+- 30 fps remains the default and keeps the 6 Mbps H.264 stream. 60 fps raises the target to 12 Mbps.
+- If the phone's encoder cannot handle the current size at 60 fps, LinkPhone stays at 30 fps and the
+  Apps tab says so; mirroring still starts normally.
+- The Session card already shows the measured frame rate alongside the codec and dimensions.
+- JPEG/Compatible mode is unchanged and still limited to about 5 fps.
 
 ### Which updates do I need?
 
-- **Both apps** for H.264 mirroring. The Windows app must be v0.6.0 to decode H.264; the phone app
-  must be v0.6.0 to encode it.
-- Updating only one side is safe: mirroring falls back to JPEG.
+- **Phone + Windows v0.6.1** for the 60 fps choice. v0.6.0 continues to work at 30 fps.
+- Updating only one side is safe: the PC keeps 30 fps and mirroring works.
 - Installed v0.4.0+ Windows builds can update in-app; portable builds update manually.
 
 ### Download
 
-- `LinkPhone-0.6.0.apk` — Android 10+ companion (sideload; same release key)
-- `LinkPhone-Portable-0.6.0.exe` — Windows portable app
-- `LinkPhone-Setup-0.6.0.exe` — Windows installer (recommended for automatic updates)
+- `LinkPhone-0.6.1.apk` — Android 10+ companion (sideload; same release key)
+- `LinkPhone-Portable-0.6.1.exe` — Windows portable app
+- `LinkPhone-Setup-0.6.1.exe` — Windows installer (recommended for automatic updates)
 - `SHA256SUMS.txt` — verify your downloads
 
 ### Known limitations
 
-- H.264 depends on the phone's hardware encoder and the PC's WebCodecs decoder; unsupported devices
-  stay on JPEG.
-- H.264 uses more CPU/battery/thermal headroom than the JPEG fallback.
+- 60 fps needs a 60 Hz+ display, a hardware encoder that supports the stream size at 60 fps, and a PC
+  that can decode it; otherwise the session runs at 30 fps.
+- 60 fps uses more bandwidth, battery, and thermal headroom than 30 fps.
+- H.264 still depends on the phone's hardware encoder and the PC's WebCodecs decoder; unsupported
+  devices stay on JPEG.
 - Secure/DRM windows remain black, and mirroring still stops on lock or rotation.
 - Reliable cellular speaker routing still requires the default-dialer/`InCallService` role, which
-  LinkPhone deliberately does not take.
-- Call audio never reaches the PC.
+  LinkPhone deliberately does not take. Call audio never reaches the PC.
 - The Windows updater is unsigned and SHA-256 verified; portable builds update manually.
 
-Built, unit-tested, linted, and E2E-tested in GitHub Actions. H.264 encoding/decoding and real Wi-Fi
-behavior need the hardware checklist in `docs/testing.md`.
+Built, unit-tested, linted, and E2E-tested in GitHub Actions. Real 30/60 fps behavior needs the
+hardware checklist in `docs/testing.md`.

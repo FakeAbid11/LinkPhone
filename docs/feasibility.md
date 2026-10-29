@@ -1,18 +1,18 @@
 # Feasibility, platform limits, and scope
 
-This document records what Android and Windows actually allow, what LinkPhone v0.6.0 implements, and
+This document records what Android and Windows actually allow, what LinkPhone v0.6.1 implements, and
 what would require a different product or system privileges.
 
 ## Summary
 
-| Requested feature | v0.6.0 | Honest limit |
+| Requested feature | v0.6.1 | Honest limit |
 |---|---|---|
 | Secure pair/reconnect | Implemented | QR + pinned TLS + ECDSA challenge; one phone at a time |
 | SMS view/send | Implemented | Sideload only; unread is PC-local; Open on phone hands the thread to the stock SMS app (one tap); no MMS/RCS; no default-SMS role, so sent items may not enter stock threads |
 | Calls from PC | Limited | Dial/answer/decline/end, caller state, contact search, SIM choice on Android 11+, and a best-effort speaker toggle where OEM permits; **no call audio on PC**; caller ID needs call-log access |
 | Photos | Implemented | All MediaStore image albums with paging; JPEG transcode; Android 14 partial access respected |
 | Notification mirroring | Implemented | Per-app mute, dismiss; Android 15+ may redact sensitive content; no action buttons |
-| Apps streaming | Experimental substitute | Hardware H.264 mirroring up to ~720×1600/30 fps where the phone and PC support it, with JPEG fallback; tap/swipe only; no app virtualization; consent each session; stops on lock |
+| Apps streaming | Experimental substitute | Hardware H.264 mirroring up to ~720×1600 at 30 fps (or opt-in 60 fps) where the phone and PC support it, with JPEG fallback; tap/swipe only; no app virtualization; consent each session; stops on lock |
 | Clipboard/handoff | Limited | PC→phone works; phone→PC explicit; “Continue on PC” via share sheet |
 | Background operation | Best effort | Foreground service, boot restart, locks; OEM/Doze/force-stop can still stop it |
 | Windows updates | Implemented | Installed NSIS build only; portable is manual; SHA-256 verified, unsigned |
@@ -131,8 +131,10 @@ Limits:
 - One virtual display per token; rotation ends the session.
 - `FLAG_SECURE`/DRM windows are black.
 - H.264 is used when the phone exposes a hardware AVC surface encoder and the PC has WebCodecs;
-  otherwise the fallback is JPEG at ≤5 fps and ≤1280 px. H.264 targets ~720×1600, 30 fps and
-  6 Mbps, which costs more battery/thermal headroom than the JPEG fallback.
+  otherwise the fallback is JPEG at ≤5 fps and ≤1280 px. H.264 targets ~720×1600 at 30 fps/6 Mbps
+  by default; the opt-in 60 fps mode doubles the bitrate (12 Mbps) and needs a 60 Hz display plus a
+  hardware encoder that supports the size at 60 fps, otherwise it falls back to 30 fps. Both cost more
+  battery/thermal headroom than JPEG.
 - No audio, no keyboard input, no clipboard inside the mirrored app beyond normal phone behavior.
 - Accessibility gestures are single strokes; the service must be manually enabled.
 
