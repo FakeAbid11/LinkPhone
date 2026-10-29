@@ -1,58 +1,40 @@
-## LinkPhone v0.2.0
+## LinkPhone v0.2.1
 
-A direct, LAN-only companion link between an Android phone and a Windows PC. This release is a
-full interface overhaul on both sides. The protocol, pairing, encryption, and permission model are
-unchanged.
+A direct, LAN-only companion link between an Android phone and a Windows PC. This release replaces
+the bright teal palette with a calmer indigo/violet theme on both apps. Layout, behavior, protocol,
+pairing, encryption, and permissions are unchanged.
 
 ### What's new
 
 **Windows PC**
 
-- Reworked navigation with icons, grouped sections, a clear active state, keyboard focus rings, and
-  a skip link.
-- The two-column layout now stays two columns at the default window size; the single-column
-  breakpoint moved from 1180 px to 1040 px.
-- Larger type throughout (no labels below 11 px) and higher-contrast secondary text.
-- Shared form controls with labels, hints, and focus/error states replace the hand-styled inputs.
-- Modals trap Tab focus, close with Escape, and restore focus to the button that opened them.
-- Messages: conversation search, unread badges, compact action buttons, and a banner area that does
-  not push the composer off screen.
-- Calls: the idle screen no longer shows an empty current-call card; the dialer and contacts use the
-  full height. Contacts search stays pinned above the list.
-- Connection: live pairing-code expiry, one firewall command with a copy button, and platform limits
-  collapsed into an expandable section.
-- Notifications, Photos, and Apps gained consistent empty/loading states, icons, and focus styling.
-- A persistent “Phone offline” banner appears when a paired phone disconnects.
-- Settings is grouped by purpose, and the duplicated firewall command was removed.
+- New dark palette: `#0B0F19` canvas, `#141B2B` cards, `#8B93FF` accent, `#9DB8FF` secondary,
+  and higher-contrast muted/caption text.
+- The hardcoded teal and blue values are now driven by `--primary-rgb` / `--secondary-rgb` tokens,
+  so future palette changes are one edit instead of a sweep.
+- Updated logo, window background, pairing QR color, scrollbars, inputs, modal, and message bubbles.
+- No layout or behavior changes; all v0.2.0 UI work remains.
 
 **Android phone**
 
-- New three-step first-run onboarding (welcome, permission overview, pair). It is skipped
-  automatically for phones that are already paired.
-- Home is now a dashboard: a connection status card, quick actions, grouped permissions,
-  background operation, diagnostics, and about.
-- Permissions explain why they are needed before the system prompt. After a permanent denial the
-  action becomes **Open settings** instead of repeatedly failing.
-- Light and dark themes follow the system, with an accessible teal palette, a defined type scale,
-  and rounded shapes. Edge-to-edge insets are respected.
-- Navigation survives rotation, and the system Back button returns from Pair or onboarding to Home.
-- Pairing scrolls above the keyboard, validates input inline, and can paste a full pairing link
-  from the clipboard. The QR scanner respects system bars, adds a torch toggle where available, and
-  offers Retry plus Open app settings after a camera failure.
-- Mirror consent, clipboard, and share screens use a consistent scrollable layout with system
-  insets, so text is not clipped in landscape or with large fonts.
+- Dark and light Compose schemes rebuilt in indigo/violet:
+  - Dark: `#0B0F19` background, `#8B93FF` primary, `#9DB8FF` secondary.
+  - Light: `#F7F8FC` background, `#4F46E5` primary, `#3A5FA8` secondary.
+- Launcher icon accent and launch background updated; launch background now has a light/night
+  resource so the first frame matches the system theme.
+- QR scanner overlay uses the new dark glass color; white text stays for camera legibility.
+- No layout, permission, or behavior changes.
 
 ### Which updates do I need?
 
-- **Both apps** for the redesigned experience. An older phone app still works with the new PC, and
-  an older PC still works with the new phone, because no wire messages changed.
+- **Both apps** for a consistent palette.
 - Existing pairings, settings, SMS read state, and the signing identity are retained.
 
 ### Download
 
-- `LinkPhone-0.2.0.apk` — Android 10+ companion (sideload; same release key)
-- `LinkPhone-Portable-0.2.0.exe` — Windows portable app
-- `LinkPhone-Setup-0.2.0.exe` — Windows installer
+- `LinkPhone-0.2.1.apk` — Android 10+ companion (sideload; same release key)
+- `LinkPhone-Portable-0.2.1.exe` — Windows portable app
+- `LinkPhone-Setup-0.2.1.exe` — Windows installer
 - `SHA256SUMS.txt` — verify your downloads
 
 ### First run
@@ -78,6 +60,6 @@ unchanged.
   settings.
 - The Windows binaries are unsigned, so SmartScreen may warn.
 
-Built, unit-tested, linted, and E2E-tested in GitHub Actions. Visual behavior on real devices
-(permission dialogs, OEM skins, mirroring, rotation) still needs the hardware checklist in
-`docs/testing.md`.
+Built, unit-tested, linted, and E2E-tested in GitHub Actions. Palette contrast is asserted by unit
+tests; light/dark rendering, the launcher icon, and camera-overlay legibility still need the hardware
+checklist in `docs/testing.md`.

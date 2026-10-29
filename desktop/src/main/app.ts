@@ -443,7 +443,7 @@ export class AppController {
       errorCorrectionLevel: 'M',
       margin: 1,
       width: 360,
-      color: { dark: '#0b1018', light: '#ffffff' },
+      color: { dark: '#0b0f19', light: '#ffffff' },
     });
     this.pairingOffer = {
       uri,

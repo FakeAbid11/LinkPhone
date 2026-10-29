@@ -23,7 +23,7 @@ locally.
 - `SafeInputTest` — dial numbers, URL scheme allowlist, filename sanitization, clipboard cap,
   normalized gesture coordinates.
 - `ThemeContrastTest` — WCAG contrast for the light and dark palette's body text, secondary text,
-  primary text, button labels, and outlines.
+  primary text, button labels, outlines, and status-pill containers.
 
 Run in CI:
 
@@ -54,6 +54,8 @@ gradle -p android :app:testDebugUnitTest :app:lintDebug
   `sms.openThread` request payload.
 - `thread-filter.test.ts` — conversation search by name, address, and latest message, including
   case/whitespace handling and no-match results.
+- `palette.test.ts` — parses the `:root` tokens in `styles.css` and asserts WCAG contrast for body,
+  muted, caption, primary, secondary, and primary-button text.
 - `e2e/messages-layout.spec.ts` — the conversation list and message history scroll independently at
   1180×780 and 960×640, and the composer stays in view.
 
@@ -112,6 +114,8 @@ Use two devices on the same Wi-Fi. Check each item and keep the diagnostics log 
       phone skips it.
 - [ ] Phone app opens; version and identity fingerprint are visible.
 - [ ] Switch Android between light and dark mode; every screen remains readable.
+- [ ] Confirm the indigo/violet accent is used consistently on the PC and phone, and the launcher
+      icon matches the new palette.
 
 ### Interface and accessibility
 

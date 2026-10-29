@@ -1,11 +1,11 @@
 # Feasibility, platform limits, and scope
 
-This document records what Android and Windows actually allow, what LinkPhone v0.2.0 implements, and
+This document records what Android and Windows actually allow, what LinkPhone v0.2.1 implements, and
 what would require a different product or system privileges.
 
 ## Summary
 
-| Requested feature | v0.2.0 | Honest limit |
+| Requested feature | v0.2.1 | Honest limit |
 |---|---|---|
 | Secure pair/reconnect | Implemented | QR + pinned TLS + ECDSA challenge; one phone at a time |
 | SMS view/send | Implemented | Sideload only; unread is PC-local; Open on phone hands the thread to the stock SMS app (one tap); no MMS/RCS; no default-SMS role, so sent items may not enter stock threads |

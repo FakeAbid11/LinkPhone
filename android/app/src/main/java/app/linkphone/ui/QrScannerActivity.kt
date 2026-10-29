@@ -10,6 +10,7 @@ import android.os.Looper
 import android.provider.Settings
 import android.util.Size
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -74,7 +75,10 @@ import kotlin.math.abs
 class QrScannerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
         setContent {
             LinkPhoneTheme {
                 Surface(
@@ -126,7 +130,7 @@ private fun ScannerScreen(onDecoded: (String) -> Unit, onClose: () -> Unit) {
                     .windowInsetsPadding(WindowInsets.safeDrawing)
                     .padding(24.dp)
                     .background(
-                        Color(0xCC0B1018),
+                        Color(0xD90B0F19),
                         RoundedCornerShape(18.dp),
                     )
                     .padding(16.dp),
@@ -140,7 +144,7 @@ private fun ScannerScreen(onDecoded: (String) -> Unit, onClose: () -> Unit) {
                     Text(
                         "The code expires five minutes after you create it.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFFC3CEDD),
+                        color = Color(0xFFC3CCE0),
                         modifier = Modifier.padding(top = 4.dp),
                     )
                     OutlinedButton(onClick = onClose, modifier = Modifier.padding(top = 10.dp)) {
@@ -273,7 +277,7 @@ private fun CameraScanner(onDecoded: (String) -> Unit) {
                     .align(Alignment.TopEnd)
                     .windowInsetsPadding(WindowInsets.safeDrawing)
                     .padding(16.dp)
-                    .background(Color(0xCC0B1018), RoundedCornerShape(12.dp)),
+                    .background(Color(0xD90B0F19), RoundedCornerShape(12.dp)),
             ) {
                 Icon(
                     if (torchOn) Icons.Outlined.FlashOn else Icons.Outlined.FlashOff,

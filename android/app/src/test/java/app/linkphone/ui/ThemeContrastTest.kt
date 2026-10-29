@@ -66,6 +66,36 @@ class ThemeContrastTest {
             4.5,
         )
         assertContrast(
+            "dark secondary text",
+            LinkPhonePalette.DarkSecondary,
+            LinkPhonePalette.DarkSurface,
+            4.5,
+        )
+        assertContrast(
+            "dark primary container",
+            LinkPhonePalette.DarkOnPrimaryContainer,
+            LinkPhonePalette.DarkPrimaryContainer,
+            4.5,
+        )
+        assertContrast(
+            "dark secondary container",
+            LinkPhonePalette.DarkOnSecondaryContainer,
+            LinkPhonePalette.DarkSecondaryContainer,
+            4.5,
+        )
+        assertContrast(
+            "dark tertiary container",
+            LinkPhonePalette.DarkOnTertiaryContainer,
+            LinkPhonePalette.DarkTertiaryContainer,
+            4.5,
+        )
+        assertContrast(
+            "dark error container",
+            LinkPhonePalette.DarkOnErrorContainer,
+            LinkPhonePalette.DarkErrorContainer,
+            4.5,
+        )
+        assertContrast(
             "dark outline",
             LinkPhonePalette.DarkOutline,
             LinkPhonePalette.DarkSurface,
@@ -103,6 +133,36 @@ class ThemeContrastTest {
             "light button label",
             LinkPhonePalette.LightOnPrimary,
             LinkPhonePalette.LightPrimary,
+            4.5,
+        )
+        assertContrast(
+            "light secondary text",
+            LinkPhonePalette.LightSecondary,
+            LinkPhonePalette.LightSurface,
+            4.5,
+        )
+        assertContrast(
+            "light primary container",
+            LinkPhonePalette.LightOnPrimaryContainer,
+            LinkPhonePalette.LightPrimaryContainer,
+            4.5,
+        )
+        assertContrast(
+            "light secondary container",
+            LinkPhonePalette.LightOnSecondaryContainer,
+            LinkPhonePalette.LightSecondaryContainer,
+            4.5,
+        )
+        assertContrast(
+            "light tertiary container",
+            LinkPhonePalette.LightOnTertiaryContainer,
+            LinkPhonePalette.LightTertiaryContainer,
+            4.5,
+        )
+        assertContrast(
+            "light error container",
+            LinkPhonePalette.LightOnErrorContainer,
+            LinkPhonePalette.LightErrorContainer,
             4.5,
         )
         assertContrast(
