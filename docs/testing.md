@@ -257,6 +257,7 @@ Use two devices on the same Wi-Fi. Check each item and keep the diagnostics log 
 - [ ] Ignore the consent notification: the PC clears the request after 90 seconds.
 - [ ] Start while notifications are denied: the PC shows an immediate error, not “Awaiting phone.”
 - [ ] Tap/swipe with Accessibility enabled; verify taps track the picture in both codecs.
+- [ ] Hover the mirrored screen: the cursor is the standard Windows arrow, not a crosshair.
 - [ ] Disable Accessibility: view-only mode, no remote input.
 - [ ] Lock the phone: capture stops.
 - [ ] Rotate the phone: the session stops with a restart message.
@@ -296,7 +297,7 @@ Use two devices on the same Wi-Fi. Check each item and keep the diagnostics log 
 
 ### Android updates
 
-- [ ] Install `LinkPhone-0.7.0.apk`; **Home → Updates** shows `LinkPhone 0.7.0` and `Not checked yet`.
+- [ ] Install `LinkPhone-0.7.1.apk`; **Home → Updates** shows `LinkPhone 0.7.1` and `Not checked yet`.
 - [ ] Tap **Check for updates**; the status goes `Checking…` → `Up to date` and nothing is downloaded.
 - [ ] Toggle automatic checks off, force-stop the app, and relaunch; confirm no automatic check
       runs and that a manual check still works.
