@@ -38,7 +38,7 @@ function createWindow(): BrowserWindow {
     height: 780,
     minWidth: 960,
     minHeight: 640,
-    backgroundColor: '#0b1018',
+    backgroundColor: '#0b0f19',
     show: false,
     autoHideMenuBar: true,
     title: 'LinkPhone',
