@@ -283,7 +283,7 @@ export class AppController {
     );
     const mode: UpdateMode = this.e2e
       ? 'disabled'
-      : process.env.PORTABLE_EXECUTABLE_DIR
+      : process.env.PORTABLE_EXECUTABLE_DIR || process.env.PORTABLE_EXECUTABLE_FILE
         ? 'portable'
         : app.isPackaged
           ? 'installed'
