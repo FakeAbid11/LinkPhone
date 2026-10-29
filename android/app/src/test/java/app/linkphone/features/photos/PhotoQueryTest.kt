@@ -9,30 +9,30 @@ class PhotoQueryTest {
     @Test
     fun pendingFilterIsAlwaysPresent() {
         val query = PhotoQuery.selection(null, null, null)
-        assertTrue(query.selection.contains("IS_PENDING = 0"))
+        assertTrue(query.selection.contains("is_pending = 0"))
         assertEquals(0, query.args.size)
     }
 
     @Test
     fun volumeBucketUsesBoundVolumeAndId() {
         val query = PhotoQuery.selection("v:external_primary:42", null, null)
-        assertTrue(query.selection.contains("VOLUME_NAME = ?"))
-        assertTrue(query.selection.contains("BUCKET_ID = ?"))
+        assertTrue(query.selection.contains("volume_name = ?"))
+        assertTrue(query.selection.contains("bucket_id = ?"))
         assertEquals(listOf("external_primary", "42"), query.args.toList())
     }
 
     @Test
     fun bucketIdOnlyUsesTheNumericBucket() {
         val query = PhotoQuery.selection("b:42", null, null)
-        assertTrue(query.selection.contains("BUCKET_ID = ?"))
+        assertTrue(query.selection.contains("bucket_id = ?"))
         assertEquals(listOf("42"), query.args.toList())
     }
 
     @Test
     fun nameFallbackOnlyMatchesRowsWithoutABucketId() {
         val query = PhotoQuery.selection("name:Other", null, null)
-        assertTrue(query.selection.contains("BUCKET_DISPLAY_NAME = ?"))
-        assertTrue(query.selection.contains("BUCKET_ID IS NULL"))
+        assertTrue(query.selection.contains("bucket_display_name = ?"))
+        assertTrue(query.selection.contains("bucket_id IS NULL"))
         assertEquals(listOf("Other"), query.args.toList())
     }
 
