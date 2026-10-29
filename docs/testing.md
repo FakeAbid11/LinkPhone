@@ -222,6 +222,7 @@ Use two devices on the same Wi-Fi. Check each item and keep the diagnostics log 
 ### Apps / mirroring
 
 - [ ] Start mirroring; approve the notification; choose full screen or one app.
+- [ ] Confirm it does **not** fail with “Must register a callback before starting capture.”
 - [ ] Deny the capture prompt: the PC shows an error and returns to **Start mirroring**.
 - [ ] Tap the consent notification, then press Back/Cancel: the PC shows a cancellation, not
       “Awaiting phone.”
