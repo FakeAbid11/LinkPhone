@@ -81,6 +81,27 @@ Android and OEMs may stop background services. Do all of the following:
 The service is a foreground service because Android requires it for an ongoing connection. There is
 no hidden or battery-exempt API that does better without system privileges.
 
+### It disconnects when I close or swipe the app away
+
+First check the phone notification:
+
+- **Notification disappeared** — the OS/OEM killed the process. v0.3.0 re-asserts the foreground
+  service on task removal and logs `Task removed; keeping connection`, but an OEM task killer can
+  still kill the process. Allow battery optimization exemption and OEM autostart as above.
+- **Notification remains, PC says disconnected** — the socket or network was cut. Check the PC log
+  reason:
+  - `Phone disconnected: Heartbeat timeout` — Doze/Wi-Fi power saving blocked the network. Allow
+    battery optimization exemption; keep the phone on a charger while testing.
+  - `Phone disconnected: LinkPhone disconnecting` — the service stopped cleanly. Check the phone
+    diagnostics for `Foreground start failed` or `Foreground service unavailable`.
+  - `Phone disconnected: connection closed` (no reason) — the process was killed (1006). Treat it
+    as an OEM task-killer case.
+- The PC log is `%APPDATA%\LinkPhone\logs\linkphone.log`; phone diagnostics are under **Show log**.
+
+A swipe from Recents is not a force-stop; `android:stopWithTask="false"` and `START_STICKY` are set.
+Force-stop is intentionally unrecoverable until the app is opened again. OEM task killers can still
+override the platform; there is no public API that prevents that.
+
 ## SMS
 
 - **Conversation list does not scroll:** fixed in v0.1.2; update the PC app. The conversation list

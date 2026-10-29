@@ -4,7 +4,7 @@
 
 Your Android phone and Windows PC, connected directly over your own Wi-Fi. Messages, notifications, photos, call control, clipboard handoff, and experimental screen mirroring — encrypted, LAN-only, no cloud account.
 
-> **Status:** v0.2.1. The Android and Windows apps compile, pass their unit/integration tests, and are packaged in GitHub Actions. They have **not** been tested on a physical phone in this environment; OEM permissions, calls, notifications, MediaProjection, and background behavior require the device acceptance checklist. See [testing.md](docs/testing.md#device-acceptance-checklist) and the limitations below before installing.
+> **Status:** v0.3.0. The Android and Windows apps compile, pass their unit/integration tests, and are packaged in GitHub Actions. They have **not** been tested on a physical phone in this environment; OEM permissions, calls, notifications, MediaProjection, and background behavior require the device acceptance checklist. See [testing.md](docs/testing.md#device-acceptance-checklist) and the limitations below before installing.
 
 Documentation: [feasibility & limits](docs/feasibility.md) · [architecture](docs/architecture.md) · [protocol](docs/protocol.md) · [permissions](docs/permissions.md) · [security](docs/security.md) · [troubleshooting](docs/troubleshooting.md) · [building](docs/building.md).
 
@@ -63,7 +63,7 @@ Do not interpret a green CI run as proof that those device-specific paths work. 
 | Secure pairing and reconnect | Implemented | QR pairing, pinned TLS, ECDSA device authentication, automatic reconnect |
 | SMS read/send/receive | Implemented | Requires `READ_SMS`/`SEND_SMS`/`RECEIVE_SMS`; unread is tracked on the PC; **Open on phone** syncs the stock SMS app; no MMS/RCS |
 | Notification mirroring | Implemented | Per-app mute and dismiss; Android 15+ may redact sensitive content |
-| Photos | Implemented | Recent camera roll, save to PC, copy image to clipboard |
+| Photos | Implemented | Album browsing with paging, save to PC, copy image to clipboard |
 | Call control | Limited | Dial/answer/decline, caller state, contact search, and SIM selection on Android 11+; **call audio stays on the phone** |
 | Clipboard and Continue on PC | Limited | PC→phone clipboard; phone→PC on explicit action only |
 | Apps / screen mirroring | Experimental | Per-session consent, stops on lock, no audio, no keyboard |

@@ -2,20 +2,32 @@ package app.linkphone.features.photos
 
 import android.content.ContentUris
 import android.content.Context
+import android.database.Cursor
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.provider.MediaStore
 import android.util.Size
+import app.linkphone.core.model.PhotoAlbumDto
 import app.linkphone.core.model.PhotoDto
 import app.linkphone.core.util.FeaturePermissionException
 import app.linkphone.core.util.LinkStatus
 import app.linkphone.features.Permissions
 import java.io.ByteArrayOutputStream
 
+data class PhotoPage(
+    val photos: List<PhotoDto>,
+    val hasMore: Boolean,
+)
+
 class PhotoRepository(private val context: Context) {
     private val resolver = context.contentResolver
 
-    fun list(limit: Int = 200): List<PhotoDto> {
+    fun list(
+        limit: Int = 200,
+        bucket: String? = null,
+        beforeDate: Long? = null,
+        beforeId: String? = null,
+    ): PhotoPage {
         if (!Permissions.photos(context)) {
             throw FeaturePermissionException("Photo access is not granted")
         }
@@ -26,36 +38,44 @@ class PhotoRepository(private val context: Context) {
             MediaStore.Images.Media.MIME_TYPE,
             MediaStore.Images.Media.SIZE,
             MediaStore.Images.Media.DATE_ADDED,
+            MediaStore.Images.Media.DATE_MODIFIED,
             MediaStore.Images.Media.WIDTH,
             MediaStore.Images.Media.HEIGHT,
             MediaStore.Images.Media.BUCKET_DISPLAY_NAME,
         )
+        val query = PhotoQuery.selection(bucket, beforeDate, beforeId)
         val photos = ArrayList<PhotoDto>(safeLimit)
+        var hasMore = false
         try {
             resolver.query(
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                 projection,
-                "${MediaStore.Images.Media.IS_PENDING} = 0",
-                null,
-                "${MediaStore.Images.Media.DATE_ADDED} DESC",
+                query.selection,
+                query.args,
+                PhotoQuery.SORT_ORDER,
             )?.use { cursor ->
                 val idIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
                 val nameIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
                 val mimeIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.MIME_TYPE)
                 val sizeIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.SIZE)
-                val dateIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_ADDED)
+                val dateAddedIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_ADDED)
+                val dateModifiedIndex = cursor.getColumnIndex(MediaStore.Images.Media.DATE_MODIFIED)
                 val widthIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.WIDTH)
                 val heightIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.HEIGHT)
                 val bucketIndex = cursor.getColumnIndex(MediaStore.Images.Media.BUCKET_DISPLAY_NAME)
-                while (cursor.moveToNext() && photos.size < safeLimit) {
+                while (cursor.moveToNext()) {
                     val id = cursor.getLong(idIndex)
                     if (id <= 0) continue
+                    if (photos.size == safeLimit) {
+                        hasMore = true
+                        break
+                    }
                     photos += PhotoDto(
                         id = id.toString(),
                         name = cursor.getString(nameIndex) ?: "photo_$id",
                         mime = cursor.getString(mimeIndex) ?: "image/*",
                         size = cursor.getLong(sizeIndex),
-                        date = cursor.getLong(dateIndex) * 1_000L,
+                        date = readDateSeconds(cursor, dateAddedIndex, dateModifiedIndex) * 1_000L,
                         width = cursor.getInt(widthIndex),
                         height = cursor.getInt(heightIndex),
                         bucket = if (bucketIndex >= 0) cursor.getString(bucketIndex) else null,
@@ -65,7 +85,78 @@ class PhotoRepository(private val context: Context) {
         } catch (error: Exception) {
             LinkStatus.log("Photos", "Photo query failed: ${error.javaClass.simpleName}")
         }
-        return photos
+        return PhotoPage(photos, hasMore)
+    }
+
+    fun albums(): List<PhotoAlbumDto> {
+        if (!Permissions.photos(context)) {
+            throw FeaturePermissionException("Photo access is not granted")
+        }
+        val projection = arrayOf(
+            MediaStore.Images.Media._ID,
+            MediaStore.Images.Media.DATE_ADDED,
+            MediaStore.Images.Media.DATE_MODIFIED,
+            MediaStore.Images.Media.BUCKET_ID,
+            MediaStore.Images.Media.BUCKET_DISPLAY_NAME,
+            MediaStore.Images.Media.VOLUME_NAME,
+        )
+        val query = PhotoQuery.selection(null, null, null)
+        val accumulator = PhotoAlbumAccumulator()
+        var rows = 0
+        try {
+            resolver.query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                query.selection,
+                query.args,
+                PhotoQuery.SORT_ORDER,
+            )?.use { cursor ->
+                val idIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+                val dateAddedIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_ADDED)
+                val dateModifiedIndex = cursor.getColumnIndex(MediaStore.Images.Media.DATE_MODIFIED)
+                val bucketIdIndex = cursor.getColumnIndex(MediaStore.Images.Media.BUCKET_ID)
+                val bucketNameIndex = cursor.getColumnIndex(MediaStore.Images.Media.BUCKET_DISPLAY_NAME)
+                val volumeIndex = cursor.getColumnIndex(MediaStore.Images.Media.VOLUME_NAME)
+                while (cursor.moveToNext()) {
+                    if (rows >= MAX_ALBUM_ROWS) {
+                        LinkStatus.log("Photos", "Album scan capped at $MAX_ALBUM_ROWS photos")
+                        break
+                    }
+                    rows += 1
+                    val id = cursor.getLong(idIndex)
+                    if (id <= 0) continue
+                    val name = if (bucketNameIndex >= 0) {
+                        cursor.getString(bucketNameIndex)?.takeIf { it.isNotBlank() }
+                    } else {
+                        null
+                    } ?: "Other"
+                    val bucketId = if (bucketIdIndex >= 0 && !cursor.isNull(bucketIdIndex)) {
+                        cursor.getLong(bucketIdIndex)
+                    } else {
+                        null
+                    }
+                    val volume = if (volumeIndex >= 0) {
+                        cursor.getString(volumeIndex)?.takeIf { it.isNotBlank() }
+                    } else {
+                        null
+                    }
+                    val albumId = when {
+                        bucketId != null && volume != null -> "v:$volume:$bucketId"
+                        bucketId != null -> "b:$bucketId"
+                        else -> "name:$name"
+                    }
+                    accumulator.add(
+                        albumId = albumId,
+                        name = name,
+                        photoId = id,
+                        dateSeconds = readDateSeconds(cursor, dateAddedIndex, dateModifiedIndex),
+                    )
+                }
+            }
+        } catch (error: Exception) {
+            LinkStatus.log("Photos", "Album query failed: ${error.javaClass.simpleName}")
+        }
+        return accumulator.result()
     }
 
     fun loadJpeg(id: String, kind: String): ByteArray? {
@@ -84,6 +175,12 @@ class PhotoRepository(private val context: Context) {
             LinkStatus.log("Photos", "Photo decode failed: ${error.javaClass.simpleName}")
             null
         }
+    }
+
+    private fun readDateSeconds(cursor: Cursor, addedIndex: Int, modifiedIndex: Int): Long {
+        val added = if (addedIndex >= 0) cursor.getLong(addedIndex) else 0L
+        if (added > 0L) return added
+        return if (modifiedIndex >= 0) cursor.getLong(modifiedIndex) else 0L
     }
 
     private fun loadThumbnail(uri: android.net.Uri): ByteArray? {
@@ -137,6 +234,7 @@ class PhotoRepository(private val context: Context) {
 
     companion object {
         const val MAX_FULL_DIMENSION = 2_048
+        private const val MAX_ALBUM_ROWS = 50_000
 
         fun calculateInSampleSize(width: Int, height: Int, maxDimension: Int): Int {
             if (width <= 0 || height <= 0 || maxDimension <= 0) return 1

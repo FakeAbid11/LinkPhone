@@ -57,6 +57,13 @@ export function registerIpc(controller: AppController): void {
   );
 
   ipcMain.handle('photos:refresh', () => controller.refreshPhotos());
+  ipcMain.handle('photos:albums', () => controller.refreshPhotoAlbums());
+  ipcMain.handle('photos:album', (_event, bucket: unknown) =>
+    controller.selectPhotoAlbum(
+      bucket == null ? null : requireString(bucket, 'photo album', 120),
+    ),
+  );
+  ipcMain.handle('photos:more', () => controller.loadMorePhotos());
   ipcMain.handle('photos:thumb', (_event, id: unknown) =>
     controller.getThumbnail(requireString(id, 'photo id', 80)),
   );

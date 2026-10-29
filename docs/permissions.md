@@ -66,6 +66,10 @@ On Android 14, the system may offer “Select photos”. LinkPhone declares
 `READ_MEDIA_VISUAL_USER_SELECTED` so the picker appears, reports the partial state, and only lists
 what the system shares. Grant full access in system settings for the full camera roll.
 
+The PC album strip groups every image bucket MediaStore exposes (Camera, Screenshots, Downloads,
+WhatsApp, and so on). Album counts and covers also reflect only the photos Android has shared; with
+partial access, some albums may be missing or show smaller counts.
+
 ### Notifications
 
 Notification access is granted in the system “Notification access” settings screen. The feed shows

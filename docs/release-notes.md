@@ -1,40 +1,43 @@
-## LinkPhone v0.2.1
+## LinkPhone v0.3.0
 
-A direct, LAN-only companion link between an Android phone and a Windows PC. This release replaces
-the bright teal palette with a calmer indigo/violet theme on both apps. Layout, behavior, protocol,
-pairing, encryption, and permissions are unchanged.
+A direct, LAN-only companion link between an Android phone and a Windows PC. This release adds
+album browsing to Photos and hardens the Android background connection.
 
 ### What's new
 
-**Windows PC**
+**Photos**
 
-- New dark palette: `#0B0F19` canvas, `#141B2B` cards, `#8B93FF` accent, `#9DB8FF` secondary,
-  and higher-contrast muted/caption text.
-- The hardcoded teal and blue values are now driven by `--primary-rgb` / `--secondary-rgb` tokens,
-  so future palette changes are one edit instead of a sweep.
-- Updated logo, window background, pairing QR color, scrollbars, inputs, modal, and message bubbles.
-- No layout or behavior changes; all v0.2.0 UI work remains.
+- The PC Photos tab now has an album strip: **All photos** plus every image album the phone exposes
+  (Camera, Screenshots, Downloads, WhatsApp, and others), with photo counts.
+- Selecting an album filters the grid; **Load more** fetches older pages without duplicates.
+- Album counts and covers reflect only the photos Android has shared. With Android 14 partial
+  access, some albums may be missing or have smaller counts.
+- The wire protocol adds an additive `photo.albums` request and `photos.albums` capability. Older
+  phones still show the flat recent-photo grid; older PCs ignore the new fields.
 
-**Android phone**
+**Background connection**
 
-- Dark and light Compose schemes rebuilt in indigo/violet:
-  - Dark: `#0B0F19` background, `#8B93FF` primary, `#9DB8FF` secondary.
-  - Light: `#F7F8FC` background, `#4F46E5` primary, `#3A5FA8` secondary.
-- Launcher icon accent and launch background updated; launch background now has a light/night
-  resource so the first frame matches the system theme.
-- QR scanner overlay uses the new dark glass color; white text stays for camera legibility.
-- No layout, permission, or behavior changes.
+- Closing or swiping the phone app no longer deliberately stops the foreground service:
+  `onTaskRemoved` re-asserts it and logs the event.
+- A failed foreground-service start no longer calls `stopSelf()`; it retries once with the
+  `connectedDevice` type and fails cleanly instead of killing a healthy connection.
+- The app now persists whether the link should be up. **Disconnect** stays disconnected across
+  screen returns, while boot/restart recovery only reconnects when the link was desired.
+- Wi-Fi uses the low-latency lock, and a partial wake lock is held only while connecting or
+  reconnecting. It is released as soon as the link is connected.
+- Battery optimization still limits background networking on Android; the Background card offers
+  the exemption, and diagnostics now log when it is missing.
 
 ### Which updates do I need?
 
-- **Both apps** for a consistent palette.
+- **Both apps** for album browsing. The background changes are phone-only.
 - Existing pairings, settings, SMS read state, and the signing identity are retained.
 
 ### Download
 
-- `LinkPhone-0.2.1.apk` — Android 10+ companion (sideload; same release key)
-- `LinkPhone-Portable-0.2.1.exe` — Windows portable app
-- `LinkPhone-Setup-0.2.1.exe` — Windows installer
+- `LinkPhone-0.3.0.apk` — Android 10+ companion (sideload; same release key)
+- `LinkPhone-Portable-0.3.0.exe` — Windows portable app
+- `LinkPhone-Setup-0.3.0.exe` — Windows installer
 - `SHA256SUMS.txt` — verify your downloads
 
 ### First run
@@ -47,19 +50,17 @@ pairing, encryption, and permissions are unchanged.
 
 ### Known limitations
 
-- Cellular call audio cannot be routed to the PC by a third-party app. Calls are controlled from
-  the PC; audio stays on the phone.
-- True Android app streaming is not possible. **Apps** is experimental screen mirroring with
-  optional remote taps; it requires consent every session and stops when the phone locks.
-- SMS is sideload-only; MMS/RCS are not supported. Sent messages may not appear in the stock SMS app,
-  and read sync still uses **Open on phone** because Android reserves the read flag for the default
-  SMS app.
+- OEM task killers can still kill a foreground service. v0.3.0 logs the event and recovers where
+  Android allows; battery/autostart settings may still be required. Force-stop is intentionally
+  unrecoverable until the app is opened again.
+- Doze can restrict background networking even with a foreground service. Allow battery
+  optimization exemption for reliable screen-off operation.
+- Cellular call audio cannot be routed to the PC by a third-party app.
+- True Android app streaming is not possible. **Apps** is screen mirroring with optional remote taps.
+- SMS is sideload-only; MMS/RCS are not supported, and read sync still uses **Open on phone**.
 - Mirrored notifications on Android 15+ may have sensitive content redacted.
-- Phone-to-PC clipboard is explicit (Quick Settings tile/share action), not automatic.
-- Background operation requires an ongoing notification and, on many OEMs, battery/autostart
-  settings.
 - The Windows binaries are unsigned, so SmartScreen may warn.
 
-Built, unit-tested, linted, and E2E-tested in GitHub Actions. Palette contrast is asserted by unit
-tests; light/dark rendering, the launcher icon, and camera-overlay legibility still need the hardware
-checklist in `docs/testing.md`.
+Built, unit-tested, linted, and E2E-tested in GitHub Actions. Album counts/covers, swipe-to-background
+behavior, Doze recovery, and OEM task killers still need the hardware checklist in
+`docs/testing.md`.

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { AppSnapshot, PhotoUi } from '../../shared/types';
+import { CAPABILITIES, type AppSnapshot, type PhotoUi } from '../../shared/types';
 import { api } from '../api';
 import {
   Badge,
@@ -16,7 +16,10 @@ import { formatDateTime } from '../utils';
 
 export function PhotosView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   const connected = state.connection.connected;
-  const supported = state.connection.capabilities.includes('photos');
+  const supported = state.connection.capabilities.includes(CAPABILITIES.PHOTOS);
+  const albumsSupported =
+    state.photos.albumsSupported ||
+    state.connection.capabilities.includes(CAPABILITIES.PHOTOS_ALBUMS);
   const [preview, setPreview] = useState<PhotoUi | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [savedPath, setSavedPath] = useState<string | null>(null);
@@ -110,11 +113,18 @@ export function PhotosView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
     }
   };
 
+  const selectAlbum = (bucket: string | null) => {
+    setPreview(null);
+    void ui.run(() => api.selectPhotoAlbum(bucket));
+  };
+
+  const totalPhotos = state.photos.albums.reduce((sum, album) => sum + album.count, 0);
+
   return (
     <>
       <PageHeader
         title="Photos"
-        subtitle="Recent camera-roll images, transcoded to JPEG for the PC."
+        subtitle="Recent images from the phone, grouped by album and transcoded to JPEG for the PC."
         actions={
           <Button
             variant="ghost"
@@ -138,25 +148,83 @@ export function PhotosView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
           {state.photos.error}
         </Notice>
       )}
+      {state.photos.albumsError && (
+        <Notice tone="bad" title="Albums">
+          {state.photos.albumsError}
+        </Notice>
+      )}
+
+      {albumsSupported && state.photos.albums.length > 0 && (
+        <>
+          <div className="album-strip" role="group" aria-label="Photo albums">
+            <button
+              type="button"
+              className={`album-chip ${state.photos.activeAlbum === null ? 'is-active' : ''}`}
+              aria-pressed={state.photos.activeAlbum === null}
+              onClick={() => selectAlbum(null)}
+            >
+              All photos
+              {totalPhotos > 0 && <span className="album-count">{totalPhotos}</span>}
+            </button>
+            {state.photos.albums.map((album) => (
+              <button
+                key={album.id}
+                type="button"
+                className={`album-chip ${
+                  state.photos.activeAlbum === album.id ? 'is-active' : ''
+                }`}
+                aria-pressed={state.photos.activeAlbum === album.id}
+                onClick={() => selectAlbum(album.id)}
+              >
+                {album.name}
+                <span className="album-count">{album.count}</span>
+              </button>
+            ))}
+            {state.photos.albumsLoading && <span className="live-dot" aria-label="Refreshing" />}
+          </div>
+          {state.photos.partial && (
+            <p className="muted small album-note">
+              Albums reflect only the photos you shared with LinkPhone.
+            </p>
+          )}
+        </>
+      )}
 
       {state.photos.loading && state.photos.items.length === 0 ? (
         <Card>
-          <Spinner label="Reading the camera roll…" />
+          <Spinner label={state.photos.activeAlbum ? 'Reading this album…' : 'Reading the camera roll…'} />
         </Card>
       ) : state.photos.items.length === 0 ? (
         <Card>
           <EmptyState
             icon="image"
-            title="No photos found"
-            body="LinkPhone shows the most recent 200 images from the shared camera roll."
+            title={state.photos.activeAlbum ? 'No photos in this album' : 'No photos found'}
+            body={
+              state.photos.activeAlbum
+                ? 'This album has no photos available to LinkPhone. Try another album or refresh.'
+                : 'LinkPhone shows recent images from the shared camera roll.'
+            }
           />
         </Card>
       ) : (
-        <div className="photo-grid">
-          {state.photos.items.map((photo) => (
-            <PhotoTile key={photo.id} photo={photo} onOpen={() => setPreview(photo)} />
-          ))}
-        </div>
+        <>
+          <div className="photo-grid">
+            {state.photos.items.map((photo) => (
+              <PhotoTile key={photo.id} photo={photo} onOpen={() => setPreview(photo)} />
+            ))}
+          </div>
+          {state.photos.hasMore && (
+            <div className="photo-more">
+              <Button
+                variant="secondary"
+                onClick={() => void ui.run(() => api.loadMorePhotos())}
+                loading={state.photos.loadingMore}
+              >
+                Load more photos
+              </Button>
+            </div>
+          )}
+        </>
       )}
 
       <Modal

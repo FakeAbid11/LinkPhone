@@ -392,7 +392,7 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
                                 if (batteryExempt) {
                                     "LinkPhone can reconnect after a reboot."
                                 } else {
-                                    "Android may stop the service in the background."
+                                    "Android may stop the service or restrict background networking."
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
