@@ -1,3 +1,48 @@
+## LinkPhone v0.8.5
+
+A diagnosis release. Pairing, encryption and the transport are unchanged, so this is a drop-in
+update over 0.8.4 — but a failed pairing now explains itself, and a code whose address has gone
+stale can recover on its own.
+
+### What's new
+
+- **A failed pairing says what to do.** Every failure used to be the raw exception —
+  "Failed to connect to /192.168.0.111:48921" — which names the layer but not the fix. Failures are
+  now classified: refused, no route, timed out, wrong certificate, rejected by the PC, or an
+  unreadable answer. Each gets one sentence and a short checklist. The original text is still there
+  under **Technical detail**, with a **Copy detail** button.
+- **The phone's address and the PC's are shown side by side.** When the phone cannot reach the PC,
+  the card shows `This phone 192.168.1.23/24` next to `PC in the code 192.168.0.111`, so a subnet
+  mismatch is visible instead of guessed at.
+- **Pairing retries at the PC's real address.** If the code's address refuses the connection, the
+  phone looks the PC up over mDNS by the certificate fingerprint carried in the QR and retries once
+  at the address the PC actually holds. The fingerprint is unchanged, so the trust anchor still
+  comes only from the QR, and the address that worked is the one that gets saved.
+- **The PC log records every inbound attempt** — TCP connection, TLS handshake, hello, pair
+  request. "The phone cannot connect" finally has an answer, including "nothing arrived at all",
+  which is itself the diagnosis.
+- **The Connection tab shows the address inside the code**, and warns when it no longer matches the
+  PC's current address.
+
+### What's fixed
+
+- **The pairing code no longer advertises a VPN, Hyper-V, WSL or VMware adapter.** A virtual adapter
+  holds an ordinary private address, so it could win the QR and be unreachable from the phone —
+  the exact cause of an instant "unreachable" while both devices are on the same Wi-Fi.
+- **Pairing failures reach Diagnostics.** They used to leave no trace on either side, which made a
+  network problem look like an app bug.
+
+If pairing still fails, see [troubleshooting](troubleshooting.md#failed-to-connect-to-192168011148921):
+opening `https://<pc-ip>:<port>/` in the phone's browser separates a wrong address from a dropped
+packet in one step.
+
+### Downloads
+
+- `LinkPhone-0.8.5.apk` - Android 10+ companion (sideload; same release key)
+- `LinkPhone-Portable-0.8.5.exe` - Windows portable app
+- `LinkPhone-Setup-0.8.5.exe` - Windows installer (recommended for automatic updates)
+- `SHA256SUMS.txt` - checksums for the files above
+
 ## LinkPhone v0.8.4
 
 A pairing fix. No pairing, encryption or transport change, so this is a drop-in update over 0.8.3.
