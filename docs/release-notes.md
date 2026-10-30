@@ -1,3 +1,33 @@
+## LinkPhone v0.8.1
+
+A reliability release on top of 0.8.0. No pairing, encryption or transport change, so this is a
+drop-in update for both apps.
+
+### What's fixed
+
+- **Phone details can no longer blank the PC window.** The model, SIM list and feature list the
+  phone reports are now validated as they arrive. A malformed SIM entry used to reach the
+  interface and replace the whole window with an error.
+- **"Not reported yet" is no longer shown as "not granted".** When the phone has not sent its
+  permissions, Messages, Notifications, Photos and Calls say so instead of claiming access was
+  denied.
+- **Enter no longer sends while you are composing.** Pressing Enter to commit an IME candidate
+  (Chinese, Japanese, Korean) used to send a half-typed message. Shift+Enter still adds a line.
+- **Dialogs keep keyboard focus.** Closing a dialog returns focus to the button that opened it,
+  and the page behind a dialog is hidden from screen readers while it is open.
+- **Input is checked at the boundary.** Touch coordinates are validated before they reach the
+  phone, and pairing-code comparison no longer depends on the code's length.
+- **A phone-side reporting failure no longer loops the connection.** If the phone cannot build
+  its feature report, the session stays up and the PC shows the waiting state instead of
+  reconnecting forever.
+
+### Downloads
+
+- `LinkPhone-0.8.1.apk` - Android 10+ companion (sideload; same release key)
+- `LinkPhone-Portable-0.8.1.exe` - Windows portable app
+- `LinkPhone-Setup-0.8.1.exe` - Windows installer (recommended for automatic updates)
+- `SHA256SUMS.txt` - checksums for the files above
+
 ## LinkPhone v0.8.0
 
 A design release. Both apps are rebuilt on Material 3: the Android companion uses the
