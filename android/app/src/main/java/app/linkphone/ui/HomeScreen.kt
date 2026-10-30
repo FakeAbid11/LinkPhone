@@ -22,24 +22,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.BatteryFull
-import androidx.compose.material.icons.outlined.Call
-import androidx.compose.material.icons.outlined.Chat
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Contacts
-import androidx.compose.material.icons.outlined.ContentPaste
-import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.HelpOutline
-import androidx.compose.material.icons.outlined.Notifications
-import androidx.compose.material.icons.outlined.NotificationsActive
-import androidx.compose.material.icons.outlined.PhoneAndroid
-import androidx.compose.material.icons.outlined.PhotoLibrary
-import androidx.compose.material.icons.outlined.QrCodeScanner
-import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material.icons.outlined.SystemUpdate
-import androidx.compose.material.icons.outlined.TouchApp
-import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -95,7 +77,6 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
     val logs by vm.logs.collectAsStateWithLifecycle()
     val lastError by LinkStatus.lastError.collectAsStateWithLifecycle()
     val updateStatus by vm.updateStatus.collectAsStateWithLifecycle()
-    val dynamicColor by vm.dynamicColor.collectAsStateWithLifecycle()
 
     val hasTelephony = remember { PhoneInfoBuilder.hasTelephony(context) }
     val smsGranted = remember(revision) { Permissions.sms(context) }
@@ -234,10 +215,10 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
                 },
                 actions = {
                     IconButton(onClick = onSetup) {
-                        Icon(Icons.Outlined.HelpOutline, contentDescription = "Setup guide")
+                        Icon(MsIcons.HelpOutline, contentDescription = "Setup guide")
                     }
                     IconButton(onClick = { vm.refresh() }) {
-                        Icon(Icons.Outlined.Refresh, contentDescription = "Refresh")
+                        Icon(MsIcons.Refresh, contentDescription = "Refresh")
                     }
                 },
                 scrollBehavior = scrollBehavior,
@@ -250,7 +231,7 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onPair,
-                icon = { Icon(Icons.Outlined.QrCodeScanner, contentDescription = null) },
+                icon = { Icon(MsIcons.QrCodeScanner, contentDescription = null) },
                 text = { Text("Pair") },
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -310,11 +291,11 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
                 SectionCard(
                     title = "Permissions",
                     subtitle = "Grant only what you use. Each feature works independently.",
-                    icon = Icons.Outlined.CheckCircle,
+                    icon = MsIcons.CheckCircle,
                 ) {
                     if (hasTelephony) {
                         PermissionRow(
-                            icon = Icons.Outlined.Chat,
+                            icon = MsIcons.Chat,
                             title = "Messages",
                             detail = "Read, receive, and send SMS. Sideload only; no MMS or RCS.",
                             status = statusOf(smsGranted),
@@ -324,7 +305,7 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
                             },
                         )
                         PermissionRow(
-                            icon = Icons.Outlined.Call,
+                            icon = MsIcons.Call,
                             title = "Calls",
                             detail = "Call state, dialing, and answer/decline. Audio stays on the phone.",
                             status = statusOf(callsGranted),
@@ -338,7 +319,7 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
                             },
                         )
                         PermissionRow(
-                            icon = Icons.Outlined.Contacts,
+                            icon = MsIcons.Contacts,
                             title = "Contacts",
                             detail = "Search contacts on the PC and show caller names.",
                             status = statusOf(contactsGranted),
@@ -353,7 +334,7 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
                         )
                     }
                     PermissionRow(
-                        icon = Icons.Outlined.PhotoLibrary,
+                        icon = MsIcons.PhotoLibrary,
                         title = "Photos",
                         detail = if (photosPartial) {
                             "Only selected photos are shared. Grant full access in Android settings."
@@ -368,7 +349,7 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
                     )
                     if (notificationsRuntimeRequired) {
                         PermissionRow(
-                            icon = Icons.Outlined.Notifications,
+                            icon = MsIcons.Notifications,
                             title = "Notification permission",
                             detail = "Shows the required ongoing connection notification.",
                             status = statusOf(notificationsGranted),
@@ -383,7 +364,7 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
                         )
                     }
                     PermissionRow(
-                        icon = Icons.Outlined.NotificationsActive,
+                        icon = MsIcons.NotificationsActive,
                         title = "Notification access",
                         detail = "Mirror notifications to the PC and dismiss them remotely.",
                         status = statusOf(listenerGranted),
@@ -396,7 +377,7 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
                         },
                     )
                     PermissionRow(
-                        icon = Icons.Outlined.TouchApp,
+                        icon = MsIcons.TouchApp,
                         title = "Remote taps",
                         detail = "Accessibility service used only for taps and swipes from your PC.",
                         status = statusOf(accessibilityGranted),
@@ -413,7 +394,7 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
                 SectionCard(
                     title = "Background operation",
                     subtitle = "Keeps the encrypted connection alive.",
-                    icon = Icons.Outlined.BatteryFull,
+                    icon = MsIcons.BatteryFull,
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
@@ -476,7 +457,7 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
                 SectionCard(
                     title = "Diagnostics",
                     subtitle = "Connection events only. Message and notification content is never logged.",
-                    icon = Icons.Outlined.ErrorOutline,
+                    icon = MsIcons.ErrorOutline,
                 ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         TextButton(onClick = { showLogs = !showLogs }) {
@@ -560,22 +541,13 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
                 SectionCard(
                     title = "About",
                     subtitle = "LinkPhone ${vm.appVersion}",
-                    icon = Icons.Outlined.PhoneAndroid,
+                    icon = MsIcons.PhoneAndroid,
                 ) {
                     Text(
                         "LAN-only with TLS certificate pinning. No accounts, cloud relay, or analytics.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        ToggleRow(
-                            title = "Match wallpaper colors",
-                            description = "Material You: use the palette Android derives from your " +
-                                "wallpaper. Turn this off for the LinkPhone blue theme.",
-                            checked = dynamicColor,
-                            onCheckedChange = vm::setDynamicColor,
-                        )
-                    }
                     Text(
                         "Phone identity fingerprint",
                         style = MaterialTheme.typography.labelMedium,
@@ -689,7 +661,7 @@ private fun UpdatesCard(
     SectionCard(
         title = "Updates",
         subtitle = "Checks the official GitHub Releases page. No telemetry.",
-        icon = Icons.Outlined.SystemUpdate,
+        icon = MsIcons.SystemUpdate,
     ) {
         if (!status.supported) {
             Text(
@@ -918,7 +890,7 @@ private fun ConnectionCard(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        Icons.Outlined.Wifi,
+                        MsIcons.Wifi,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.size(28.dp),
@@ -970,7 +942,7 @@ private fun ConnectionCard(
             ) {
                 if (pairedName == null) {
                     Button(onClick = onPair) {
-                        Icon(Icons.Outlined.QrCodeScanner, contentDescription = null)
+                        Icon(MsIcons.QrCodeScanner, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
                         Text("Pair with your PC")
                     }
@@ -997,7 +969,7 @@ private fun SetupCard(onSetup: () -> Unit, onPair: () -> Unit) {
     SectionCard(
         title = "Finish setup",
         subtitle = "Three short steps, then you can use the phone from the PC.",
-        icon = Icons.Outlined.HelpOutline,
+        icon = MsIcons.HelpOutline,
     ) {
         Text(
             "Review what LinkPhone can do, grant only the permissions you need, and pair once " +
@@ -1027,14 +999,14 @@ private fun QuickActionsCard(
         SectionLabel("Quick actions")
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             QuickAction(
-                icon = Icons.Outlined.ContentPaste,
+                icon = MsIcons.ContentPaste,
                 title = "Send clipboard",
                 subtitle = "Send copied text to the PC",
                 onClick = onSendClipboard,
                 modifier = Modifier.weight(1f),
             )
             QuickAction(
-                icon = Icons.Outlined.QrCodeScanner,
+                icon = MsIcons.QrCodeScanner,
                 title = "Pair a PC",
                 subtitle = "Scan the PC's QR code",
                 onClick = onPair,
@@ -1043,14 +1015,14 @@ private fun QuickActionsCard(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             QuickAction(
-                icon = Icons.Outlined.NotificationsActive,
+                icon = MsIcons.NotificationsActive,
                 title = "Notification access",
                 subtitle = "Mirror notifications",
                 onClick = onNotificationAccess,
                 modifier = Modifier.weight(1f),
             )
             QuickAction(
-                icon = Icons.Outlined.BatteryFull,
+                icon = MsIcons.BatteryFull,
                 title = if (batteryExempt) "Battery allowed" else "Allow background",
                 subtitle = if (batteryExempt) {
                     "Service stays available"

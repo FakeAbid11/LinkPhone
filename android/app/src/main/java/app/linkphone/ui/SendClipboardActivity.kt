@@ -6,10 +6,9 @@ import android.os.Looper
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -26,7 +25,10 @@ class SendClipboardActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
         setContent {
             LinkPhoneTheme {
                 Surface(
@@ -69,6 +71,6 @@ private fun SendingClipboard() {
     ProgressScaffold(
         title = "Sending clipboard",
         message = "Reading the clipboard while this screen is focused, then sending it to your PC.",
-        icon = Icons.Outlined.ContentPaste,
+        icon = MsIcons.ContentPaste,
     )
 }

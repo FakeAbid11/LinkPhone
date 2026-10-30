@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,9 +18,6 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -56,7 +54,10 @@ class ShareToPcActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
         setContent {
             LinkPhoneTheme {
                 Surface(
@@ -255,7 +256,7 @@ private fun ShareStatus(
         horizontalAlignment = Alignment.Start,
     ) {
         IconBadge(
-            if (isError) Icons.Outlined.ErrorOutline else Icons.Outlined.CheckCircle,
+            if (isError) MsIcons.ErrorOutline else MsIcons.CheckCircle,
         )
         Text(
             if (isError) "Could not send" else "Continue on PC",

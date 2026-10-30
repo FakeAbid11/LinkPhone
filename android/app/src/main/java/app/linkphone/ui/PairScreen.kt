@@ -12,12 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.Keyboard
-import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -74,7 +68,7 @@ fun PairScreen(vm: LinkViewModel, onScan: () -> Unit, onBack: () -> Unit) {
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(MsIcons.ArrowBack, contentDescription = "Back")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -98,7 +92,7 @@ fun PairScreen(vm: LinkViewModel, onScan: () -> Unit, onBack: () -> Unit) {
                 SectionCard(
                     title = "Scan the QR code",
                     subtitle = "Fastest and safest: the code carries the PC address, certificate, and token.",
-                    icon = Icons.Outlined.QrCodeScanner,
+                    icon = MsIcons.QrCodeScanner,
                 ) {
                     Text(
                         "On the PC, open LinkPhone and choose Pair a phone. Then scan the code with " +
@@ -111,7 +105,7 @@ fun PairScreen(vm: LinkViewModel, onScan: () -> Unit, onBack: () -> Unit) {
                         enabled = !working,
                         modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                     ) {
-                        Icon(Icons.Outlined.QrCodeScanner, contentDescription = null)
+                        Icon(MsIcons.QrCodeScanner, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
                         Text("Scan QR code")
                     }
@@ -122,7 +116,7 @@ fun PairScreen(vm: LinkViewModel, onScan: () -> Unit, onBack: () -> Unit) {
                 SectionCard(
                     title = "Enter details manually",
                     subtitle = "Use this if the camera is unavailable. The code expires after five minutes.",
-                    icon = Icons.Outlined.Keyboard,
+                    icon = MsIcons.Keyboard,
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -217,7 +211,7 @@ fun PairScreen(vm: LinkViewModel, onScan: () -> Unit, onBack: () -> Unit) {
             when (val current = pairing) {
                 PairingUiState.Idle -> Unit
                 is PairingUiState.Working -> item {
-                    SectionCard(title = "Pairing", icon = Icons.Outlined.QrCodeScanner) {
+                    SectionCard(title = "Pairing", icon = MsIcons.QrCodeScanner) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
@@ -235,7 +229,7 @@ fun PairScreen(vm: LinkViewModel, onScan: () -> Unit, onBack: () -> Unit) {
                     }
                 }
                 is PairingUiState.Error -> item {
-                    SectionCard(title = "Pairing failed", icon = Icons.Outlined.ErrorOutline) {
+                    SectionCard(title = "Pairing failed", icon = MsIcons.ErrorOutline) {
                         Text(
                             current.message,
                             style = MaterialTheme.typography.bodyMedium,
@@ -251,7 +245,7 @@ fun PairScreen(vm: LinkViewModel, onScan: () -> Unit, onBack: () -> Unit) {
                     }
                 }
                 is PairingUiState.Success -> item {
-                    SectionCard(title = "Paired", icon = Icons.Outlined.CheckCircle) {
+                    SectionCard(title = "Paired", icon = MsIcons.CheckCircle) {
                         Text(
                             "This phone is paired with ${current.pc.pcName}.",
                             style = MaterialTheme.typography.bodyMedium,
