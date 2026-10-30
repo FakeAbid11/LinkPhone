@@ -1,3 +1,25 @@
+## LinkPhone v0.8.6
+
+A one-fix release for a message introduced in 0.8.5. No pairing, encryption or transport change, so
+this is a drop-in update over 0.8.5.
+
+### What's fixed
+
+- **"The PC refused the connection" was wrong when the phone had no route.** Android reports a failed
+  connect as `ConnectException` wrapping `android.system.ErrnoException` with `EHOSTUNREACH` or
+  `ENETUNREACH` — not as `java.net.NoRouteToHostException`, which was the only type the classifier
+  looked for. A phone on a different network was therefore told the PC had refused it, and given
+  advice about firewalls, stale codes and VPNs. It is now classified as "no route", which also means
+  the card finally names both sides: *"This phone is on 10.123.45.67/8, but the PC's address
+  192.168.0.111 is on a different subnet."*
+
+### Downloads
+
+- `LinkPhone-0.8.6.apk` - Android 10+ companion (sideload; same release key)
+- `LinkPhone-Portable-0.8.6.exe` - Windows portable app
+- `LinkPhone-Setup-0.8.6.exe` - Windows installer (recommended for automatic updates)
+- `SHA256SUMS.txt` - checksums for the files above
+
 ## LinkPhone v0.8.5
 
 A diagnosis release. Pairing, encryption and the transport are unchanged, so this is a drop-in
