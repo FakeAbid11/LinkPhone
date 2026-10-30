@@ -198,6 +198,19 @@ button {
   flex-direction: column;
   gap: 3px;
   flex: 1;
+  /* The sidebar column needs more height than a 640px window offers, so the nav
+     — not the whole sidebar — is the scroll region: the connection state in
+     .sidebar-foot has to stay pinned. Without min-height:0 the flex item refuses
+     to shrink and the footer is clipped by .app-shell's overflow. */
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  /* Overflow clips at the padding box, which would cut the 2px focus ring of the
+     first and last item. The padding keeps it, the negative margin cancels it so
+     item widths are unchanged. */
+  padding: 2px;
+  margin-inline: -2px;
 }
 
 .nav-item {
@@ -376,6 +389,9 @@ button {
   display: grid;
   gap: 16px;
   margin-bottom: 16px;
+  /* Paired cards size to their own content instead of stretching to the tallest
+     in the row, which used to leave large empty blocks under the shorter card. */
+  align-items: start;
 }
 
 .grid-2 {
@@ -673,7 +689,8 @@ button {
   filter: grayscale(1);
 }
 
-.pair-facts {
+.pair-facts,
+.identity-facts {
   display: flex;
   flex-direction: column;
   gap: 11px;
@@ -906,8 +923,11 @@ button {
   margin: 0;
   font-size: 12px;
   color: var(--muted);
-  max-height: 80px;
-  overflow: hidden;
+  /* Scroll instead of clipping: a long shared note used to stop mid-sentence
+     with no ellipsis and no way to read the rest. */
+  max-height: 120px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -1077,6 +1097,31 @@ button {
   overflow: hidden;
   background: rgba(13, 20, 30, 0.72);
   box-shadow: var(--shadow);
+}
+
+/*
+ * Fill-style pages (Messages). The panel takes the space actually left by the
+ * page header and by any banner, instead of subtracting a magic viewport
+ * constant that assumed neither existed. Two-class selectors are deliberate:
+ * they have to beat .messages-layout's min-height and the
+ * @media (max-height: 720px) height rule further down this file.
+ */
+.content.is-fill {
+  display: flex;
+  flex-direction: column;
+  /* The panel owns the bottom edge now. */
+  padding-bottom: 24px;
+}
+
+/* Banners and the header must never shrink to make room. */
+.content.is-fill > * {
+  flex: 0 0 auto;
+}
+
+.content.is-fill > .messages-layout {
+  flex: 1 1 0%;
+  height: auto;
+  min-height: 0;
 }
 
 .thread-list {
@@ -1347,8 +1392,14 @@ button {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 560px;
+  max-height: min(56vh, 560px);
   overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Points at App filters, which is now the only place an app is muted. */
+.notification-hint {
+  margin: 10px 0 0;
 }
 
 .notification-item {
@@ -1422,6 +1473,11 @@ button {
 .filter-list {
   display: flex;
   flex-direction: column;
+  /* Capped to match the feed beside it; an unbounded list stretched the grid row
+     and left a blank block under the shorter card. */
+  max-height: min(56vh, 560px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .filter-list li {
@@ -1806,6 +1862,9 @@ button {
 
 .mirror-stage {
   position: relative;
+  /* A definite height so the canvas can size itself against it. This used to be
+     min-height alone, which let the canvas keep its full intrinsic width. */
+  height: clamp(420px, calc(100vh - 300px), 700px);
   min-height: 420px;
   border: 1px solid var(--border-soft);
   border-radius: 16px;
@@ -1823,8 +1882,14 @@ button {
 
 .mirror-canvas {
   display: block;
-  width: 100%;
-  max-height: calc(100vh - 300px);
+  /* Size from the stream's aspect ratio instead of the stage width. A 9:20 phone
+     used to draw as a narrow strip inside a wide black box, and because taps are
+     normalised against the element box, the letterbox bars put them in the wrong
+     place. */
+  width: auto;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   touch-action: none;
   cursor: default;
@@ -2632,6 +2697,29 @@ button:focus:not(:focus-visible),
   font-size: 11.5px;
   background: transparent;
   backdrop-filter: none;
+}
+
+.thread-list-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* "Mark all read" lives with the list it acts on, not in the page header. */
+.thread-mark-read {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-size: 11.5px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--primary);
+  cursor: pointer;
+}
+
+.thread-mark-read:hover {
+  text-decoration: underline;
 }
 
 .thread-search {

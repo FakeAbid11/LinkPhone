@@ -128,24 +128,16 @@ export function NotificationsView({ state, ui }: { state: AppSnapshot; ui: Ui })
                       >
                         Dismiss
                       </Button>
-                      <Button
-                        small
-                        variant="ghost"
-                        icon="bell"
-                        onClick={() =>
-                          void ui.run(
-                            () => api.setPackageMuted(item.packageName, true),
-                            `${item.appName} muted`,
-                          )
-                        }
-                      >
-                        Mute app
-                      </Button>
                     </div>
                   </div>
                 </li>
               ))}
             </ul>
+          )}
+          {notifications.length > 0 && (
+            <p className="muted small notification-hint">
+              Mute an app from App filters.
+            </p>
           )}
         </Card>
 

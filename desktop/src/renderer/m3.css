@@ -1389,6 +1389,13 @@ body {
   box-shadow: var(--shadow-3);
 }
 
+/* The photo preview is the widest content in the app. This must sit after
+   .modal in this file: styles.css declares .modal-wide too, but this file loads
+   later, so .modal won on order and the wide prop had no effect. */
+.modal-wide {
+  width: min(900px, 100%);
+}
+
 .modal-head {
   padding: 24px 24px 8px;
   border-bottom: 0;

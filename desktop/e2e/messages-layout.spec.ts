@@ -49,7 +49,7 @@ test('conversation list and message history scroll at typical and small window s
         <body>
           <div class="app-shell">
             <aside class="sidebar"></aside>
-            <main class="content">
+            <main class="content is-fill">
               <header class="page-head">
                 <div><h1>Messages</h1><p>60 conversations</p></div>
               </header>

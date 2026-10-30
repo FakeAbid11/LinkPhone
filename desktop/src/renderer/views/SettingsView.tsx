@@ -11,11 +11,10 @@ import {
   Toggle,
 } from '../components';
 import type { Ui } from '../ui';
-import { formatDateTime, formatFingerprint, timeAgo } from '../utils';
+import { formatFingerprint, timeAgo } from '../utils';
 
 export function SettingsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   const [confirmReset, setConfirmReset] = useState(false);
-  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
 
   const update = (patch: Parameters<typeof api.updateSettings>[0]) =>
     void ui.run(() => api.updateSettings(patch));
@@ -52,7 +51,7 @@ export function SettingsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
     <>
       <PageHeader
         title="Settings"
-        subtitle="Preferences, paired devices, and security controls."
+        subtitle="Preferences, security controls, and updates."
       />
 
       <div className="grid grid-2">
@@ -100,10 +99,6 @@ export function SettingsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
             <div>
               <span className="meta-label">TLS certificate</span>
               <span className="mono small">{formatFingerprint(state.server.fingerprint)}</span>
-            </div>
-            <div>
-              <span className="meta-label">App version</span>
-              <span>LinkPhone {state.version} · protocol 1</span>
             </div>
           </div>
           {state.server.error && <Notice tone="bad">{state.server.error}</Notice>}
@@ -219,53 +214,6 @@ export function SettingsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
         )}
       </Card>
 
-      <div className="grid grid-2">
-        <Card icon="phone" title="Paired phones" subtitle="Only one phone can be connected at a time.">
-          {state.devices.length === 0 ? (
-            <p className="muted">No phones are paired.</p>
-          ) : (
-            <ul className="device-list">
-              {state.devices.map((device) => (
-                <li key={device.id}>
-                  <div className="device-copy">
-                    <strong>{device.name}</strong>
-                    <span>
-                      {device.platform} · paired {formatDateTime(device.pairedAt)}
-                      {device.lastSeen ? ` · seen ${timeAgo(device.lastSeen)}` : ''}
-                    </span>
-                    <code className="mono small">
-                      {formatFingerprint(device.fingerprint)}
-                    </code>
-                  </div>
-                  <Button
-                    small
-                    variant="danger"
-                    onClick={() => setConfirmRemove(device.id)}
-                  >
-                    Remove
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <p className="muted small">
-            Removing a phone revokes its key immediately. Pair it again to reconnect.
-          </p>
-        </Card>
-
-        <Card icon="wifi" title="Firewall and network">
-          <p className="muted small">
-            Allow inbound TCP {state.server.port || 48921} on Private networks. The full checklist
-            and the PowerShell command are on the Connection tab. If the PC and phone are on
-            different VLANs or guest Wi-Fi, direct LAN connections may be blocked.
-          </p>
-          <Notice tone="neutral" title="Unsigned app">
-            The Windows build is not code-signed. SmartScreen may warn the first time you run it.
-            Verify the SHA-256 checksum from the release page.
-          </Notice>
-        </Card>
-      </div>
-
       <Modal
         open={confirmReset}
         title="Reset the PC identity?"
@@ -292,31 +240,6 @@ export function SettingsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
           identity. Every phone must pair again with a new QR code. Use it if a device was lost or
           the key may have been exposed.
         </p>
-      </Modal>
-
-      <Modal
-        open={confirmRemove !== null}
-        title="Remove this phone?"
-        onClose={() => setConfirmRemove(null)}
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setConfirmRemove(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="danger"
-              onClick={() => {
-                const id = confirmRemove;
-                setConfirmRemove(null);
-                if (id) void ui.run(() => api.removeDevice(id), 'Phone removed');
-              }}
-            >
-              Remove
-            </Button>
-          </>
-        }
-      >
-        <p>The phone loses access immediately and must be paired again.</p>
       </Modal>
     </>
   );
