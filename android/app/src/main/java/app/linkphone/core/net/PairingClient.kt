@@ -50,12 +50,15 @@ class PairingClient(
         val failure = PairingFailureClassifier.classify(error, info.host, info.port)
         onLog("Connect failed (${failure.kind}): ${failure.detail ?: failure.message}")
 
-        if (!PairingFailureClassifier.shouldRetryWithDiscovery(failure) || discovery == null) {
+        // Bound to a local before the null check: smart casts on properties are
+        // dropped inside a lambda, and the lookup below runs inside runCatching.
+        val resolver = discovery
+        if (!PairingFailureClassifier.shouldRetryWithDiscovery(failure) || resolver == null) {
             throw error
         }
 
         onStatus("Looking for the PC on this network…")
-        val found = runCatching { discovery.findByFingerprint(info.fingerprint) }.getOrNull()
+        val found = runCatching { resolver.findByFingerprint(info.fingerprint) }.getOrNull()
         if (found == null) {
             onLog("mDNS found no PC advertising this certificate fingerprint")
             throw error
