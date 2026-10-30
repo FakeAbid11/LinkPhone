@@ -172,4 +172,74 @@ class ThemeContrastTest {
             3.0,
         )
     }
+
+    @Test
+    fun darkSurfaceContainersMeetWcag() {
+        val containers = listOf(
+            "lowest" to LinkPhonePalette.DarkSurfaceContainerLowest,
+            "low" to LinkPhonePalette.DarkSurfaceContainerLow,
+            "container" to LinkPhonePalette.DarkSurfaceContainer,
+            "high" to LinkPhonePalette.DarkSurfaceContainerHigh,
+            "highest" to LinkPhonePalette.DarkSurfaceContainerHighest,
+            "dim" to LinkPhonePalette.DarkSurfaceDim,
+            "bright" to LinkPhonePalette.DarkSurfaceBright,
+        )
+        for ((name, background) in containers) {
+            assertContrast(
+                "dark body text on surface $name",
+                LinkPhonePalette.DarkOnBackground,
+                background,
+                4.5,
+            )
+        }
+    }
+
+    @Test
+    fun lightSurfaceContainersMeetWcag() {
+        val containers = listOf(
+            "lowest" to LinkPhonePalette.LightSurfaceContainerLowest,
+            "low" to LinkPhonePalette.LightSurfaceContainerLow,
+            "container" to LinkPhonePalette.LightSurfaceContainer,
+            "high" to LinkPhonePalette.LightSurfaceContainerHigh,
+            "highest" to LinkPhonePalette.LightSurfaceContainerHighest,
+            "dim" to LinkPhonePalette.LightSurfaceDim,
+            "bright" to LinkPhonePalette.LightSurfaceBright,
+        )
+        for ((name, background) in containers) {
+            assertContrast(
+                "light body text on surface $name",
+                LinkPhonePalette.LightOnBackground,
+                background,
+                4.5,
+            )
+        }
+    }
+
+    @Test
+    fun inverseSurfacesMeetWcag() {
+        assertContrast(
+            "dark inverse text",
+            LinkPhonePalette.DarkInverseOnSurface,
+            LinkPhonePalette.DarkInverseSurface,
+            4.5,
+        )
+        assertContrast(
+            "dark inverse action label",
+            LinkPhonePalette.DarkInversePrimary,
+            LinkPhonePalette.DarkInverseSurface,
+            4.5,
+        )
+        assertContrast(
+            "light inverse text",
+            LinkPhonePalette.LightInverseOnSurface,
+            LinkPhonePalette.LightInverseSurface,
+            4.5,
+        )
+        assertContrast(
+            "light inverse action label",
+            LinkPhonePalette.LightInversePrimary,
+            LinkPhonePalette.LightInverseSurface,
+            4.5,
+        )
+    }
 }

@@ -38,6 +38,17 @@ internal object LinkPhonePalette {
     const val DarkOnErrorContainer = 0xFFFFDAD6
     const val DarkOutline = 0xFF5D6A85
     const val DarkOutlineVariant = 0xFF2C3650
+    const val DarkSurfaceDim = 0xFF0B0F19
+    const val DarkSurfaceBright = 0xFF2A3448
+    const val DarkSurfaceContainerLowest = 0xFF0E1422
+    const val DarkSurfaceContainerLow = 0xFF111726
+    const val DarkSurfaceContainer = 0xFF171F31
+    const val DarkSurfaceContainerHigh = 0xFF1C2537
+    const val DarkSurfaceContainerHighest = 0xFF212C42
+    const val DarkInverseSurface = 0xFFE7ECF5
+    const val DarkInverseOnSurface = 0xFF141A28
+    const val DarkInversePrimary = 0xFF4F46E5
+    const val DarkScrim = 0xFF000000
 
     const val LightBackground = 0xFFF7F8FC
     const val LightSurface = 0xFFFFFFFF
@@ -62,6 +73,17 @@ internal object LinkPhonePalette {
     const val LightOnErrorContainer = 0xFF410002
     const val LightOutline = 0xFF737E94
     const val LightOutlineVariant = 0xFFC6CDDC
+    const val LightSurfaceDim = 0xFFDDE2EC
+    const val LightSurfaceBright = 0xFFFFFFFF
+    const val LightSurfaceContainerLowest = 0xFFFFFFFF
+    const val LightSurfaceContainerLow = 0xFFF4F6FB
+    const val LightSurfaceContainer = 0xFFEEF1F7
+    const val LightSurfaceContainerHigh = 0xFFE8ECF4
+    const val LightSurfaceContainerHighest = 0xFFE2E7F0
+    const val LightInverseSurface = 0xFF2A3242
+    const val LightInverseOnSurface = 0xFFE7ECF5
+    const val LightInversePrimary = 0xFF8B93FF
+    const val LightScrim = 0xFF000000
 }
 
 private val DarkScheme = darkColorScheme(
@@ -89,6 +111,17 @@ private val DarkScheme = darkColorScheme(
     onErrorContainer = Color(LinkPhonePalette.DarkOnErrorContainer),
     outline = Color(LinkPhonePalette.DarkOutline),
     outlineVariant = Color(LinkPhonePalette.DarkOutlineVariant),
+    surfaceDim = Color(LinkPhonePalette.DarkSurfaceDim),
+    surfaceBright = Color(LinkPhonePalette.DarkSurfaceBright),
+    surfaceContainerLowest = Color(LinkPhonePalette.DarkSurfaceContainerLowest),
+    surfaceContainerLow = Color(LinkPhonePalette.DarkSurfaceContainerLow),
+    surfaceContainer = Color(LinkPhonePalette.DarkSurfaceContainer),
+    surfaceContainerHigh = Color(LinkPhonePalette.DarkSurfaceContainerHigh),
+    surfaceContainerHighest = Color(LinkPhonePalette.DarkSurfaceContainerHighest),
+    inverseSurface = Color(LinkPhonePalette.DarkInverseSurface),
+    inverseOnSurface = Color(LinkPhonePalette.DarkInverseOnSurface),
+    inversePrimary = Color(LinkPhonePalette.DarkInversePrimary),
+    scrim = Color(LinkPhonePalette.DarkScrim),
 )
 
 private val LightScheme = lightColorScheme(
@@ -116,9 +149,44 @@ private val LightScheme = lightColorScheme(
     onErrorContainer = Color(LinkPhonePalette.LightOnErrorContainer),
     outline = Color(LinkPhonePalette.LightOutline),
     outlineVariant = Color(LinkPhonePalette.LightOutlineVariant),
+    surfaceDim = Color(LinkPhonePalette.LightSurfaceDim),
+    surfaceBright = Color(LinkPhonePalette.LightSurfaceBright),
+    surfaceContainerLowest = Color(LinkPhonePalette.LightSurfaceContainerLowest),
+    surfaceContainerLow = Color(LinkPhonePalette.LightSurfaceContainerLow),
+    surfaceContainer = Color(LinkPhonePalette.LightSurfaceContainer),
+    surfaceContainerHigh = Color(LinkPhonePalette.LightSurfaceContainerHigh),
+    surfaceContainerHighest = Color(LinkPhonePalette.LightSurfaceContainerHighest),
+    inverseSurface = Color(LinkPhonePalette.LightInverseSurface),
+    inverseOnSurface = Color(LinkPhonePalette.LightInverseOnSurface),
+    inversePrimary = Color(LinkPhonePalette.LightInversePrimary),
+    scrim = Color(LinkPhonePalette.LightScrim),
 )
 
 private val LinkTypography = Typography(
+    displayLarge = TextStyle(
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 50.sp,
+        lineHeight = 58.sp,
+        letterSpacing = (-0.5).sp,
+    ),
+    displayMedium = TextStyle(
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 42.sp,
+        lineHeight = 50.sp,
+        letterSpacing = (-0.4).sp,
+    ),
+    displaySmall = TextStyle(
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 34.sp,
+        lineHeight = 42.sp,
+        letterSpacing = (-0.3).sp,
+    ),
+    headlineLarge = TextStyle(
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 30.sp,
+        lineHeight = 38.sp,
+        letterSpacing = (-0.25).sp,
+    ),
     headlineSmall = TextStyle(
         fontWeight = FontWeight.SemiBold,
         fontSize = 24.sp,

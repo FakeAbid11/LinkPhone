@@ -23,7 +23,8 @@ locally.
 - `SafeInputTest` — dial numbers, URL scheme allowlist, filename sanitization, clipboard cap,
   normalized gesture coordinates.
 - `ThemeContrastTest` — WCAG contrast for the light and dark palette's body text, secondary text,
-  primary text, button labels, outlines, and status-pill containers.
+  primary text, button labels, outlines, and status-pill containers, plus the Material 3 surface
+  container, inverse, and inverse-action roles.
 - `PhotoAlbumAccumulatorTest` — album counts, date-based covers, latest timestamps, and name fallback.
 - `PhotoQueryTest` — MediaStore bucket ids, keyset args, zero-date fallback, and valid-row paging.
 - `PhotoRepositoryTest` — sampling for large images and invalid dimensions.
@@ -176,6 +177,17 @@ Use two devices on the same Wi-Fi. Check each item and keep the diagnostics log 
       not show the guide again.
 - [ ] A phone that was already paired before this update skips the guide; Home's setup icon reopens it.
 - [ ] Font scale 1.3 does not clip the pinned buttons; light and dark both stay legible.
+
+### Theme and Material 3
+
+- [ ] Dark theme: the permission, install and "Forget this PC?" dialogs sit on the indigo surface, not
+      a grey.
+- [ ] Light theme: the same three dialogs, same check.
+- [ ] Switch tracks match the surrounding card in both themes.
+- [ ] QR scanner: the overlay is still dark and legible; the result panel is rounded with the theme
+      shape.
+- [ ] TalkBack reads a settings row as one item ("Check for updates automatically, Checks shortly
+      after launch and every six hours…, switch, on") instead of three separate stops.
 
 ### Interface and accessibility
 
