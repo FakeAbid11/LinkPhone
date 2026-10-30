@@ -57,6 +57,34 @@ class PairingFailureTest {
     }
 
     @Test
+    fun androidNoRouteErrnoIsNotReportedAsRefused() {
+        // The chain OkHttp produces on Android when the phone has no route at all:
+        // IOException -> ConnectException -> ErrnoException(EHOSTUNREACH). The
+        // Java type is ConnectException either way, so only the errno tells the
+        // two cases apart.
+        val errno = IOException("isConnected failed: EHOSTUNREACH (No route to host)")
+        val connect = ConnectException("Failed to connect to /$host:$port").apply {
+            initCause(errno)
+        }
+        val wrapped = IOException("Failed to connect to /$host:$port", connect)
+
+        val failure = classify(wrapped, PhoneNetwork(listOf(LocalAddress("10.123.45.67", 8))))
+
+        assertEquals(PairingFailureKind.UNREACHABLE, failure.kind)
+        assertEquals(SubnetVerdict.NO_ROUTE, failure.subnet?.verdict)
+        assertTrue(failure.message.contains("10.123.45.67/8"))
+        assertFalse(failure.message.contains("refused"))
+    }
+
+    @Test
+    fun networkUnreachableErrnoIsAlsoUnreachable() {
+        val connect = ConnectException("Failed to connect to /$host:$port").apply {
+            initCause(IOException("connect failed: ENETUNREACH (Network is unreachable)"))
+        }
+        assertEquals(PairingFailureKind.UNREACHABLE, classify(connect).kind)
+    }
+
+    @Test
     fun unknownHostIsDns() {
         val failure = classify(UnknownHostException("desktop-pc"))
         assertEquals(PairingFailureKind.DNS, failure.kind)

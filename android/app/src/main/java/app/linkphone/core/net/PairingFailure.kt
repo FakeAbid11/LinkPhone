@@ -96,7 +96,11 @@ object PairingFailureClassifier {
         val chain = causeChain(error)
         val kind = when {
             chain.any { it.isTlsFailure() } -> PairingFailureKind.TLS_PIN
-            chain.any { it is NoRouteToHostException } -> PairingFailureKind.UNREACHABLE
+            // Must precede ConnectException: on Android a missing route arrives as
+            // ConnectException wrapping ErrnoException, so the type alone cannot
+            // tell "nothing is listening" from "there is no way to get there".
+            chain.any { it is NoRouteToHostException || it.isNoRouteFailure() } ->
+                PairingFailureKind.UNREACHABLE
             chain.any { it is ConnectException } -> PairingFailureKind.REFUSED
             // InterruptedIOException also covers OkHttp's ConnectTimeoutException,
             // which is not a SocketTimeoutException.
@@ -271,6 +275,28 @@ object PairingFailureClassifier {
         this is SSLHandshakeException ||
             this is SSLPeerUnverifiedException ||
             this is CertificateException
+
+    /**
+     * True when the OS said the packet had nowhere to go.
+     *
+     * Android reports this as `android.system.ErrnoException` inside OkHttp's
+     * ConnectException — a framework type that carries no usable signal without
+     * an Android dependency in this otherwise pure file, so the errno symbol is
+     * what gets matched. These strings come from the kernel and strerror, not
+     * from OkHttp, so the mapping does not depend on a library's wording the way
+     * a message-based check normally would.
+     */
+    private fun Throwable.isNoRouteFailure(): Boolean {
+        val text = message ?: return false
+        return NO_ROUTE_MARKERS.any { text.contains(it, ignoreCase = true) }
+    }
+
+    private val NO_ROUTE_MARKERS = listOf(
+        "EHOSTUNREACH",
+        "ENETUNREACH",
+        "No route to host",
+        "Network is unreachable",
+    )
 
     /** Outermost and root text, single line, capped — enough to search for. */
     private fun describe(error: Throwable): String? {
