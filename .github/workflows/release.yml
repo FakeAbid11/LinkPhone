@@ -132,11 +132,28 @@ jobs:
           cat SHA256SUMS.txt
           ls -lh
 
+      - name: Extract release notes for this tag
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v want="## LinkPhone v${version}" '
+            index($0, want) == 1 { inside = 1 }
+            inside && /^## LinkPhone v/ && index($0, want) != 1 { exit }
+            inside { print }
+          ' docs/release-notes.md > "$RUNNER_TEMP/notes.md"
+          # A missing section must not publish a release with no body, and must
+          # not publish the whole changelog either.
+          if [ ! -s "$RUNNER_TEMP/notes.md" ]; then
+            echo "::warning::No release-notes section for v${version}; falling back to the file header."
+            head -40 docs/release-notes.md > "$RUNNER_TEMP/notes.md"
+          fi
+          wc -l "$RUNNER_TEMP/notes.md"
+          head -3 "$RUNNER_TEMP/notes.md"
+
       - name: Create release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "$GITHUB_REF_NAME" \
             --title "LinkPhone $GITHUB_REF_NAME" \
-            --notes-file docs/release-notes.md \
+            --notes-file "$RUNNER_TEMP/notes.md" \
             artifacts/*
