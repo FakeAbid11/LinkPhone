@@ -450,6 +450,7 @@ body {
 
 .switch {
   position: relative;
+  flex: 0 0 auto;
   width: 52px;
   height: 32px;
   padding: 0;
@@ -484,6 +485,9 @@ body {
   width: 24px;
   height: 24px;
   background: var(--md-on-primary);
+  /* Restated on purpose: the knob is centred with a transform, so any rule that
+     sets `transform` on this element would also move it out of the track. */
+  transform: translateY(-50%);
 }
 
 /* ---- Text fields (filled) --------------------------------------- */

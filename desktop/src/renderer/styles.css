@@ -1007,35 +1007,9 @@ button {
   max-width: 440px;
 }
 
-.switch {
-  width: 42px;
-  height: 24px;
-  flex: 0 0 auto;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--input-bg);
-  padding: 2px;
-  transition: background 150ms ease, border-color 150ms ease;
-}
-
-.switch span {
-  display: block;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #7f8ca6;
-  transition: transform 150ms ease, background 150ms ease;
-}
-
-.switch.is-on {
-  background: rgb(var(--primary-rgb) / 0.18);
-  border-color: rgb(var(--primary-rgb) / 0.5);
-}
-
-.switch.is-on span {
-  transform: translateX(18px);
-  background: var(--primary);
-}
+/* The switch lives in m3.css, which loads after this file. A second definition
+   here used to win for `transform` on the on-state knob, which moved it out of
+   the track and off the vertical centre. Keep exactly one owner. */
 
 .empty {
   display: flex;
