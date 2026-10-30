@@ -29,12 +29,20 @@ function harness(options?: { notifications?: NotificationWire[] }) {
   const requests: Array<{ type: string; data: unknown }> = [];
   let notifications = options?.notifications ?? [];
   let failList = false;
+  let busyLeft = 0;
   const session = {
     device: { id: 'phone-1' },
     request: async (type: string, data: unknown) => {
       requests.push({ type, data });
       if (type === TYPES.NOTIF_LIST) {
         if (failList) throw new Error('The phone did not answer');
+        if (busyLeft > 0) {
+          busyLeft -= 1;
+          const busy = new Error('Notification access is granted but the listener has not started')
+            as Error & { code?: string };
+          busy.code = 'BUSY';
+          throw busy;
+        }
         return {
           v: 1,
           id: 'reply',
@@ -73,6 +81,9 @@ function harness(options?: { notifications?: NotificationWire[] }) {
     setFailList: (value: boolean) => {
       failList = value;
     },
+    setBusyList: (value: number) => {
+      busyLeft = value;
+    },
   };
 }
 
@@ -106,6 +117,19 @@ describe('Live notification mirror', () => {
     expect(service.status().items).toHaveLength(1);
     expect(service.status().items[0].text).toBe('4 new messages');
     expect(toasts).toHaveLength(1);
+  });
+
+  it('retries while the phone is still binding its notification listener', async () => {
+    const { session, service, setBusyList, setNotifications } = harness();
+    setNotifications([wire('a', 'com.messenger', 'Ada', '1 new message', 1_000)]);
+    setBusyList(1);
+    service.onConnected(session);
+    await service.refresh();
+
+    // One BUSY is a starting listener, not a permission problem: it must not
+    // surface as an error the user cannot act on.
+    expect(service.status().error).toBeUndefined();
+    expect(service.status().items.map((item) => item.key)).toEqual(['a']);
   });
 
   it('re-reads the phone when the notifications change', async () => {
