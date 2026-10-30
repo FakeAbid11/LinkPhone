@@ -20,7 +20,7 @@ import {
   type ToastItem,
 } from './components';
 import type { Ui } from './ui';
-import { batteryLabel, batteryTone, errorMessage, formatFingerprint } from './utils';
+import { batteryLabel, batteryTone, errorMessage, formatExpiry, formatFingerprint } from './utils';
 import { AppsView } from './views/AppsView';
 import { CallsView } from './views/CallsView';
 import { ConnectView } from './views/ConnectView';
@@ -438,6 +438,7 @@ function AppShell() {
             </div>
             <div className="approval-meta">
               <Badge tone="neutral">{request.platform}</Badge>
+              <PairingCountdown expiresAt={request.expiresAt} />
               <span className="muted small">
                 Only approve if you just scanned the pairing QR code shown on this PC and the
                 phone is yours.
@@ -450,6 +451,25 @@ function AppShell() {
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
+}
+
+/**
+ * The approval prompt used to disappear at its deadline with no explanation.
+ * Keeping the remaining time on screen makes it read as a timeout rather than a
+ * bug. Module scope on purpose: inside AppShell it would remount on every
+ * parent render and restart the interval.
+ */
+function PairingCountdown({ expiresAt }: { expiresAt: number }) {
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setTick((value) => value + 1), 1_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  if (!Number.isFinite(expiresAt)) return null;
+  if (expiresAt <= Date.now()) return <Badge tone="bad">Request expired</Badge>;
+  return <Badge tone="good">Expires in {formatExpiry(expiresAt)}</Badge>;
 }
 
 interface ErrorBoundaryState {
