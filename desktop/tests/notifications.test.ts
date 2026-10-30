@@ -38,8 +38,9 @@ function harness(options?: { notifications?: NotificationWire[] }) {
         if (failList) throw new Error('The phone did not answer');
         if (busyLeft > 0) {
           busyLeft -= 1;
-          const busy = new Error('Notification access is granted but the listener has not started')
-            as Error & { code?: string };
+          const busy: Error & { code?: string } = new Error(
+            'Notification access is granted but the listener has not started',
+          );
           busy.code = 'BUSY';
           throw busy;
         }
