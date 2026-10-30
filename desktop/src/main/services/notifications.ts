@@ -11,6 +11,7 @@ export interface NotificationStatus {
 }
 
 const MAX_ITEMS = 100;
+const MAX_SEEN = 500;
 const REFRESH_DELAY_MS = 300;
 
 /**
@@ -26,6 +27,8 @@ export class NotificationService {
   private error: string | undefined;
   private session: PeerSession | undefined;
   private debounce: NodeJS.Timeout | undefined;
+  /** Bumped whenever a pushed notification lands, so a stale list is dropped. */
+  private generation = 0;
   /** The first sync after connecting must not pop up old notifications. */
   private primed = false;
 
@@ -79,6 +82,7 @@ export class NotificationService {
   private async load(): Promise<void> {
     const session = this.session;
     if (!session) return;
+    const generation = this.generation;
     this.loading = true;
     this.error = undefined;
     this.onChange();
@@ -91,6 +95,12 @@ export class NotificationService {
       const data = response.data;
       if (!data || !Array.isArray(data.notifications)) {
         throw new Error('The phone returned an invalid notification list');
+      }
+      if (generation !== this.generation) {
+        // A notification arrived while this list was in flight. It is newer
+        // than the snapshot, so re-read instead of overwriting it.
+        this.markDirty(session);
+        return;
       }
       this.apply(data.notifications);
       this.primed = true;
@@ -109,6 +119,7 @@ export class NotificationService {
     if (session !== this.session || !data) return;
     const item = this.toItem(data);
     if (!item) return;
+    this.generation += 1;
     this.items = [item, ...this.items.filter((existing) => existing.key !== item.key)]
       .sort((a, b) => b.time - a.time)
       .slice(0, MAX_ITEMS);
@@ -118,6 +129,7 @@ export class NotificationService {
 
   remove(session: PeerSession, key: string | undefined): void {
     if (session !== this.session || typeof key !== 'string') return;
+    this.generation += 1;
     this.items = this.items.filter((item) => item.key !== key);
     this.seen.delete(key);
     this.onChange();
@@ -166,11 +178,26 @@ export class NotificationService {
 
   /** Shows a card and pops a toast only for a notification the PC has not seen. */
   private surface(item: NotificationUi): void {
-    if (this.seen.has(item.key)) return;
-    this.seen.add(item.key);
+    if (!this.remember(item.key)) return;
     if (!this.primed) return;
     if (!this.store.settings.notificationsToasts || !item.title) return;
     this.toast(item.appName, item.text ? `${item.title} — ${item.text}` : item.title);
+  }
+
+  /**
+   * Records a key as seen. The set is capped so a long session cannot grow it
+   * without bound: the oldest key is forgotten first, which at worst re-toasts
+   * a notification hundreds of others have since pushed aside.
+   */
+  private remember(key: string): boolean {
+    if (this.seen.has(key)) return false;
+    this.seen.add(key);
+    while (this.seen.size > MAX_SEEN) {
+      const oldest = this.seen.values().next().value;
+      if (oldest === undefined) break;
+      this.seen.delete(oldest);
+    }
+    return true;
   }
 
   private toItem(data: NotificationWire): NotificationUi | null {

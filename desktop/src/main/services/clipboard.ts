@@ -50,6 +50,10 @@ export class ClipboardService {
     const value = truncateText(text, 32_000);
     this.lastReceived = value;
     this.writeClipboard(value);
+    // Remember it as already sent: otherwise the auto-send poll sees "new"
+    // clipboard text and pushes the phone's own text straight back to it.
+    this.lastSentText = value;
+    this.lastSentAt = Date.now();
     this.logger.log('Clipboard', 'Received text from the phone');
     this.toast('Clipboard', 'Text from your phone is now on the PC clipboard.');
     this.onChange();

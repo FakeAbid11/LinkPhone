@@ -192,4 +192,22 @@ describe('Live notification mirror', () => {
     expect(service.status().items).toHaveLength(1);
     expect(toasts).toHaveLength(0);
   });
+
+  it('bounds the remembered keys so a long session cannot grow without limit', async () => {
+    const { session, service, toasts } = harness();
+    service.onConnected(session);
+    await service.refresh();
+
+    for (let index = 0; index < 600; index += 1) {
+      service.add(
+        session,
+        wire(`k${index}`, 'com.messenger', 'Ada', `message ${index}`, 1_000 + index),
+      );
+    }
+    expect(toasts).toHaveLength(600);
+
+    // The oldest key was evicted, so a re-post counts as new again.
+    service.add(session, wire('k0', 'com.messenger', 'Ada', 'message 0 again', 2_000));
+    expect(toasts).toHaveLength(601);
+  });
 });

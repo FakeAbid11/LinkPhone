@@ -67,11 +67,11 @@ export class HandoffService {
     if (session !== this.session || !meta) return;
     if (typeof meta.streamId !== 'number') return;
     if (!isImageMime(meta.mime)) {
-      this.rejectStream(meta.streamId, 'Only image files are accepted');
+      this.rejectShare(meta.name, 'Only image files can be shared to the PC');
       return;
     }
     if (!Number.isFinite(meta.size) || meta.size <= 0 || meta.size > MAX_FILE_BYTES) {
-      this.rejectStream(meta.streamId, 'File is too large');
+      this.rejectShare(meta.name, 'That file is larger than 20 MB');
       return;
     }
     const safeName = sanitizeFileName(meta.name, 'shared-image.jpg');
@@ -130,8 +130,13 @@ export class HandoffService {
     this.onChange();
   }
 
-  private rejectStream(streamId: number, reason: string): void {
-    const pending = this.streams.has(streamId);
-    this.logger.log('Handoff', `Rejected shared file: ${reason}${pending ? '' : ' (no stream)'}`);
+  /**
+   * A share the PC will not accept. The phone has already started sending, so
+   * the only useful thing left is to say so instead of dropping it silently.
+   */
+  private rejectShare(name: string, reason: string): void {
+    const label = sanitizeFileName(name, 'file');
+    this.logger.log('Handoff', `Rejected shared file ${label}: ${reason}`);
+    this.toast('Image not received', `${reason}. ${label} was not saved.`);
   }
 }

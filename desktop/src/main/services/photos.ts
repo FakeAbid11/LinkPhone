@@ -91,6 +91,7 @@ export class PhotoService {
     this.albumsError = undefined;
     this.epoch += 1;
     this.inFlight.clear();
+    this.thumbnails.clear();
     this.onChange();
   }
 
