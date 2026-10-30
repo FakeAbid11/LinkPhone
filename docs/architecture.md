@@ -83,7 +83,11 @@ Android (Kotlin/Compose)                         Windows PC (Electron/React)
 ### 2. Pairing
 
 1. Phone scans `linkphone://pair?h=…&p=…&f=…&t=…&n=…` (or the user types the fields).
-2. Phone connects with `wss://`, trusting only the certificate whose SHA-256 matches `f`.
+2. Phone connects with `wss://`, trusting only the certificate whose SHA-256 matches `f`. If that
+   address refuses the connection — a new DHCP lease, or a code that froze a VPN or Hyper-V
+   adapter — the phone looks the PC up over mDNS by the same fingerprint and retries **once** at the
+   address it actually holds. The fingerprint is unchanged, so the trust anchor still comes only
+   from the QR, and the address that worked is what gets saved.
 3. Phone sends `pair.request` with the one-time token and its SPKI P-256 public key.
 4. PC validates the token, rate-limits failures, and shows a consent dialog with the phone's key
    fingerprint. The request expires after 90 seconds.

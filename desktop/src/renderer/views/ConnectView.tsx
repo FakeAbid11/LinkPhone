@@ -44,12 +44,16 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
 
   const firewallCommand = `New-NetFirewallRule -DisplayName "LinkPhone" -Direction Inbound -Protocol TCP -LocalPort ${state.server.port || 48921} -Action Allow -Profile Private`;
 
-  // The pairing offer always points at this same address, so the identity block
-  // below is the single place it is shown.
-  const serverAddress =
+  // The identity block shows where the PC is reachable *now*. The pairing card
+  // shows what the code actually carries. Those diverge when the PC changes
+  // network while a code is on screen — and it is the code that goes stale, so
+  // the two are computed separately rather than assumed equal.
+  const currentAddress =
     state.server.addresses.length > 0
       ? `${state.server.addresses[0]}:${state.server.port}`
       : '';
+  const offerAddress = offer ? `${offer.host}:${offer.port}` : '';
+  const offerIsStale = Boolean(offer && currentAddress && offerAddress !== currentAddress);
 
   return (
     <>
@@ -143,12 +147,12 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
             <div>
               <span className="meta-label">Address</span>
               <div className="copy-row">
-                <code>{serverAddress || 'No LAN address found'}</code>
-                {serverAddress && (
+                <code>{currentAddress || 'No LAN address found'}</code>
+                {currentAddress && (
                   <Button
                     small
                     variant="ghost"
-                    onClick={() => void copy(serverAddress, 'Address')}
+                    onClick={() => void copy(currentAddress, 'Address')}
                   >
                     Copy
                   </Button>
@@ -230,10 +234,32 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
                   {state.pairing.error}
                 </Notice>
               )}
+              {offerIsStale && (
+                <Notice tone="warn" title="This code points at a different address">
+                  The code carries <code>{offerAddress}</code>, but the PC is now at{' '}
+                  <code>{currentAddress}</code>. A phone that scans it will not reach this PC —
+                  create a new code.
+                </Notice>
+              )}
               <div className={`qr-frame ${expired ? 'is-expired' : ''}`}>
                 <img src={offer.qrDataUrl} alt="LinkPhone pairing QR code" />
               </div>
               <div className="pair-facts">
+                <div>
+                  {/* What the QR actually contains, so it can be compared with
+                      ipconfig on the PC without decoding the image. */}
+                  <span className="meta-label">Address in this code</span>
+                  <div className="copy-row">
+                    <code>{offerAddress}</code>
+                    <Button
+                      small
+                      variant="ghost"
+                      onClick={() => void copy(offerAddress, 'Address')}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                </div>
                 <div>
                   <span className="meta-label">Pairing code</span>
                   <div className="copy-row">

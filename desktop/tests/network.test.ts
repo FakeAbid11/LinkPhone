@@ -1,6 +1,11 @@
 import os from 'node:os';
 import { describe, expect, it } from 'vitest';
-import { getLanAddresses, isPrivateIPv4, orderAddresses } from '../src/main/core/network';
+import {
+  getLanAddresses,
+  isPrivateIPv4,
+  isVirtualInterface,
+  orderAddresses,
+} from '../src/main/core/network';
 
 describe('LAN address selection', () => {
   it('puts the default-route address first', () => {
@@ -39,5 +44,61 @@ describe('LAN address selection', () => {
     const actual = getLanAddresses();
     expect(new Set(actual)).toEqual(expected);
     expect(new Set(actual).size).toBe(actual.length);
+  });
+});
+
+/**
+ * A VPN tunnel or a Hyper-V switch holds an ordinary RFC1918 address, so the
+ * address alone cannot tell us the phone has no route to it. Before this, the
+ * pairing QR could carry the virtual adapter's address and every connection
+ * attempt was refused.
+ */
+describe('virtual adapter handling', () => {
+  const aliases: Record<string, string> = {
+    '172.20.0.1': 'vEthernet (WSL)',
+    '192.168.0.111': 'Wi-Fi',
+    '10.8.0.2': 'WireGuard Tunnel',
+  };
+
+  it('demotes a virtual adapter below the physical LAN', () => {
+    const ordered = orderAddresses(['172.20.0.1', '192.168.0.111'], null, aliases);
+    expect(ordered).toEqual(['192.168.0.111', '172.20.0.1']);
+  });
+
+  it('does not let a VPN default route win', () => {
+    const ordered = orderAddresses(['10.8.0.2', '192.168.0.111'], '10.8.0.2', aliases);
+    expect(ordered[0]).toBe('192.168.0.111');
+  });
+
+  it('still prefers a physical default route', () => {
+    const ordered = orderAddresses(['10.8.0.2', '192.168.0.111'], '192.168.0.111', aliases);
+    expect(ordered[0]).toBe('192.168.0.111');
+  });
+
+  it('keeps the previous ordering when adapter names are unknown', () => {
+    // Both addresses are private, so the legacy rule is plain alphabetical order.
+    expect(orderAddresses(['172.20.0.1', '192.168.0.111'], null)).toEqual([
+      '172.20.0.1',
+      '192.168.0.111',
+    ]);
+  });
+
+  it('recognises virtual adapters by alias', () => {
+    for (const name of [
+      'vEthernet (Default Switch)',
+      'Hyper-V Virtual Ethernet Adapter',
+      'VMware Network Adapter VMnet8',
+      'VirtualBox Host-Only Network',
+      'Tailscale',
+      'WireGuard Tunnel',
+      'ZeroTier One [8056c2e2]',
+      'WSL',
+      'tun0',
+    ]) {
+      expect(isVirtualInterface(name), name).toBe(true);
+    }
+    for (const name of ['Wi-Fi', 'Ethernet', 'Ethernet 2', 'Wi-Fi 2']) {
+      expect(isVirtualInterface(name), name).toBe(false);
+    }
   });
 });

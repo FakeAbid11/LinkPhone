@@ -16,6 +16,9 @@ locally.
 `android/app/src/test/java/app/linkphone`:
 
 - `PairingUriTest` — QR URI parsing, fingerprint/token/port validation, normalization.
+- `core/net/PairingFailureTest` — exception-to-message mapping by type, cause-chain unwrapping
+  through OkHttp's wrappers, pass-through of the PC's own auth text, single-line capped detail, and
+  which failures are eligible for the mDNS retry.
 - `CryptoTest` — SHA-256 known vector, hex/fingerprint formatting, canonical auth payload.
 - `ProtocolCodecTest` — envelope round-trip, unknown fields, version rejection, size limit, binary
   frame header/type/chunk tests.
@@ -69,9 +72,14 @@ gradle -p android :app:testDebugUnitTest :app:lintDebug
 - `safety.test.ts` — dialing, URL allowlist, filename traversal, fingerprints, SMS grouping/merge.
 - `calls.test.ts` — dial payload with/without a SIM, answer/end/speaker requests, speaker state
   mapping, validation, connected-session requirement, and on-demand contact loading.
+- `network.test.ts` — LAN address ordering: default-route preference, private before public, no
+  mutation of the caller's array, demotion of virtual/VPN adapters below the physical LAN, refusal to
+  prefer a VPN default route, and the unchanged legacy order when adapter names are unknown.
 - `server.test.ts` — **real TLS/WebSocket integration**: pair a phone, store its key, reject bad
   tokens/rejections, authenticate with a real ECDSA signature, reject a bad signature/unknown phone,
-  reject pairing while busy, route a phone event.
+  reject pairing while busy, route a phone event, and record the inbound trail a failed connection
+  leaves (TCP accept, TLS handshake failure, hello and its refusal reason, the pair request — never
+  the token).
 - `tls.test.ts` — certificate stability, exact pinned-certificate fingerprint, rejection of an
   untrusted self-signed certificate.
 - `store.test.ts` — persistence, dedupe of muted packages, remove/reset, corrupt-file recovery,

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
@@ -29,6 +30,7 @@ interface Harness {
   server: LinkServer;
   store: Store;
   pairings: PairingManager;
+  logger: Logger;
   port: number;
   state: {
     authorized?: PeerSession;
@@ -65,6 +67,7 @@ async function setup(
     server: undefined as unknown as LinkServer,
     store,
     pairings,
+    logger,
     port: 0,
     state: { pairingRequests: 0, messages: [], closed: [], pairingSocketClosed: [] },
     clients: [],
@@ -490,5 +493,116 @@ describe('LinkServer pairing and authentication', () => {
     });
     const rejected = await second.waitFor(TYPES.PAIR_REJECTED);
     expect(rejected.error?.code).toBe('BUSY');
+  });
+});
+
+/**
+ * "The phone cannot connect" used to leave an empty log, because nothing was
+ * recorded before the first application frame: a dropped SYN and a failed TLS
+ * handshake looked identical. These tests pin the lines that make them
+ * distinguishable.
+ */
+describe('LinkServer inbound diagnostics', () => {
+  function logText(harness: Harness): string {
+    return harness.logger.lines().join('\n');
+  }
+
+  it('records a TCP connection and a failed TLS handshake', async () => {
+    const harness = await startHarness();
+    const socket = net.createConnection(harness.port, '127.0.0.1');
+    await new Promise<void>((resolve, reject) => {
+      socket.once('connect', () => resolve());
+      socket.once('error', reject);
+    });
+    // Not a TLS record, so the handshake fails before `ws` ever sees it.
+    socket.write('GET / HTTP/1.1\r\n\r\n');
+
+    await waitUntil(() => logText(harness).includes('TCP connection from 127.0.0.1'));
+    await waitUntil(() => logText(harness).includes('TLS handshake ended from 127.0.0.1'));
+    socket.destroy();
+  });
+
+  it('records a hello from an unknown device and why it was refused', async () => {
+    const harness = await startHarness();
+    const client = await Client.open(harness.port);
+    harness.clients.push(client);
+    const phone = makePhone();
+
+    client.send(TYPES.HELLO, {
+      deviceId: 'stranger',
+      phoneName: 'Unknown phone',
+      platform: 'android',
+      appVersion: '0.8.4',
+      publicKeySpki: phone.spkiBase64,
+      protocol: 1,
+    });
+    const error = await client.waitFor(TYPES.AUTH_ERROR);
+    expect(error.error?.code).toBe('UNKNOWN_DEVICE');
+
+    await waitUntil(() => logText(harness).includes('Hello from 127.0.0.1'));
+    await waitUntil(() => logText(harness).includes('unknown device'));
+  });
+
+  it('records why a second phone was refused', async () => {
+    const harness = await startHarness();
+    const phone = makePhone();
+    const key = parsePhoneKey(phone.spkiBase64, phone.fingerprint);
+    harness.store.addDevice({
+      id: 'phone-1',
+      name: 'Test phone',
+      platform: 'android',
+      publicKeyPem: key.pem,
+      fingerprint: key.fingerprint,
+      pairedAt: Date.now(),
+    });
+    const second = makePhone();
+    const secondKey = parsePhoneKey(second.spkiBase64, second.fingerprint);
+    harness.store.addDevice({
+      id: 'phone-2',
+      name: 'Second phone',
+      platform: 'android',
+      publicKeyPem: secondKey.pem,
+      fingerprint: secondKey.fingerprint,
+      pairedAt: Date.now(),
+    });
+
+    const first = await Client.open(harness.port);
+    harness.clients.push(first);
+    await authenticate(harness, first, phone);
+
+    const other = await Client.open(harness.port);
+    harness.clients.push(other);
+    other.send(TYPES.HELLO, {
+      deviceId: 'phone-2',
+      phoneName: 'Second phone',
+      platform: 'android',
+      appVersion: '0.8.4',
+      publicKeySpki: second.spkiBase64,
+      protocol: 1,
+    });
+    const error = await other.waitFor(TYPES.AUTH_ERROR);
+    expect(error.error?.code).toBe('BUSY');
+
+    await waitUntil(() => logText(harness).includes('another phone is connected'));
+  });
+
+  it('records the pair request before approval and never the token', async () => {
+    const approval = deferred<PairingDecision>();
+    const harness = await startHarness(async () => approval.promise);
+    const client = await Client.open(harness.port);
+    harness.clients.push(client);
+    const phone = makePhone();
+    const session = harness.pairings.create();
+
+    client.send(TYPES.PAIR_REQUEST, pairPayload(session.token, 'phone-1', phone.spkiBase64));
+    await client.waitFor(TYPES.PAIR_PENDING);
+
+    await waitUntil(() => logText(harness).includes('Pair request from 127.0.0.1'));
+    // The token is a credential: it must never reach the log file.
+    expect(logText(harness)).not.toContain(session.token);
+
+    approval.resolve({ approved: true });
+    const ok = await client.waitFor(TYPES.PAIR_OK);
+    expect(ok.type).toBe(TYPES.PAIR_OK);
   });
 });

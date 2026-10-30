@@ -29,33 +29,94 @@ function defaultRouteAddress(): string | null {
 }
 
 /**
- * Default-route address first, then RFC1918, then the rest. The pairing QR can
- * only carry one host, and a VPN or Hyper-V adapter would otherwise win.
+ * Adapter names that never carry the LAN the phone is on.
+ *
+ * A VPN tunnel and a Hyper-V/WSL/VMware switch both hold a perfectly ordinary
+ * RFC1918 address, so the address alone cannot tell us the phone has no route to
+ * it. Matching is anchored where the vendor name starts the alias, and open
+ * where the vendor name can appear after a prefix ("Hyper-V Virtual Ethernet
+ * Adapter #2").
  */
-export function orderAddresses(addresses: string[], preferred?: string | null): string[] {
+const VIRTUAL_INTERFACE_PATTERNS: RegExp[] = [
+  /^vEthernet/i,
+  /hyper-?v/i,
+  /^VMware/i,
+  /^VirtualBox/i,
+  /^vboxnet/i,
+  /^tailscale/i,
+  /^wireguard/i,
+  /^wg\d/i,
+  /^zerotier/i,
+  /^zt[a-z0-9]+/i,
+  /^wsl/i,
+  /^docker/i,
+  /^br-/i,
+  /^utun/i,
+  /^tun\d/i,
+  /^tap\d/i,
+  /^npcap/i,
+  /^loopback/i,
+  /^bluetooth/i,
+];
+
+export function isVirtualInterface(name: string): boolean {
+  const trimmed = name.trim();
+  if (!trimmed) return false;
+  return VIRTUAL_INTERFACE_PATTERNS.some((pattern) => pattern.test(trimmed));
+}
+
+/**
+ * Default-route address first, then physical RFC1918, then virtual adapters,
+ * then the rest. The pairing QR can only carry one host, and a VPN or Hyper-V
+ * adapter would otherwise win — which is how a code ends up pointing at an
+ * address that refuses every connection.
+ *
+ * `interfaceNames` maps an address to the adapter alias that owns it. It is
+ * optional so existing callers keep the previous ordering exactly.
+ */
+export function orderAddresses(
+  addresses: string[],
+  preferred?: string | null,
+  interfaceNames?: Record<string, string>,
+): string[] {
+  const isVirtual = (address: string): boolean => {
+    const name = interfaceNames?.[address];
+    return Boolean(name && isVirtualInterface(name));
+  };
+  const rank = (address: string): number => {
+    if (isVirtual(address)) return 2;
+    return isPrivateIPv4(address) ? 0 : 1;
+  };
+  // A preferred address on a virtual adapter routes to the internet but not to
+  // the phone, so it must not be preferred.
+  const usablePreferred = preferred && !isVirtual(preferred) ? preferred : null;
+
   return [...addresses].sort((a, b) => {
-    if (preferred) {
-      if (a === preferred && b !== preferred) return -1;
-      if (b === preferred && a !== preferred) return 1;
+    if (usablePreferred) {
+      if (a === usablePreferred && b !== usablePreferred) return -1;
+      if (b === usablePreferred && a !== usablePreferred) return 1;
     }
-    const aPrivate = isPrivateIPv4(a) ? 0 : 1;
-    const bPrivate = isPrivateIPv4(b) ? 0 : 1;
-    return aPrivate - bPrivate || a.localeCompare(b);
+    const byRank = rank(a) - rank(b);
+    return byRank !== 0 ? byRank : a.localeCompare(b);
   });
 }
 
 export function getLanAddresses(): string[] {
   const addresses: string[] = [];
+  const interfaceNames: Record<string, string> = {};
   const interfaces = os.networkInterfaces();
-  for (const entries of Object.values(interfaces)) {
+  for (const [name, entries] of Object.entries(interfaces)) {
     for (const entry of entries ?? []) {
       if (entry.family !== 'IPv4') continue;
       if (entry.internal) continue;
       if (entry.address.startsWith('169.254.')) continue;
-      if (!addresses.includes(entry.address)) addresses.push(entry.address);
+      if (!addresses.includes(entry.address)) {
+        addresses.push(entry.address);
+        interfaceNames[entry.address] = name;
+      }
     }
   }
-  return orderAddresses(addresses, defaultRouteAddress());
+  return orderAddresses(addresses, defaultRouteAddress(), interfaceNames);
 }
 
 export function isPrivateIPv4(address: string): boolean {

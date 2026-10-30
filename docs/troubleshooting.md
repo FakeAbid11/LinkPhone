@@ -19,6 +19,77 @@ events and error classes, not message contents.
 The PC has no private IPv4 address. Connect it to Wi-Fi or Ethernet. If only a VPN adapter is
 present, disconnect the VPN. LinkPhone ignores loopback and link-local (`169.254.x.x`) addresses.
 
+### “Failed to connect to 192.168.0.111:48921”
+
+The phone reached the network but never reached a listener. The exact wording tells you which
+layer failed, and the two forms have different causes:
+
+| Message | Meaning |
+|---|---|
+| `Failed to connect to /192.168.0.111:48921` | The address **refused** the connection, or has no route. Nothing is listening there. |
+| `failed to connect to /192.168.0.111:48921 after 8000ms` | Packets are being **dropped** silently — firewall, AP isolation, or a VPN. |
+| `PC certificate fingerprint does not match…` | Something answered, but not this PC. See the certificate section below. |
+
+Work through these in order; each one eliminates the previous hypothesis.
+
+**1. Is that address still the PC's?** On the PC:
+
+```powershell
+Get-NetIPAddress -AddressFamily IPv4 | Select-Object IPAddress, InterfaceAlias
+```
+
+The address in the code must appear on the adapter that is on the shared network. Ignore
+`vEthernet (…)`, `VMware`, `VirtualBox`, `Tailscale`, `WireGuard`, and `ZeroTier` — a phone cannot
+reach those. If the address is missing, the code is stale (the PC took a new DHCP lease): create a
+new code and rescan. Connection → **Address in this code** shows exactly what the QR carries.
+
+**2. Is anything listening?** On the PC:
+
+```powershell
+netstat -ano | findstr 48921
+```
+
+You need a line ending `0.0.0.0:48921 … LISTENING`. `127.0.0.1:48921` means the server is bound to
+loopback only; no line means the desktop app is not running, or it fell back to 48922–48930 — check
+the port shown in Connection → Your PC.
+
+**3. Can the phone reach it at all?** Open this in the **phone's** browser, with mobile data off and
+any VPN disconnected:
+
+```
+https://192.168.0.111:48921/
+```
+
+| What the phone shows | Meaning | Next step |
+|---|---|---|
+| Certificate warning → proceed → `LinkPhone secure endpoint. Use the desktop app.` | TCP and TLS both work. The network is fine; the problem is the pairing handshake itself. | Check the code is unexpired and unused, then rescan. |
+| Instant “refused” / “site can't be reached” | Nothing is listening at that address. | Go back to steps 1–2. |
+| Long spinner, then “timed out” | Packets are dropped. | Firewall (below), AP isolation, or a VPN. |
+
+**4. Phone-side interference.** Turn off any VPN app entirely (not just “disconnect”): Android VPNs
+commonly block non-tunnelled traffic, which produces exactly the instant refusal above. Turn off
+mobile data for the test, confirm the phone's own address is in the same `/24` as the PC's, and make
+sure the Wi-Fi is not a guest network.
+
+**5. Read the PC log.** This build records an inbound attempt before any application frame:
+
+```
+[Server] TCP connection from 192.168.0.57:51234
+[Server] TLS handshake ended from 192.168.0.57: <reason>
+[Auth]   Hello from 192.168.0.57 (device 3f9a1c2e…, app 0.8.4)
+[Pair]   Pair request from 192.168.0.57 (Pixel 7)
+```
+
+- **No `TCP connection` line at all** → the packet never arrived: wrong address (step 1), a different
+  subnet or AP isolation (step 4), or a firewall dropping it.
+- **`TCP connection` then `TLS handshake ended`** → something answered that is not LinkPhone, or a
+  proxy/antivirus is intercepting TLS.
+- **`Hello from …` or `Pair request from …` then a rejection** → the network is fine; read the reason
+  on the next line.
+
+The phone also records the failure in Diagnostics (`[Pair] … failed (REFUSED)`), with a **Copy
+detail** button on the pairing screen for reporting.
+
 ### Firewall blocks the connection
 
 Allow inbound TCP **48921** (or the port shown in Settings) on **Private** networks. Run the
@@ -30,6 +101,11 @@ New-NetFirewallRule -DisplayName "LinkPhone" -Direction Inbound -Protocol TCP -L
 
 If Windows classifies the network as Public, change it to Private or add a rule for Public only if
 you understand the exposure. Do not expose the port to the internet.
+
+A blocked inbound packet is *dropped*, not refused, so it shows up as
+`failed to connect to … after 8000ms` rather than an instant `Failed to connect to …`. If the
+message has no “after …ms” suffix, the firewall is not the cause — work through the section above
+first.
 
 ### Guest Wi-Fi / AP isolation
 

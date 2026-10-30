@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -34,11 +35,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.linkphone.core.crypto.PairingUri
+import app.linkphone.core.net.SubnetReport
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -235,6 +238,51 @@ fun PairScreen(vm: LinkViewModel, onScan: () -> Unit, onBack: () -> Unit) {
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.error,
                         )
+                        current.subnet?.let { SubnetFacts(it) }
+                        if (current.checklist.isNotEmpty()) {
+                            Text(
+                                "What to check",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 14.dp),
+                            )
+                            current.checklist.forEach { check ->
+                                Text(
+                                    "• $check",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 4.dp),
+                                )
+                            }
+                        }
+                        val detail = current.detail
+                        if (detail != null) {
+                            // Kept, not buried: this is the line to quote when
+                            // reporting the problem, and it is what tells a
+                            // refused connection apart from a dropped packet.
+                            Text(
+                                "Technical detail",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 14.dp),
+                            )
+                            SelectionContainer {
+                                Text(
+                                    detail,
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            TextButton(
+                                onClick = {
+                                    clipboard.setText(AnnotatedString(detail))
+                                },
+                            ) {
+                                Text("Copy detail")
+                            }
+                        }
                         Row(
                             modifier = Modifier.padding(top = 10.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -270,5 +318,36 @@ fun PairScreen(vm: LinkViewModel, onScan: () -> Unit, onBack: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+/**
+ * The evidence behind the headline: what this phone holds, and what the code
+ * points at. Monospace so both can be compared with what ipconfig prints.
+ */
+@Composable
+private fun SubnetFacts(subnet: SubnetReport) {
+    Column(modifier = Modifier.padding(top = 14.dp)) {
+        Text(
+            "This phone",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            subnet.phone.summary(),
+            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            "PC in the code",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        Text(
+            subnet.target,
+            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

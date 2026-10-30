@@ -38,6 +38,15 @@ interface PendingReply {
   timer: NodeJS.Timeout;
 }
 
+/**
+ * Node reports IPv4 peers as `::ffff:192.168.0.57` on a dual-stack listener.
+ * Stripping the prefix keeps the log readable and lets a user compare it with
+ * what `ipconfig` prints.
+ */
+function bareAddress(value: string | undefined): string {
+  return (value ?? 'unknown').replace(/^::ffff:/, '');
+}
+
 export interface PairingRequestContext {
   id: string;
   sessionId: string;
@@ -110,7 +119,7 @@ export class PeerSession {
     private readonly server: LinkServer,
     remoteAddress: string,
   ) {
-    this.remoteAddress = remoteAddress.replace(/^::ffff:/, '');
+    this.remoteAddress = bareAddress(remoteAddress);
     this.authTimer = setTimeout(() => {
       if (!this.authorized) this.close(4008, 'Authentication timeout');
     }, 15_000);
@@ -351,6 +360,24 @@ export class LinkServer {
     wss.on('connection', (socket, request) => this.accept(socket, request));
     wss.on('error', (error) => this.log('Server', `WebSocket error: ${error.message}`));
     server.on('error', (error) => this.log('Server', `TLS server error: ${error.message}`));
+    // Inbound attempts used to leave no trace until an application frame arrived,
+    // which made "the phone cannot connect" impossible to diagnose: a dropped SYN
+    // and a failed TLS handshake both produced an empty log. These two listeners
+    // are what let the log answer "did the packet arrive at all?".
+    server.on('connection', (socket) => {
+      this.log(
+        'Server',
+        `TCP connection from ${bareAddress(socket.remoteAddress)}:${socket.remotePort ?? 0}`,
+      );
+    });
+    // A handshake that fails never reaches `ws`, so without this the client's
+    // "certificate does not match" has no counterpart here.
+    server.on('tlsClientError', (error, socket) => {
+      this.log(
+        'Server',
+        `TLS handshake ended from ${bareAddress(socket.remoteAddress)}: ${error.message}`,
+      );
+    });
     this.httpServer = server;
     this.wss = wss;
 
@@ -451,11 +478,23 @@ export class LinkServer {
   private handleHello(session: PeerSession, envelope: Envelope): void {
     const hello = envelope.data as HelloWire | undefined;
     if (!hello || typeof hello.deviceId !== 'string' || !hello.deviceId) {
+      this.log('Auth', `Malformed hello from ${session.remoteAddress}`);
       this.sendAuthError(session, ERROR_CODES.BAD_REQUEST, 'Invalid hello message');
       session.close(4003, 'Bad hello');
       return;
     }
+    // Logged before any rejection so the log can say what was attempted, not
+    // only that it failed.
+    this.log(
+      'Auth',
+      `Hello from ${session.remoteAddress} (device ${hello.deviceId.slice(0, 8)}…, ` +
+        `app ${typeof hello.appVersion === 'string' ? hello.appVersion : '?'})`,
+    );
     if (hello.protocol !== PROTOCOL_VERSION) {
+      this.log(
+        'Auth',
+        `Refused hello from ${session.remoteAddress}: protocol ${String(hello.protocol)} != ${PROTOCOL_VERSION}`,
+      );
       this.sendAuthError(
         session,
         ERROR_CODES.BAD_REQUEST,
@@ -466,6 +505,7 @@ export class LinkServer {
     }
     const device = this.options.store.findDevice(hello.deviceId);
     if (!device) {
+      this.log('Auth', `Refused hello from ${session.remoteAddress}: unknown device`);
       this.sendAuthError(
         session,
         ERROR_CODES.UNKNOWN_DEVICE,
@@ -481,6 +521,10 @@ export class LinkServer {
           throw new Error('Phone key does not match the paired key');
         }
       } catch {
+        this.log(
+          'Auth',
+          `Refused hello from ${session.remoteAddress}: key does not match the paired key`,
+        );
         this.sendAuthError(
           session,
           ERROR_CODES.AUTH_FAILED,
@@ -495,6 +539,10 @@ export class LinkServer {
       if (this.active.device?.id === device.id) {
         this.active.close(4001, 'Replaced by a newer connection');
       } else {
+        this.log(
+          'Auth',
+          `Refused hello from ${session.remoteAddress}: another phone is connected`,
+        );
         this.sendAuthError(
           session,
           ERROR_CODES.BUSY,
@@ -573,9 +621,16 @@ export class LinkServer {
       this.sendPairingError(session, ERROR_CODES.BAD_REQUEST, 'Invalid phone identifier');
       return;
     }
+    // The name is user-visible copy from another process, so it is trimmed and
+    // capped. The token is never logged.
+    this.log(
+      'Pair',
+      `Pair request from ${session.remoteAddress} (${request.name.trim().slice(0, 40) || 'unnamed'})`,
+    );
     // A phone that is already connected may re-pair to replace its own entry,
     // for example after the PC identity was reset. A different phone is BUSY.
     if (this.active && this.active.device?.id !== deviceId) {
+      this.log('Pair', `Refused pairing from ${session.remoteAddress}: another phone is connected`);
       this.sendPairingError(
         session,
         ERROR_CODES.BUSY,
@@ -692,6 +747,12 @@ export class LinkServer {
   }
 
   private accept(socket: WebSocket, request: IncomingMessage): void {
+    // Also covers a browser probe of https://<ip>:<port>/, which is the quickest
+    // way for a user to prove the port is reachable from the phone.
+    this.log(
+      'Server',
+      `WebSocket upgrade from ${bareAddress(request.socket.remoteAddress)} ${request.url ?? ''}`,
+    );
     if (this.sessions.size >= 4) {
       socket.close(4005, 'Too many connections');
       return;

@@ -10,6 +10,10 @@ import app.linkphone.core.crypto.PairingUri
 import app.linkphone.core.crypto.formatFingerprint
 import app.linkphone.core.crypto.normalizeFingerprint
 import app.linkphone.core.net.PairingClient
+import app.linkphone.core.net.PairingFailureClassifier
+import app.linkphone.core.net.PcDiscovery
+import app.linkphone.core.net.PhoneNetworkReader
+import app.linkphone.core.net.SubnetReport
 import app.linkphone.core.prefs.LinkPrefs
 import app.linkphone.core.prefs.PairedPc
 import app.linkphone.core.update.AppUpdater
@@ -19,17 +23,34 @@ import app.linkphone.core.util.ConnectionPolicy
 import app.linkphone.core.util.LinkState
 import app.linkphone.core.util.LinkStatus
 import app.linkphone.service.LinkConnectionService
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.net.URLEncoder
 
 sealed interface PairingUiState {
     data object Idle : PairingUiState
     data class Working(val message: String) : PairingUiState
-    data class Error(val message: String) : PairingUiState
+
+    /**
+     * @property message the actionable sentence shown as the headline
+     * @property detail the raw exception text, for support and for "Copy detail"
+     * @property checklist short "what to check" bullets; empty when the PC's own
+     *   message already says what to do
+     * @property subnet where the PC's address sits relative to this phone's links;
+     *   null when the failure was not a routing one, or we could not tell
+     */
+    data class Error(
+        val message: String,
+        val detail: String? = null,
+        val checklist: List<String> = emptyList(),
+        val subnet: SubnetReport? = null,
+    ) : PairingUiState
+
     data class Success(val pc: PairedPc) : PairingUiState
 }
 
@@ -38,6 +59,7 @@ enum class Screen { Home, Onboarding, Pair }
 class LinkViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs = LinkPrefs(application)
     private val identity = DeviceIdentity()
+    private val networkReader = PhoneNetworkReader(application)
 
     val state: StateFlow<LinkState> = LinkStatus.state
     val logs: StateFlow<List<String>> = LinkStatus.logs
@@ -178,11 +200,23 @@ class LinkViewModel(application: Application) : AndroidViewModel(application) {
         }
         pairingJob = viewModelScope.launch {
             _pairing.value = PairingUiState.Working("Connecting to ${info.host}…")
+            // A binder round-trip per network, so never on the main dispatcher.
+            // Read once per attempt: the answer cannot change mid-handshake in a
+            // way that matters, and re-reading would make the failure message
+            // disagree with the log.
+            val phone = withContext(Dispatchers.IO) { networkReader.read() }
+            LinkStatus.log(
+                "Pair",
+                "This phone: ${phone.summary()}; code points at ${info.host}:${info.port}" +
+                    (if (phone.vpnActive) " (VPN active)" else ""),
+            )
             val client = PairingClient(
                 identity = identity,
                 phoneId = prefs.phoneId,
                 phoneName = prefs.phoneName,
                 appVersion = BuildConfig.VERSION_NAME,
+                discovery = PcDiscovery(getApplication()),
+                onLog = { message -> LinkStatus.log("Pair", message) },
             )
             try {
                 val pc = client.pair(info) { message ->
@@ -194,8 +228,22 @@ class LinkViewModel(application: Application) : AndroidViewModel(application) {
                 LinkStatus.log("Pair", "Paired with ${pc.pcName}")
                 LinkConnectionService.start(getApplication())
             } catch (error: Exception) {
+                // The raw exception used to be the whole message ("Failed to
+                // connect to /192.168.0.111:48921"), which names the layer but
+                // not the fix. Classify it, and record it in Diagnostics so a
+                // failure that only happens on the user's network leaves a trace.
+                val failure = PairingFailureClassifier.classify(error, info.host, info.port, phone)
+                LinkStatus.log(
+                    "Pair",
+                    "Pairing with ${info.host}:${info.port} failed " +
+                        "(${failure.kind}, ${failure.subnet?.verdict ?: "unknown"}): " +
+                        (failure.detail ?: failure.message),
+                )
                 _pairing.value = PairingUiState.Error(
-                    error.message ?: "Pairing failed. Check that both devices are on the same Wi-Fi.",
+                    message = failure.message,
+                    detail = failure.detail,
+                    checklist = failure.checklist,
+                    subnet = failure.subnet,
                 )
             }
         }
