@@ -44,6 +44,13 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
 
   const firewallCommand = `New-NetFirewallRule -DisplayName "LinkPhone" -Direction Inbound -Protocol TCP -LocalPort ${state.server.port || 48921} -Action Allow -Profile Private`;
 
+  // The pairing offer always points at this same address, so the identity block
+  // below is the single place it is shown.
+  const serverAddress =
+    state.server.addresses.length > 0
+      ? `${state.server.addresses[0]}:${state.server.port}`
+      : '';
+
   return (
     <>
       <PageHeader
@@ -119,34 +126,57 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
             )}
           </div>
 
-          <div className="server-facts">
-            <div>
-              <span className="meta-label">PC address</span>
-              <span>
-                {state.server.addresses.length > 0
-                  ? `${state.server.addresses[0]}:${state.server.port}`
-                  : 'No LAN address found'}
-              </span>
-            </div>
+          <div className="identity-facts">
             <div>
               <span className="meta-label">PC name</span>
-              <span>{state.server.pcName}</span>
+              <div className="copy-row">
+                <code>{state.server.pcName}</code>
+                <Button
+                  small
+                  variant="ghost"
+                  onClick={() => void copy(state.server.pcName, 'PC name')}
+                >
+                  Copy
+                </Button>
+              </div>
             </div>
             <div>
-              <span className="meta-label">Certificate</span>
-              <span className="mono">{formatFingerprint(state.server.fingerprint)}</span>
+              <span className="meta-label">Address</span>
+              <div className="copy-row">
+                <code>{serverAddress || 'No LAN address found'}</code>
+                {serverAddress && (
+                  <Button
+                    small
+                    variant="ghost"
+                    onClick={() => void copy(serverAddress, 'Address')}
+                  >
+                    Copy
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div>
+              <span className="meta-label">Certificate fingerprint</span>
+              <div className="copy-row">
+                <code className="fingerprint">
+                  {formatFingerprint(state.server.fingerprint) || 'Not available'}
+                </code>
+                {state.server.fingerprint && (
+                  <Button
+                    small
+                    variant="ghost"
+                    onClick={() => void copy(state.server.fingerprint, 'Fingerprint')}
+                  >
+                    Copy
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
 
           {state.server.error && (
             <Notice tone="bad" title="Server problem">
               {state.server.error}
-            </Notice>
-          )}
-
-          {!connection.connected && state.devices.length === 0 && (
-            <Notice tone="neutral">
-              Scan the QR code on the right from the LinkPhone Android app to pair.
             </Notice>
           )}
         </Card>
@@ -202,34 +232,6 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
                   <div className="copy-row">
                     <code>{offer.token}</code>
                     <Button small variant="ghost" onClick={() => void copy(offer.token, 'Code')}>
-                      Copy
-                    </Button>
-                  </div>
-                </div>
-                <div>
-                  <span className="meta-label">Address</span>
-                  <div className="copy-row">
-                    <code>
-                      {offer.host}:{offer.port}
-                    </code>
-                    <Button
-                      small
-                      variant="ghost"
-                      onClick={() => void copy(`${offer.host}:${offer.port}`, 'Address')}
-                    >
-                      Copy
-                    </Button>
-                  </div>
-                </div>
-                <div>
-                  <span className="meta-label">Certificate fingerprint</span>
-                  <div className="copy-row">
-                    <code className="fingerprint">{formatFingerprint(offer.fingerprint)}</code>
-                    <Button
-                      small
-                      variant="ghost"
-                      onClick={() => void copy(offer.fingerprint, 'Fingerprint')}
-                    >
                       Copy
                     </Button>
                   </div>
@@ -320,9 +322,12 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
         </Card>
       </div>
 
-      <Card icon="alert" title="Platform limits" subtitle="These limits come from Android, not from LinkPhone.">
-        <details className="limit-details">
-          <summary>What LinkPhone cannot do</summary>
+      <div className="grid grid-2">
+        <Card
+          icon="alert"
+          title="Platform limits"
+          subtitle="These limits come from Android, not from LinkPhone."
+        >
           <ul className="limit-list">
             <li>
               <strong>Call audio on the PC.</strong> Android reserves in-call audio for system
@@ -337,35 +342,39 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
               clipboard. Use the phone's Quick Settings tile or share action to send text here.
             </li>
           </ul>
-        </details>
-      </Card>
+        </Card>
+
+        <Card
+          icon="clipboard"
+          title="Clipboard"
+          subtitle="Text handoff in both directions, with Android's limits."
+        >
+          <div className="clipboard-row">
+            <Button
+              variant="primary"
+              icon="send"
+              disabled={!connection.connected}
+              onClick={() =>
+                void ui.run(() => api.sendPcClipboard(), 'PC clipboard sent to the phone')
+              }
+            >
+              Send PC clipboard to phone
+            </Button>
+            <span className="muted small">
+              {state.clipboard.lastReceived
+                ? 'Text from the phone is on the PC clipboard.'
+                : 'Phone → PC requires the Quick Settings tile, the share action, or the phone button.'}
+            </span>
+          </div>
+          <p className="muted small">
+            Android blocks background clipboard reads on the phone, so the PC cannot pull text
+            silently. PC → phone writes are best-effort; the phone posts a “Copied from PC”
+            notification when the background write needs a tap to confirm.
+          </p>
+        </Card>
+      </div>
 
       <HandoffCard items={state.handoff} ui={ui} />
-
-      <Card icon="clipboard" title="Clipboard" subtitle="Text handoff in both directions, with Android's limits.">
-        <div className="clipboard-row">
-          <Button
-            variant="primary"
-            icon="send"
-            disabled={!connection.connected}
-            onClick={() =>
-              void ui.run(() => api.sendPcClipboard(), 'PC clipboard sent to the phone')
-            }
-          >
-            Send PC clipboard to phone
-          </Button>
-          <span className="muted small">
-            {state.clipboard.lastReceived
-              ? 'Text from the phone is on the PC clipboard.'
-              : 'Phone → PC requires the Quick Settings tile, the share action, or the phone button.'}
-          </span>
-        </div>
-        <p className="muted small">
-          Android blocks background clipboard reads on the phone, so the PC cannot pull text
-          silently. PC → phone writes are best-effort; the phone posts a “Copied from PC”
-          notification when the background write needs a tap to confirm.
-        </p>
-      </Card>
 
       <Modal
         open={confirmRemove !== null}

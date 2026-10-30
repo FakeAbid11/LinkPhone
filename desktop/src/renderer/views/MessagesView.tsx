@@ -139,30 +139,14 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
         title="Messages"
         subtitle={`${threads.length} conversation${threads.length === 1 ? '' : 's'} on your phone · unread tracked on this PC`}
         actions={
-          <>
-            {totalUnread > 0 && (
-              <Button
-                variant="ghost"
-                icon="check"
-                onClick={() =>
-                  void ui.run(
-                    () => api.markAllSmsRead(),
-                    'All conversations marked read on this PC',
-                  )
-                }
-              >
-                Mark all read
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              icon="refresh"
-              onClick={() => void ui.run(() => api.refreshSms())}
-              loading={state.sms.refreshing}
-            >
-              Refresh
-            </Button>
-          </>
+          <Button
+            variant="ghost"
+            icon="refresh"
+            onClick={() => void ui.run(() => api.refreshSms())}
+            loading={state.sms.refreshing}
+          >
+            Refresh
+          </Button>
         }
       />
 
@@ -200,7 +184,23 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
             <div className="thread-tools">
               <div className="thread-list-head">
                 <span>Conversations</span>
-                {state.sms.refreshing && <span className="live-dot" aria-label="Refreshing" />}
+                <span className="thread-list-head-actions">
+                  {state.sms.refreshing && <span className="live-dot" aria-label="Refreshing" />}
+                  {totalUnread > 0 && (
+                    <button
+                      type="button"
+                      className="thread-mark-read"
+                      onClick={() =>
+                        void ui.run(
+                          () => api.markAllSmsRead(),
+                          'All conversations marked read on this PC',
+                        )
+                      }
+                    >
+                      Mark all read
+                    </button>
+                  )}
+                </span>
               </div>
               <div className="thread-search">
                 <TextInput

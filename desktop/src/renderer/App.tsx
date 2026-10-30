@@ -272,7 +272,12 @@ function AppShell() {
         </div>
       </aside>
 
-      <main className="content" id="main" ref={mainRef} tabIndex={-1}>
+      <main
+        className={`content ${view === 'messages' ? 'is-fill' : ''}`}
+        id="main"
+        ref={mainRef}
+        tabIndex={-1}
+      >
         {offline && (
           <div className="offline-banner" role="status">
             <span className="banner-icon">
