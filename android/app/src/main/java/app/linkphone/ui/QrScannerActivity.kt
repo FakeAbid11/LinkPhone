@@ -34,9 +34,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.FlashOff
-import androidx.compose.material.icons.outlined.FlashOn
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -280,7 +277,7 @@ private fun CameraScanner(onDecoded: (String) -> Unit) {
                     ),
             ) {
                 Icon(
-                    if (torchOn) Icons.Outlined.FlashOn else Icons.Outlined.FlashOff,
+                    if (torchOn) MsIcons.FlashOn else MsIcons.FlashOff,
                     contentDescription = if (torchOn) "Turn torch off" else "Turn torch on",
                     tint = Color(LinkPhonePalette.DarkOnBackground),
                 )

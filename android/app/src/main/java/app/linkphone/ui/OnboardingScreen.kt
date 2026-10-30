@@ -28,18 +28,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.BatteryFull
-import androidx.compose.material.icons.outlined.Call
-import androidx.compose.material.icons.outlined.Chat
-import androidx.compose.material.icons.outlined.Contacts
-import androidx.compose.material.icons.outlined.ContentPaste
-import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.Notifications
-import androidx.compose.material.icons.outlined.NotificationsActive
-import androidx.compose.material.icons.outlined.PhotoLibrary
-import androidx.compose.material.icons.outlined.QrCodeScanner
-import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -251,7 +239,7 @@ private fun Footer(
             }
             else -> {
                 Button(onClick = onPair, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Outlined.QrCodeScanner, contentDescription = null)
+                    Icon(MsIcons.QrCodeScanner, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Text("Scan QR code")
                 }
@@ -287,22 +275,22 @@ private fun WelcomePage() {
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         BulletRow(
-            Icons.Outlined.Chat,
+            MsIcons.Chat,
             "Messages on the PC",
             "Read conversations and send SMS with a full keyboard.",
         )
         BulletRow(
-            Icons.Outlined.Call,
+            MsIcons.Call,
             "Call control",
             "Dial, answer, and choose a SIM. Audio stays on the phone.",
         )
         BulletRow(
-            Icons.Outlined.PhotoLibrary,
+            MsIcons.PhotoLibrary,
             "Photos and notifications",
             "Browse recent photos and see phone notifications on the PC.",
         )
         BulletRow(
-            Icons.Outlined.ContentPaste,
+            MsIcons.ContentPaste,
             "Clipboard handoff",
             "Move links and text between both devices on request.",
         )
@@ -400,12 +388,12 @@ private fun PairPage() {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         BulletRow(
-            Icons.Outlined.QrCodeScanner,
+            MsIcons.QrCodeScanner,
             "One-time code",
             "The code expires five minutes after it is created. The camera is asked for now.",
         )
         BulletRow(
-            Icons.Outlined.Lock,
+            MsIcons.Lock,
             "Pinned certificate",
             "The QR includes the PC fingerprint; the phone refuses any other certificate.",
         )
@@ -424,7 +412,7 @@ private fun HeroMark() {
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            Icons.Outlined.Lock,
+            MsIcons.Lock,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onPrimaryContainer,
             modifier = Modifier.size(34.dp),
@@ -451,14 +439,14 @@ private fun PageDots(page: Int) {
 }
 
 private fun iconFor(id: OnboardingPermission): ImageVector = when (id) {
-    OnboardingPermission.Messages -> Icons.Outlined.Chat
-    OnboardingPermission.Calls -> Icons.Outlined.Call
-    OnboardingPermission.Contacts -> Icons.Outlined.Contacts
-    OnboardingPermission.Photos -> Icons.Outlined.PhotoLibrary
-    OnboardingPermission.Notifications -> Icons.Outlined.Notifications
-    OnboardingPermission.NotificationAccess -> Icons.Outlined.NotificationsActive
-    OnboardingPermission.RemoteTaps -> Icons.Outlined.TouchApp
-    OnboardingPermission.Battery -> Icons.Outlined.BatteryFull
+    OnboardingPermission.Messages -> MsIcons.Chat
+    OnboardingPermission.Calls -> MsIcons.Call
+    OnboardingPermission.Contacts -> MsIcons.Contacts
+    OnboardingPermission.Photos -> MsIcons.PhotoLibrary
+    OnboardingPermission.Notifications -> MsIcons.Notifications
+    OnboardingPermission.NotificationAccess -> MsIcons.NotificationsActive
+    OnboardingPermission.RemoteTaps -> MsIcons.TouchApp
+    OnboardingPermission.Battery -> MsIcons.BatteryFull
 }
 
 private fun grantedPermissions(context: Context): Map<OnboardingPermission, Boolean> = mapOf(

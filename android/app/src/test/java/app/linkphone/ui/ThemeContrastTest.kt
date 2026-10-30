@@ -104,76 +104,6 @@ class ThemeContrastTest {
     }
 
     @Test
-    fun lightPaletteMeetsWcag() {
-        assertContrast(
-            "light body text",
-            LinkPhonePalette.LightOnBackground,
-            LinkPhonePalette.LightBackground,
-            4.5,
-        )
-        assertContrast(
-            "light text on cards",
-            LinkPhonePalette.LightOnBackground,
-            LinkPhonePalette.LightSurface,
-            4.5,
-        )
-        assertContrast(
-            "light secondary text",
-            LinkPhonePalette.LightOnSurfaceVariant,
-            LinkPhonePalette.LightSurfaceVariant,
-            4.5,
-        )
-        assertContrast(
-            "light primary text",
-            LinkPhonePalette.LightPrimary,
-            LinkPhonePalette.LightSurface,
-            4.5,
-        )
-        assertContrast(
-            "light button label",
-            LinkPhonePalette.LightOnPrimary,
-            LinkPhonePalette.LightPrimary,
-            4.5,
-        )
-        assertContrast(
-            "light secondary text",
-            LinkPhonePalette.LightSecondary,
-            LinkPhonePalette.LightSurface,
-            4.5,
-        )
-        assertContrast(
-            "light primary container",
-            LinkPhonePalette.LightOnPrimaryContainer,
-            LinkPhonePalette.LightPrimaryContainer,
-            4.5,
-        )
-        assertContrast(
-            "light secondary container",
-            LinkPhonePalette.LightOnSecondaryContainer,
-            LinkPhonePalette.LightSecondaryContainer,
-            4.5,
-        )
-        assertContrast(
-            "light tertiary container",
-            LinkPhonePalette.LightOnTertiaryContainer,
-            LinkPhonePalette.LightTertiaryContainer,
-            4.5,
-        )
-        assertContrast(
-            "light error container",
-            LinkPhonePalette.LightOnErrorContainer,
-            LinkPhonePalette.LightErrorContainer,
-            4.5,
-        )
-        assertContrast(
-            "light outline",
-            LinkPhonePalette.LightOutline,
-            LinkPhonePalette.LightSurface,
-            3.0,
-        )
-    }
-
-    @Test
     fun darkSurfaceContainersMeetWcag() {
         val containers = listOf(
             "lowest" to LinkPhonePalette.DarkSurfaceContainerLowest,
@@ -195,27 +125,6 @@ class ThemeContrastTest {
     }
 
     @Test
-    fun lightSurfaceContainersMeetWcag() {
-        val containers = listOf(
-            "lowest" to LinkPhonePalette.LightSurfaceContainerLowest,
-            "low" to LinkPhonePalette.LightSurfaceContainerLow,
-            "container" to LinkPhonePalette.LightSurfaceContainer,
-            "high" to LinkPhonePalette.LightSurfaceContainerHigh,
-            "highest" to LinkPhonePalette.LightSurfaceContainerHighest,
-            "dim" to LinkPhonePalette.LightSurfaceDim,
-            "bright" to LinkPhonePalette.LightSurfaceBright,
-        )
-        for ((name, background) in containers) {
-            assertContrast(
-                "light body text on surface $name",
-                LinkPhonePalette.LightOnBackground,
-                background,
-                4.5,
-            )
-        }
-    }
-
-    @Test
     fun inverseSurfacesMeetWcag() {
         assertContrast(
             "dark inverse text",
@@ -227,18 +136,6 @@ class ThemeContrastTest {
             "dark inverse action label",
             LinkPhonePalette.DarkInversePrimary,
             LinkPhonePalette.DarkInverseSurface,
-            4.5,
-        )
-        assertContrast(
-            "light inverse text",
-            LinkPhonePalette.LightInverseOnSurface,
-            LinkPhonePalette.LightInverseSurface,
-            4.5,
-        )
-        assertContrast(
-            "light inverse action label",
-            LinkPhonePalette.LightInversePrimary,
-            LinkPhonePalette.LightInverseSurface,
             4.5,
         )
     }

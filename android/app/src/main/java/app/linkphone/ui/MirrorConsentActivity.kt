@@ -9,11 +9,10 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ScreenShare
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -59,7 +58,10 @@ class MirrorConsentActivity : ComponentActivity() {
         codec = intent.getStringExtra(LinkConnectionService.EXTRA_MIRROR_CODEC)
             ?: MirrorCodecChoice.JPEG
         fps = intent.getIntExtra(LinkConnectionService.EXTRA_MIRROR_FPS, MirrorCodecChoice.FPS_30)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
         setContent {
             LinkPhoneTheme {
                 Surface(
@@ -129,7 +131,7 @@ private fun MirrorConsentContent(onAllow: () -> Unit, onCancel: () -> Unit) {
             "session. You can choose a single app on Android 14 and later.",
         detail = "Screen capture stops when the phone locks. Secure windows and DRM content " +
             "appear black. Audio is never captured.",
-        icon = Icons.Outlined.ScreenShare,
+        icon = MsIcons.ScreenShare,
         primaryLabel = "Choose what to share",
         onPrimary = onAllow,
         secondaryLabel = "Cancel",

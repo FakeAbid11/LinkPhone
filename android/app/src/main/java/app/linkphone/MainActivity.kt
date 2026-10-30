@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -34,11 +35,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
         setContent {
-            val darkTheme = androidx.compose.foundation.isSystemInDarkTheme()
-            val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
-            LinkPhoneTheme(darkTheme = darkTheme, dynamicColor = dynamicColor) {
+            LinkPhoneTheme {
                 val screen by viewModel.screen.collectAsStateWithLifecycle()
                 BackHandler(enabled = screen != Screen.Home) { viewModel.goHome() }
                 when (screen) {

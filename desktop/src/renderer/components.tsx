@@ -9,182 +9,9 @@ import {
   useRef,
 } from 'react';
 import logoUrl from './assets/logo.png';
+import { ICONS, type IconName } from './icons';
 
-export type IconName =
-  | 'link'
-  | 'message'
-  | 'bell'
-  | 'image'
-  | 'phone'
-  | 'apps'
-  | 'settings'
-  | 'search'
-  | 'users'
-  | 'qr'
-  | 'copy'
-  | 'check'
-  | 'alert'
-  | 'x'
-  | 'arrow'
-  | 'shield'
-  | 'refresh'
-  | 'clipboard'
-  | 'monitor'
-  | 'send'
-  | 'trash'
-  | 'battery'
-  | 'wifi'
-  | 'download'
-  | 'speaker'
-  | 'chevron';
-
-const ICONS: Record<IconName, ReactNode> = {
-  link: (
-    <>
-      <path d="M10 13a5 5 0 0 0 7.1 0l2.4-2.4a5 5 0 0 0-7.1-7.1L11 4.9" />
-      <path d="M14 11a5 5 0 0 0-7.1 0L4.5 13.4a5 5 0 0 0 7.1 7.1L13 19.1" />
-    </>
-  ),
-  message: (
-    <path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.7 8.7 0 0 1-3.9-.9L3 21l1.9-5.6A8.5 8.5 0 1 1 21 11.5Z" />
-  ),
-  bell: (
-    <>
-      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
-      <path d="M10.5 21a1.5 1.5 0 0 0 3 0" />
-    </>
-  ),
-  image: (
-    <>
-      <rect x="3" y="4" width="18" height="16" rx="3" />
-      <circle cx="8.5" cy="9.5" r="1.6" />
-      <path d="m4 17 5-5 4 4 3-3 4 4" />
-    </>
-  ),
-  phone: (
-    <path d="M6.6 3.5h2.2l1.5 4-2 1.4a13.5 13.5 0 0 0 6.8 6.8l1.4-2 4 1.5v2.2a2.6 2.6 0 0 1-2.8 2.6A17.5 17.5 0 0 1 4 6.3a2.6 2.6 0 0 1 2.6-2.8Z" />
-  ),
-  apps: (
-    <>
-      <rect x="3" y="3" width="7" height="7" rx="2" />
-      <rect x="14" y="3" width="7" height="7" rx="2" />
-      <rect x="3" y="14" width="7" height="7" rx="2" />
-      <rect x="14" y="14" width="7" height="7" rx="2" />
-    </>
-  ),
-  settings: (
-    <>
-      <path d="M4 7h9M17 7h3M4 17h3M11 17h9" />
-      <circle cx="15" cy="7" r="2.2" />
-      <circle cx="9" cy="17" r="2.2" />
-    </>
-  ),
-  search: (
-    <>
-      <circle cx="11" cy="11" r="6.5" />
-      <path d="m16 16 4.5 4.5" />
-    </>
-  ),
-  users: (
-    <>
-      <circle cx="9" cy="8" r="3.2" />
-      <path d="M3.5 20a5.5 5.5 0 0 1 11 0" />
-      <path d="M15.5 5.4a3.2 3.2 0 0 1 0 5.2M17 14.4a5.5 5.5 0 0 1 3.5 5.1" />
-    </>
-  ),
-  qr: (
-    <>
-      <rect x="3" y="3" width="6" height="6" rx="1" />
-      <rect x="15" y="3" width="6" height="6" rx="1" />
-      <rect x="3" y="15" width="6" height="6" rx="1" />
-      <path d="M15 15h2v2h-2zM19 19h2v2h-2zM19 15h2M15 19v2" />
-    </>
-  ),
-  copy: (
-    <>
-      <rect x="9" y="9" width="11" height="11" rx="2.5" />
-      <path d="M15 9V6.5A2.5 2.5 0 0 0 12.5 4h-6A2.5 2.5 0 0 0 4 6.5v6A2.5 2.5 0 0 0 6.5 15H9" />
-    </>
-  ),
-  check: <path d="m4.5 12.5 5 5 10-11" />,
-  alert: (
-    <>
-      <path d="M12 3.5 22 20H2L12 3.5Z" />
-      <path d="M12 9v5M12 17.2v.3" />
-    </>
-  ),
-  x: <path d="m5 5 14 14M19 5 5 19" />,
-  arrow: (
-    <>
-      <path d="M4 12h15" />
-      <path d="m13 6 6 6-6 6" />
-    </>
-  ),
-  shield: (
-    <>
-      <path d="M12 3 5 6v5.5c0 4.4 3 7.8 7 9.5 4-1.7 7-5.1 7-9.5V6l-7-3Z" />
-      <path d="m9 12 2 2 4-4" />
-    </>
-  ),
-  refresh: (
-    <>
-      <path d="M20 11a8 8 0 1 0-2.3 6.3" />
-      <path d="M20 4v7h-7" />
-    </>
-  ),
-  clipboard: (
-    <>
-      <rect x="5" y="4" width="14" height="17" rx="2.5" />
-      <path d="M9 4V3h6v1" />
-      <path d="M8.5 10h7M8.5 14h7M8.5 18h4" />
-    </>
-  ),
-  monitor: (
-    <>
-      <rect x="3" y="4" width="18" height="12" rx="2" />
-      <path d="M8 20h8M12 16v4" />
-    </>
-  ),
-  send: (
-    <>
-      <path d="m21 3-7.5 18-3-7.5L3 10.5 21 3Z" />
-      <path d="M21 3 10.5 13.5" />
-    </>
-  ),
-  trash: (
-    <>
-      <path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13" />
-      <path d="M10.5 11v5M13.5 11v5" />
-    </>
-  ),
-  battery: (
-    <>
-      <rect x="3" y="7" width="16" height="10" rx="2.5" />
-      <path d="M21 10v4" />
-      <path d="M6.5 10.5v3M10 10.5v3" />
-    </>
-  ),
-  wifi: (
-    <>
-      <path d="M3 9a14 14 0 0 1 18 0M6.5 12.5a9 9 0 0 1 11 0M10 16a4 4 0 0 1 4 0" />
-      <path d="M12 20h.01" />
-    </>
-  ),
-  download: (
-    <>
-      <path d="M12 3v12" />
-      <path d="m7 10 5 5 5-5" />
-      <path d="M4 20h16" />
-    </>
-  ),
-  speaker: (
-    <>
-      <path d="M4 9v6h4l5 4V5L8 9H4Z" />
-      <path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" />
-    </>
-  ),
-  chevron: <path d="m6 9 6 6 6-6" />,
-};
+export type { IconName };
 
 export function Icon({
   name,
@@ -199,17 +26,13 @@ export function Icon({
     <svg
       width={size}
       height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.7}
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      viewBox="0 -960 960 960"
+      fill="currentColor"
       aria-hidden="true"
       focusable="false"
       className={`icon ${className ?? ''}`}
     >
-      {ICONS[name]}
+      <path d={ICONS[name]} />
     </svg>
   );
 }

@@ -1,31 +1,25 @@
 package app.linkphone.ui
 
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * Material 3 colour roles for LinkPhone.
+ * Material 3 colour roles for LinkPhone, dark only.
  *
- * The values follow the Material 3 tonal-palette model around a blue seed, so
- * every role keeps its intended relationship to the others (primary/onPrimary,
- * the container pairs, and the surface-container elevation ladder) instead of
- * being picked one by one. ThemeContrastTest checks the pairs the UI actually
- * draws text with.
+ * The values are the same tokens the Windows app declares in styles.css, so a
+ * feature looks identical on both screens. There is no wallpaper-derived
+ * (Material You) palette and no light scheme: the PC app has no light theme, and
+ * following the phone's system setting would make the two apps disagree.
+ * ThemeContrastTest checks the pairs the UI actually draws text with.
  */
 internal object LinkPhonePalette {
     const val DarkBackground = 0xFF101418
@@ -62,41 +56,6 @@ internal object LinkPhonePalette {
     const val DarkInverseOnSurface = 0xFF2D3135
     const val DarkInversePrimary = 0xFF0061A4
     const val DarkScrim = 0xFF000000
-
-    const val LightBackground = 0xFFFDFCFF
-    const val LightSurface = 0xFFFDFCFF
-    const val LightSurfaceVariant = 0xFFDFE2EB
-    const val LightOnBackground = 0xFF1A1C1E
-    const val LightOnSurfaceVariant = 0xFF43474E
-    const val LightPrimary = 0xFF0061A4
-    const val LightOnPrimary = 0xFFFFFFFF
-    const val LightPrimaryContainer = 0xFFD1E4FF
-    const val LightOnPrimaryContainer = 0xFF001D36
-    const val LightSecondary = 0xFF515F6F
-    const val LightOnSecondary = 0xFFFFFFFF
-    const val LightSecondaryContainer = 0xFFD5E3F7
-    const val LightOnSecondaryContainer = 0xFF0D1C2A
-    const val LightTertiary = 0xFF6B5778
-    const val LightOnTertiary = 0xFFFFFFFF
-    const val LightTertiaryContainer = 0xFFF2DAFF
-    const val LightOnTertiaryContainer = 0xFF251432
-    const val LightError = 0xFFBA1A1A
-    const val LightOnError = 0xFFFFFFFF
-    const val LightErrorContainer = 0xFFFFDAD6
-    const val LightOnErrorContainer = 0xFF410002
-    const val LightOutline = 0xFF73777F
-    const val LightOutlineVariant = 0xFFC3C7CF
-    const val LightSurfaceDim = 0xFFD9DBE0
-    const val LightSurfaceBright = 0xFFFDFCFF
-    const val LightSurfaceContainerLowest = 0xFFFFFFFF
-    const val LightSurfaceContainerLow = 0xFFF7F9FC
-    const val LightSurfaceContainer = 0xFFF1F4F9
-    const val LightSurfaceContainerHigh = 0xFFEBEEF3
-    const val LightSurfaceContainerHighest = 0xFFE5E8ED
-    const val LightInverseSurface = 0xFF2F3033
-    const val LightInverseOnSurface = 0xFFF0F0F4
-    const val LightInversePrimary = 0xFFA9C7FF
-    const val LightScrim = 0xFF000000
 }
 
 private val DarkScheme = darkColorScheme(
@@ -135,44 +94,6 @@ private val DarkScheme = darkColorScheme(
     inverseOnSurface = Color(LinkPhonePalette.DarkInverseOnSurface),
     inversePrimary = Color(LinkPhonePalette.DarkInversePrimary),
     scrim = Color(LinkPhonePalette.DarkScrim),
-)
-
-private val LightScheme = lightColorScheme(
-    primary = Color(LinkPhonePalette.LightPrimary),
-    onPrimary = Color(LinkPhonePalette.LightOnPrimary),
-    primaryContainer = Color(LinkPhonePalette.LightPrimaryContainer),
-    onPrimaryContainer = Color(LinkPhonePalette.LightOnPrimaryContainer),
-    secondary = Color(LinkPhonePalette.LightSecondary),
-    onSecondary = Color(LinkPhonePalette.LightOnSecondary),
-    secondaryContainer = Color(LinkPhonePalette.LightSecondaryContainer),
-    onSecondaryContainer = Color(LinkPhonePalette.LightOnSecondaryContainer),
-    tertiary = Color(LinkPhonePalette.LightTertiary),
-    onTertiary = Color(LinkPhonePalette.LightOnTertiary),
-    tertiaryContainer = Color(LinkPhonePalette.LightTertiaryContainer),
-    onTertiaryContainer = Color(LinkPhonePalette.LightOnTertiaryContainer),
-    background = Color(LinkPhonePalette.LightBackground),
-    onBackground = Color(LinkPhonePalette.LightOnBackground),
-    surface = Color(LinkPhonePalette.LightSurface),
-    onSurface = Color(LinkPhonePalette.LightOnBackground),
-    surfaceVariant = Color(LinkPhonePalette.LightSurfaceVariant),
-    onSurfaceVariant = Color(LinkPhonePalette.LightOnSurfaceVariant),
-    error = Color(LinkPhonePalette.LightError),
-    onError = Color(LinkPhonePalette.LightOnError),
-    errorContainer = Color(LinkPhonePalette.LightErrorContainer),
-    onErrorContainer = Color(LinkPhonePalette.LightOnErrorContainer),
-    outline = Color(LinkPhonePalette.LightOutline),
-    outlineVariant = Color(LinkPhonePalette.LightOutlineVariant),
-    surfaceDim = Color(LinkPhonePalette.LightSurfaceDim),
-    surfaceBright = Color(LinkPhonePalette.LightSurfaceBright),
-    surfaceContainerLowest = Color(LinkPhonePalette.LightSurfaceContainerLowest),
-    surfaceContainerLow = Color(LinkPhonePalette.LightSurfaceContainerLow),
-    surfaceContainer = Color(LinkPhonePalette.LightSurfaceContainer),
-    surfaceContainerHigh = Color(LinkPhonePalette.LightSurfaceContainerHigh),
-    surfaceContainerHighest = Color(LinkPhonePalette.LightSurfaceContainerHighest),
-    inverseSurface = Color(LinkPhonePalette.LightInverseSurface),
-    inverseOnSurface = Color(LinkPhonePalette.LightInverseOnSurface),
-    inversePrimary = Color(LinkPhonePalette.LightInversePrimary),
-    scrim = Color(LinkPhonePalette.LightScrim),
 )
 
 /** Material 3 type scale, tuned to the system UI font. */
@@ -273,21 +194,9 @@ private val LinkShapes = Shapes(
 )
 
 @Composable
-fun LinkPhoneTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
-    content: @Composable () -> Unit,
-) {
-    val context = LocalContext.current
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-        darkTheme -> DarkScheme
-        else -> LightScheme
-    }
+fun LinkPhoneTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = DarkScheme,
         typography = LinkTypography,
         shapes = LinkShapes,
         content = content,
