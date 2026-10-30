@@ -1,3 +1,32 @@
+## LinkPhone v0.8.2
+
+A consistency and reliability release. No pairing, encryption or transport change, so this is a
+drop-in update over 0.8.1.
+
+### What's new
+
+- **Both apps draw the same icons.** Windows and Android now use Material Symbols from a single
+  source, so a feature looks the same on the PC and on the phone. The phone also stops bundling
+  the old icon library, which shrinks the APK.
+- **Android uses the Windows theme.** The phone always renders the same dark palette as the PC
+  and no longer follows the wallpaper. "Match wallpaper colors" is gone from the About card, and
+  a phone set to light mode still gets the LinkPhone dark theme.
+
+### What's fixed
+
+- **The enabled switch no longer draws outside its track.** A leftover rule from before the
+  Material 3 redesign moved the knob past the end of the pill and off its vertical centre.
+- **Notification access is no longer reported as missing.** When Android had not yet bound the
+  notification listener, the PC claimed the permission had never been granted. It now waits for
+  the listener and, if it stays unbound, says to turn notification access off and on.
+
+### Downloads
+
+- `LinkPhone-0.8.2.apk` - Android 10+ companion (sideload; same release key)
+- `LinkPhone-Portable-0.8.2.exe` - Windows portable app
+- `LinkPhone-Setup-0.8.2.exe` - Windows installer (recommended for automatic updates)
+- `SHA256SUMS.txt` - checksums for the files above
+
 ## LinkPhone v0.8.1
 
 A reliability release on top of 0.8.0. No pairing, encryption or transport change, so this is a
