@@ -505,7 +505,13 @@ export function Modal({
   wide?: boolean;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
   const titleId = useId();
+  // Callers pass inline arrow functions, so an effect keyed on `onClose` would
+  // re-run on every parent render and its cleanup would pull focus back to the
+  // trigger in the middle of typing.
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -520,15 +526,40 @@ export function Modal({
         ),
       ).filter((element) => element.offsetParent !== null);
 
+    // Move focus before hiding anything: Chromium warns when an aria-hidden
+    // subtree still contains the focused element.
     if (!node.contains(document.activeElement)) {
       const preferred = node.querySelector<HTMLElement>('[data-autofocus]') ?? focusables()[0];
       preferred?.focus();
     }
 
+    // aria-modal is advisory. Hide the dialog's siblings at every level up to
+    // <body> so the app shell leaves the accessibility tree and the tab order.
+    // Only siblings are hidden, never an ancestor of the dialog itself.
+    const hidden: Array<{ element: HTMLElement; ariaHidden: string | null; inert: boolean }> = [];
+    let level: HTMLElement | null = backdropRef.current;
+    while (level && level !== document.body) {
+      const parent: HTMLElement | null = level.parentElement;
+      if (!parent) break;
+      for (const sibling of Array.from(parent.children)) {
+        if (sibling === level || !(sibling instanceof HTMLElement)) continue;
+        hidden.push({
+          element: sibling,
+          ariaHidden: sibling.getAttribute('aria-hidden'),
+          inert: sibling.hasAttribute('inert'),
+        });
+        sibling.setAttribute('aria-hidden', 'true');
+        // React 18 drops an `inert` prop, so it is set as an attribute.
+        sibling.setAttribute('inert', '');
+      }
+      level = parent;
+    }
+
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && onClose) {
+      const close = onCloseRef.current;
+      if (event.key === 'Escape' && close) {
         event.stopPropagation();
-        onClose();
+        close();
         return;
       }
       if (event.key !== 'Tab') return;
@@ -551,13 +582,18 @@ export function Modal({
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('keydown', onKey);
+      for (const { element, ariaHidden, inert } of hidden) {
+        if (ariaHidden === null) element.removeAttribute('aria-hidden');
+        else element.setAttribute('aria-hidden', ariaHidden);
+        if (!inert) element.removeAttribute('inert');
+      }
       previous?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+    <div className="modal-backdrop" ref={backdropRef} role="presentation" onMouseDown={onClose}>
       <div
         ref={dialogRef}
         className={`modal ${wide ? 'modal-wide' : ''}`}

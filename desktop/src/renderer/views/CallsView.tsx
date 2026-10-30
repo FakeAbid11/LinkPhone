@@ -84,6 +84,21 @@ export function CallsView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
     );
   }
 
+  if (!state.connection.infoReceived) {
+    return (
+      <>
+        <PageHeader title="Calls" subtitle="Control calls from the PC. Audio stays on the phone." />
+        <Card>
+          <EmptyState
+            icon="phone"
+            title="Waiting for the phone to report its permissions"
+            body="The phone is connected but has not said which features it can provide yet. If this stays here, update the LinkPhone app on the phone and reconnect."
+          />
+        </Card>
+      </>
+    );
+  }
+
   if (!supported) {
     return (
       <>

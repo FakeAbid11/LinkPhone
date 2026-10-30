@@ -2,6 +2,7 @@ import { generateKeyPairSync, createHash, sign } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   buildAuthPayload,
+  constantTimeEqual,
   newChallenge,
   parsePhoneKey,
   verifyPhoneSignature,
@@ -65,5 +66,13 @@ describe('phone authentication', () => {
       dsaEncoding: 'der',
     }).toString('base64');
     expect(verifyPhoneSignature(key.pem, payload, signature)).toBe(false);
+  });
+
+  it('compares secrets without leaking their length', () => {
+    expect(constantTimeEqual('same-token', 'same-token')).toBe(true);
+    expect(constantTimeEqual('same-token', 'other-token')).toBe(false);
+    expect(constantTimeEqual('short', 'a-much-longer-token')).toBe(false);
+    expect(constantTimeEqual('', '')).toBe(true);
+    expect(constantTimeEqual('', 'x')).toBe(false);
   });
 });
