@@ -1,5 +1,6 @@
 import https from 'node:https';
 import { randomUUID } from 'node:crypto';
+import type { Socket } from 'node:net';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'node:http';
 import type { Envelope, PairRequestWire, HelloWire } from '../shared/types';
@@ -365,9 +366,12 @@ export class LinkServer {
     // and a failed TLS handshake both produced an empty log. These two listeners
     // are what let the log answer "did the packet arrive at all?".
     server.on('connection', (socket) => {
+      // tls.Server types this event as a Duplex; at runtime it is the raw
+      // net.Socket the TLS layer wraps, which is what carries the peer address.
+      const raw = socket as Socket;
       this.log(
         'Server',
-        `TCP connection from ${bareAddress(socket.remoteAddress)}:${socket.remotePort ?? 0}`,
+        `TCP connection from ${bareAddress(raw.remoteAddress)}:${raw.remotePort ?? 0}`,
       );
     });
     // A handshake that fails never reaches `ws`, so without this the client's
