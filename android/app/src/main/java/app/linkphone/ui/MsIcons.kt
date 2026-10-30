@@ -48,11 +48,14 @@ private fun symbol(name: String, pathData: String): ImageVector =
         viewportWidth = 960f,
         viewportHeight = 960f,
     ).apply {
-        addGroup(translationY = 960f) {
-            addPath(
-                pathData = addPathNodes(pathData),
-                // Icon() tints the result, so the fill colour itself is irrelevant.
-                fill = SolidColor(Color.Black),
-            )
-        }
+        // The non-block addGroup() overload is used on purpose: passing a trailing
+        // lambda here resolves to the overload whose last parameter is
+        // clipPathData, not the one that takes a block.
+        addGroup(translationY = 960f)
+        addPath(
+            pathData = addPathNodes(pathData),
+            // Icon() tints the result, so the fill colour itself is irrelevant.
+            fill = SolidColor(Color.Black),
+        )
+        clearGroup()
     }.build()
