@@ -516,5 +516,5 @@ export interface LinkPhoneApi {
   downloadUpdate(): Promise<void>;
   installUpdate(): Promise<void>;
   openReleasePage(): Promise<void>;
-  refresh(): Promise<void>;
+  refresh(): Promise<AppSnapshot>;
 }

@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Component,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import type { AppSnapshot } from '../shared/types';
 import { api } from './api';
 import {
@@ -47,7 +55,7 @@ const NAV_GROUPS: Array<{
   },
 ];
 
-export function App() {
+function AppShell() {
   const [state, setState] = useState<AppSnapshot | null>(null);
   const [fatal, setFatal] = useState<string | null>(null);
   const [view, setView] = useState<ViewKey>('connect');
@@ -436,5 +444,45 @@ export function App() {
 
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
+  );
+}
+
+interface ErrorBoundaryState {
+  error: string | null;
+}
+
+/**
+ * Keeps a render error from leaving an empty window. React logs the failure
+ * itself; this only gives the user a way back without restarting the app.
+ */
+class AppErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { error: null };
+
+  static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+
+  render(): ReactNode {
+    if (this.state.error) {
+      return (
+        <div className="fatal">
+          <Logo size={52} />
+          <h1>LinkPhone hit an unexpected error</h1>
+          <p>{this.state.error}</p>
+          <Button variant="primary" onClick={() => this.setState({ error: null })}>
+            Try again
+          </Button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export function App() {
+  return (
+    <AppErrorBoundary>
+      <AppShell />
+    </AppErrorBoundary>
   );
 }
