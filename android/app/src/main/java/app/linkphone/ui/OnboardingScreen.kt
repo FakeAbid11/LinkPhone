@@ -27,7 +27,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BatteryFull
@@ -413,7 +412,7 @@ private fun HeroMark() {
             .size(64.dp)
             .background(
                 MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
-                RoundedCornerShape(22.dp),
+                MaterialTheme.shapes.large,
             ),
         contentAlignment = Alignment.Center,
     ) {

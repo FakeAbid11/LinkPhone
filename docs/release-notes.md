@@ -1,3 +1,40 @@
+## LinkPhone v0.7.4
+
+A direct, LAN-only companion link between an Android phone and a Windows PC. This release brings the
+phone app fully onto the Material 3 component system.
+
+### What's new
+
+- **Dialogs now match the app.** Android draws a dialog on the `surfaceContainerHigh` colour, and the
+  theme never defined that colour — so the "Forget this PC?", install-permission and permission
+  prompts sat on Material's stock grey instead of LinkPhone's own surface. They now use the app's
+  palette in both the light and the dark theme.
+- **The rest of the Material 3 surface set is defined too** — the surface container levels, the dim
+  and bright surfaces, the inverse colours a snackbar would use, and the scrim. Anything Material 3
+  the app adds later now inherits the LinkPhone palette instead of falling back to Google's defaults.
+- **The switch tracks match the surrounding card** in both themes.
+- **The QR scanner uses the palette** instead of two hard-coded colours.
+- **Corners follow one shape scale** instead of four separate values, and the four remaining type
+  styles are defined so nothing falls back to Roboto.
+- **Screen readers read a settings row as one item** instead of three, and a permission button
+  announces what it grants ("Grant Messages" rather than just "Grant").
+- The look is unchanged apart from corners moving by one or two pixels. The Windows app is unchanged.
+
+### Which updates do I need?
+
+- **Phone v0.7.4** for the corrected colours and accessibility. The PC app needs nothing.
+- Updating only one side is safe; the two apps are versioned independently.
+
+### Download
+
+- `LinkPhone-0.7.4.apk` — Android 10+ companion (sideload; same release key)
+- `LinkPhone-Portable-0.7.4.exe` — Windows portable app
+- `LinkPhone-Setup-0.7.4.exe` — Windows installer (recommended for automatic updates)
+- `SHA256SUMS.txt` — verify your downloads
+
+Built, unit-tested, linted, and E2E-tested in GitHub Actions. The palette checks run in CI; the
+visual check needs the device checklist in `docs/testing.md`.
+
 ## LinkPhone v0.7.3
 
 A direct, LAN-only companion link between an Android phone and a Windows PC. This release turns the

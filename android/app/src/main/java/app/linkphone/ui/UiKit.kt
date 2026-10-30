@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -42,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -102,7 +102,7 @@ fun IconBadge(
             .size(38.dp)
             .background(
                 MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
-                RoundedCornerShape(11.dp),
+                MaterialTheme.shapes.small,
             ),
         contentAlignment = Alignment.Center,
     ) {
@@ -142,7 +142,10 @@ fun ToggleRow(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier.fillMaxWidth().padding(vertical = 8.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {}
+            .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -182,7 +185,7 @@ fun Notice(
         modifier = modifier.fillMaxWidth(),
         color = background,
         contentColor = foreground,
-        shape = RoundedCornerShape(12.dp),
+        shape = MaterialTheme.shapes.medium,
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
@@ -228,7 +231,12 @@ fun PermissionRow(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            PermissionStatus.NeedsAccess -> OutlinedButton(onClick = onAction) {
+            PermissionStatus.NeedsAccess -> OutlinedButton(
+                onClick = onAction,
+                modifier = Modifier.semantics {
+                    contentDescription = "$actionLabel $title"
+                },
+            ) {
                 Text(actionLabel, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }

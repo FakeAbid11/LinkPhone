@@ -34,7 +34,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FlashOff
 import androidx.compose.material.icons.outlined.FlashOn
@@ -130,8 +129,8 @@ private fun ScannerScreen(onDecoded: (String) -> Unit, onClose: () -> Unit) {
                     .windowInsetsPadding(WindowInsets.safeDrawing)
                     .padding(24.dp)
                     .background(
-                        Color(0xD90B0F19),
-                        RoundedCornerShape(18.dp),
+                        MaterialTheme.colorScheme.scrim.copy(alpha = 0.85f),
+                        MaterialTheme.shapes.large,
                     )
                     .padding(16.dp),
             ) {
@@ -139,12 +138,12 @@ private fun ScannerScreen(onDecoded: (String) -> Unit, onClose: () -> Unit) {
                     Text(
                         "Scan the pairing QR on your PC",
                         style = MaterialTheme.typography.titleMedium,
-                        color = Color.White,
+                        color = Color(LinkPhonePalette.DarkOnBackground),
                     )
                     Text(
                         "The code expires five minutes after you create it.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFFC3CCE0),
+                        color = Color(LinkPhonePalette.DarkOnSurfaceVariant),
                         modifier = Modifier.padding(top = 4.dp),
                     )
                     OutlinedButton(onClick = onClose, modifier = Modifier.padding(top = 10.dp)) {
@@ -277,12 +276,15 @@ private fun CameraScanner(onDecoded: (String) -> Unit) {
                     .align(Alignment.TopEnd)
                     .windowInsetsPadding(WindowInsets.safeDrawing)
                     .padding(16.dp)
-                    .background(Color(0xD90B0F19), RoundedCornerShape(12.dp)),
+                    .background(
+                        MaterialTheme.colorScheme.scrim.copy(alpha = 0.85f),
+                        MaterialTheme.shapes.small,
+                    ),
             ) {
                 Icon(
                     if (torchOn) Icons.Outlined.FlashOn else Icons.Outlined.FlashOff,
                     contentDescription = if (torchOn) "Turn torch off" else "Turn torch on",
-                    tint = Color.White,
+                    tint = Color(LinkPhonePalette.DarkOnBackground),
                 )
             }
         }
