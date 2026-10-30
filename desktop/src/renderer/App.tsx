@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Component,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import type { AppSnapshot } from '../shared/types';
 import { api } from './api';
 import {
@@ -47,7 +55,7 @@ const NAV_GROUPS: Array<{
   },
 ];
 
-export function App() {
+function AppShell() {
   const [state, setState] = useState<AppSnapshot | null>(null);
   const [fatal, setFatal] = useState<string | null>(null);
   const [view, setView] = useState<ViewKey>('connect');
@@ -55,6 +63,8 @@ export function App() {
   const [updateBannerHidden, setUpdateBannerHidden] = useState(false);
   const toastId = useRef(1);
   const mainRef = useRef<HTMLElement>(null);
+  /** Counts pushed snapshots so a slow initial getState() cannot overwrite one. */
+  const stateGeneration = useRef(0);
 
   const dismissToast = useCallback((id: number) => {
     setToasts((current) => current.filter((toast) => toast.id !== id));
@@ -105,15 +115,21 @@ export function App() {
 
   useEffect(() => {
     let mounted = true;
+    const generation = stateGeneration.current;
     void api
       .getState()
       .then((snapshot) => {
-        if (mounted) setState(snapshot);
+        // A pushed snapshot may have arrived while this request was in flight;
+        // that one is newer, so do not clobber it with the older reply.
+        if (mounted && stateGeneration.current === generation) setState(snapshot);
       })
       .catch((error: unknown) => {
         if (mounted) setFatal(errorMessage(error));
       });
-    const offState = api.onState((snapshot) => setState(snapshot));
+    const offState = api.onState((snapshot) => {
+      stateGeneration.current += 1;
+      setState(snapshot);
+    });
     const offToast = api.onToast((toast) => {
       pushToast(toast.kind === 'error' ? 'error' : 'info', toast.message);
     });
@@ -428,5 +444,45 @@ export function App() {
 
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
+  );
+}
+
+interface ErrorBoundaryState {
+  error: string | null;
+}
+
+/**
+ * Keeps a render error from leaving an empty window. React logs the failure
+ * itself; this only gives the user a way back without restarting the app.
+ */
+class AppErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { error: null };
+
+  static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+
+  render(): ReactNode {
+    if (this.state.error) {
+      return (
+        <div className="fatal">
+          <Logo size={52} />
+          <h1>LinkPhone hit an unexpected error</h1>
+          <p>{this.state.error}</p>
+          <Button variant="primary" onClick={() => this.setState({ error: null })}>
+            Try again
+          </Button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export function App() {
+  return (
+    <AppErrorBoundary>
+      <AppShell />
+    </AppErrorBoundary>
   );
 }

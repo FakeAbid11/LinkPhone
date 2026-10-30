@@ -114,6 +114,17 @@ class LinkPrefs(context: Context) {
             .apply()
     }
 
+    /**
+     * Whether the runtime dialog for [key] has already been shown. Persisted so
+     * the "Open settings" hint stays correct after Android kills the process.
+     */
+    fun wasPermissionAsked(key: String): Boolean =
+        store.getBoolean(KEY_ASKED_PREFIX + key, false)
+
+    fun markPermissionAsked(key: String) {
+        store.edit().putBoolean(KEY_ASKED_PREFIX + key, true).apply()
+    }
+
     private fun defaultName(): String {
         val model = Build.MODEL?.trim().orEmpty()
         return model.ifEmpty { "Android phone" }.take(80)
@@ -132,5 +143,6 @@ class LinkPrefs(context: Context) {
         const val KEY_PC_HOST = "pc.host"
         const val KEY_PC_PORT = "pc.port"
         const val KEY_PC_FINGERPRINT = "pc.fingerprint"
+        const val KEY_ASKED_PREFIX = "permission.asked."
     }
 }

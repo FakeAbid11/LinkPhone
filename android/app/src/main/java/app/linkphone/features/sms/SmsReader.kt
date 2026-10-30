@@ -15,7 +15,14 @@ class SmsReader(private val context: Context) {
     @SuppressLint("MissingPermission")
     fun listMessages(limit: Int = 500): List<SmsMessageDto> {
         if (!Permissions.sms(context)) {
-            throw FeaturePermissionException("SMS permission is not granted")
+            val missing = Permissions.smsMissing(context)
+            throw FeaturePermissionException(
+                if (missing.isEmpty()) {
+                    "SMS permission is not granted"
+                } else {
+                    "Allow LinkPhone to ${missing.joinToString(" and ")} on the phone"
+                },
+            )
         }
         val safeLimit = limit.coerceIn(1, 1_000)
         val withSubId = arrayOf(

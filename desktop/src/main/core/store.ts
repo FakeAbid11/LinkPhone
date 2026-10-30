@@ -134,9 +134,26 @@ export class Store {
   save(): void {
     const json = JSON.stringify(this.data, null, 2);
     const temp = `${this.filePath}.tmp`;
+    const backup = `${this.filePath}.bak`;
     fs.writeFileSync(temp, json, { mode: 0o600 });
-    fs.copyFileSync(temp, this.filePath);
-    fs.rmSync(temp, { force: true });
+    // Keep the last good copy: a crash between writing the temp file and
+    // replacing the live one must not destroy the PC identity or the paired
+    // phones. Without this, a truncated state.json silently re-generates a new
+    // pcId and every phone has to pair again.
+    try {
+      if (fs.existsSync(this.filePath)) fs.copyFileSync(this.filePath, backup);
+    } catch {
+      // A missing backup must never block the write.
+    }
+    try {
+      // rename() swaps the file in one step; copyFileSync truncates the
+      // destination first, which is the window this is closing.
+      fs.renameSync(temp, this.filePath);
+    } catch {
+      // Some Windows setups (indexer, antivirus) hold the target briefly.
+      fs.copyFileSync(temp, this.filePath);
+      fs.rmSync(temp, { force: true });
+    }
   }
 }
 
@@ -156,10 +173,40 @@ function loadData(filePath: string): AppData {
     return data;
   }
 
+  let raw: string | undefined;
   try {
-    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8')) as Partial<AppData>;
+    raw = fs.readFileSync(filePath, 'utf8');
+  } catch {
+    raw = undefined;
+  }
+  const parsed = raw === undefined ? null : parseData(raw);
+  if (parsed) return parsed;
+
+  // Unreadable or invalid: keep the bytes for diagnosis, then prefer the last
+  // good snapshot over discarding the PC identity and the paired phones.
+  try {
+    fs.copyFileSync(filePath, `${filePath}.corrupt-${Date.now()}`);
+  } catch {
+    // Ignore backup failure.
+  }
+
+  const recovered = readDataFile(`${filePath}.bak`);
+  if (recovered) {
+    fs.writeFileSync(filePath, JSON.stringify(recovered, null, 2), { mode: 0o600 });
+    return recovered;
+  }
+
+  const data = defaults();
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), { mode: 0o600 });
+  return data;
+}
+
+/** Parses and normalizes a state file, or null when it is not usable. */
+function parseData(raw: string): AppData | null {
+  try {
+    const parsed = JSON.parse(raw) as Partial<AppData>;
     if (!parsed || parsed.version !== 1 || typeof parsed.pcId !== 'string') {
-      throw new Error('Unsupported store format');
+      return null;
     }
     const devices = Array.isArray(parsed.devices)
       ? parsed.devices.filter(
@@ -198,15 +245,16 @@ function loadData(filePath: string): AppData {
       readSms,
     };
   } catch {
-    const backup = `${filePath}.corrupt-${Date.now()}`;
-    try {
-      fs.copyFileSync(filePath, backup);
-    } catch {
-      // Ignore backup failure.
-    }
-    const data = defaults();
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), { mode: 0o600 });
-    return data;
+    return null;
+  }
+}
+
+function readDataFile(filePath: string): AppData | null {
+  try {
+    if (!fs.existsSync(filePath)) return null;
+    return parseData(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return null;
   }
 }
 

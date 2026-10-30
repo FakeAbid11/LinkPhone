@@ -241,7 +241,14 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
                   <Button
                     small
                     variant="secondary"
-                    onClick={() => void ui.run(() => api.createPairing())}
+                    onClick={() =>
+                      void ui.run(async () => {
+                        // Drop the current token first, or the approval dialog
+                        // for the old code stays on screen next to the new one.
+                        await api.cancelPairing();
+                        await api.createPairing();
+                      })
+                    }
                   >
                     New code
                   </Button>

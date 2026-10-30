@@ -12,7 +12,7 @@ import {
 } from '../components';
 import type { Ui } from '../ui';
 import { filterThreads } from '../thread-filter';
-import { formatDateTime, formatTime, initials, timeAgo } from '../utils';
+import { formatDateTime, formatTime, initials, errorMessage, timeAgo } from '../utils';
 
 export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   const connected = state.connection.connected;
@@ -53,12 +53,6 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   }, [connected, supported]);
 
   useEffect(() => {
-    if (subId === null && state.connection.subscriptions.length > 0) {
-      setSubId(state.connection.subscriptions[0].subscriptionId);
-    }
-  }, [state.connection.subscriptions, subId]);
-
-  useEffect(() => {
     const element = scrollRef.current;
     if (element) element.scrollTop = element.scrollHeight;
   }, [active?.address, active?.messages.length]);
@@ -68,11 +62,19 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
     setSending(true);
     const body = draft;
     setDraft('');
-    await ui.run(
-      () => api.sendSms(active.address, body, subId ?? undefined),
-      'Message sent to the phone',
-    );
-    setSending(false);
+    try {
+      // Omit subId unless the user picked a SIM, so the phone uses its
+      // system-default subscription instead of whichever one we guessed.
+      await api.sendSms(active.address, body, subId ?? undefined);
+      ui.toast('success', 'Message sent to the phone');
+    } catch (error) {
+      // Put the text back: losing it because the phone refused is worse than
+      // reading the error twice.
+      setDraft((current) => (current ? current : body));
+      ui.toast('error', errorMessage(error));
+    } finally {
+      setSending(false);
+    }
   };
 
   const openThread = (thread: SmsThreadUi) => {
@@ -309,6 +311,7 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
                         value={subId ?? ''}
                         onChange={(event) => setSubId(Number(event.target.value) || null)}
                       >
+                        <option value="">Default SIM</option>
                         {state.connection.subscriptions.map((subscription) => (
                           <option
                             key={subscription.subscriptionId}

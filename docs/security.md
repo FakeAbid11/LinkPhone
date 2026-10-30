@@ -40,7 +40,9 @@
 - Three failed attempts from one IP trigger a 15-minute lockout for that IP.
 - PC shows the phone's computed P-256 fingerprint and requires explicit approval within 90 seconds.
 - A phone can replace an existing device entry only through the same approval flow.
-- Pairing is refused while another authenticated phone is connected.
+- Pairing is refused while a *different* phone is connected. A phone that is already
+  paired may re-pair while it is connected, which is how a phone recovers after the PC
+  identity was reset.
 
 ## Authentication
 

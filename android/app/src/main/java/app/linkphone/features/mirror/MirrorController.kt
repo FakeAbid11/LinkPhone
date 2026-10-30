@@ -7,12 +7,10 @@ import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
-import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
 import android.view.Display
-import android.view.WindowManager
 import app.linkphone.core.model.MirrorState
 import app.linkphone.core.net.ConnectionHub
 import app.linkphone.core.util.LinkStatus
@@ -198,20 +196,22 @@ class MirrorController(
         }
     }
 
+    @Suppress("DEPRECATION")
     private fun screenSize(): Pair<Int, Int> {
-        val metrics = context.resources.displayMetrics
-        var width = metrics.widthPixels
-        var height = metrics.heightPixels
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val bounds = context.getSystemService(WindowManager::class.java)
-                ?.currentWindowMetrics
-                ?.bounds
-            if (bounds != null) {
-                width = bounds.width()
-                height = bounds.height()
+        // The app window is smaller than the display on a device with a cutout,
+        // and the virtual display must cover the real screen or the mirror is
+        // cropped at the edges.
+        val display = context.getSystemService(DisplayManager::class.java)
+            ?.getDisplay(Display.DEFAULT_DISPLAY)
+        if (display != null) {
+            val metrics = android.util.DisplayMetrics()
+            display.getRealMetrics(metrics)
+            if (metrics.widthPixels > 0 && metrics.heightPixels > 0) {
+                return metrics.widthPixels to metrics.heightPixels
             }
         }
-        return width.coerceAtLeast(2) to height.coerceAtLeast(2)
+        val metrics = context.resources.displayMetrics
+        return metrics.widthPixels.coerceAtLeast(2) to metrics.heightPixels.coerceAtLeast(2)
     }
 
     private fun currentRotation(): Int {

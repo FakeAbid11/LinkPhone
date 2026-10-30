@@ -193,18 +193,20 @@ export class UpdateService {
         throw new Error(`SHA256SUMS.txt does not list ${fileName}`);
       }
       await fs.promises.mkdir(this.options.updatesDir, { recursive: true });
-      await client.download(release.setup.url, partial, MAX_INSTALLER_BYTES, (percent) => {
-        this.updateProgress(percent);
-      });
-      const actual = await sha256File(partial);
-      if (!checksumsEqual(actual, expected)) {
-        throw new Error('The downloaded installer failed its SHA-256 check');
+      if (!(await this.reuseInstaller(target, expected))) {
+        await client.download(release.setup.url, partial, MAX_INSTALLER_BYTES, (percent) => {
+          this.updateProgress(percent);
+        });
+        const actual = await sha256File(partial);
+        if (!checksumsEqual(actual, expected)) {
+          throw new Error('The downloaded installer failed its SHA-256 check');
+        }
+        await fs.promises.rm(target, { force: true });
+        await fs.promises.rename(partial, target);
       }
-      await fs.promises.rm(target, { force: true });
-      await fs.promises.rename(partial, target);
       this.installerPath = target;
       this.patch({ phase: 'ready', progress: 100, checkedAt: this.now() });
-      this.options.logger.log('Update', `Downloaded LinkPhone ${release.version}`);
+      this.options.logger.log('Update', `LinkPhone ${release.version} is ready to install`);
       if (this.notifiedVersion !== release.version) {
         this.notifiedVersion = release.version;
         this.options.notify(
@@ -244,17 +246,47 @@ export class UpdateService {
     this.options.onChange();
   }
 
+  /**
+   * True when the release installer is already on disk and still matches the
+   * published checksum. Lets a restarted app reach "ready" without downloading
+   * the same EXE again.
+   */
+  private async reuseInstaller(target: string, expected: string): Promise<boolean> {
+    try {
+      if (!fs.existsSync(target)) return false;
+      const digest = await sha256File(target);
+      if (!checksumsEqual(digest, expected)) {
+        await fs.promises.rm(target, { force: true });
+        return false;
+      }
+      this.options.logger.log('Update', 'Reusing the installer already on disk');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Removes partial downloads and every installer except the newest one. */
   private async cleanupOldInstallers(): Promise<void> {
     try {
       const entries = await fs.promises.readdir(this.options.updatesDir);
+      const installers = entries.filter((name) => /^LinkPhone-Setup-.*\.exe$/i.test(name));
+      const keep = installers
+        .map((name) => ({
+          name,
+          version: name.replace(/^LinkPhone-Setup-/i, '').replace(/\.exe$/i, ''),
+        }))
+        .filter((entry) => /^\d+\.\d+\.\d+$/.test(entry.version))
+        .sort((a, b) => compareVersions(b.version, a.version))[0]?.name;
+      const stale = entries.filter(
+        (name) => name.endsWith('.part') || (installers.includes(name) && name !== keep),
+      );
       await Promise.all(
-        entries
-          .filter((name) => name.endsWith('.part') || /^LinkPhone-Setup-.*\.exe$/i.test(name))
-          .map((name) =>
-            fs.promises
-              .rm(path.join(this.options.updatesDir, name), { force: true })
-              .catch(() => undefined),
-          ),
+        stale.map((name) =>
+          fs.promises
+            .rm(path.join(this.options.updatesDir, name), { force: true })
+            .catch(() => undefined),
+        ),
       );
     } catch {
       // The directory may not exist yet.

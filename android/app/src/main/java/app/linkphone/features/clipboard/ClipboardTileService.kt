@@ -13,8 +13,12 @@ class ClipboardTileService : TileService() {
     @Suppress("DEPRECATION")
     override fun onStartListening() {
         super.onStartListening()
-        val state = if (ConnectionHub.isConnected()) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
-        qsTile?.state = state
+        // updateTile() is what pushes the new state to the shade; setting it
+        // alone can leave a stale icon.
+        qsTile?.apply {
+            state = if (ConnectionHub.isConnected()) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
+            updateTile()
+        }
     }
 
     @SuppressLint("StartActivityAndCollapseDeprecated")

@@ -1,4 +1,48 @@
+import dgram from 'node:dgram';
 import os from 'node:os';
+
+/**
+ * The local address the OS would use for an outbound route, or null when there
+ * is none. `connect()` on a UDP socket only resolves the route — no packet is
+ * sent — so this works offline and on CI runners without a default gateway.
+ */
+function defaultRouteAddress(): string | null {
+  const socket = dgram.createSocket('udp4');
+  // dgram reports failures asynchronously; an unhandled 'error' would crash the
+  // main process, so the listener stays attached until the socket closes.
+  socket.on('error', () => undefined);
+  try {
+    socket.connect(53, '8.8.8.8');
+    const { address } = socket.address();
+    return typeof address === 'string' && /^\d{1,3}(\.\d{1,3}){3}$/.test(address)
+      ? address
+      : null;
+  } catch {
+    return null;
+  } finally {
+    try {
+      socket.close();
+    } catch {
+      // Already closed.
+    }
+  }
+}
+
+/**
+ * Default-route address first, then RFC1918, then the rest. The pairing QR can
+ * only carry one host, and a VPN or Hyper-V adapter would otherwise win.
+ */
+export function orderAddresses(addresses: string[], preferred?: string | null): string[] {
+  return [...addresses].sort((a, b) => {
+    if (preferred) {
+      if (a === preferred && b !== preferred) return -1;
+      if (b === preferred && a !== preferred) return 1;
+    }
+    const aPrivate = isPrivateIPv4(a) ? 0 : 1;
+    const bPrivate = isPrivateIPv4(b) ? 0 : 1;
+    return aPrivate - bPrivate || a.localeCompare(b);
+  });
+}
 
 export function getLanAddresses(): string[] {
   const addresses: string[] = [];
@@ -11,11 +55,7 @@ export function getLanAddresses(): string[] {
       if (!addresses.includes(entry.address)) addresses.push(entry.address);
     }
   }
-  return addresses.sort((a, b) => {
-    const aPrivate = isPrivateIPv4(a) ? 0 : 1;
-    const bPrivate = isPrivateIPv4(b) ? 0 : 1;
-    return aPrivate - bPrivate || a.localeCompare(b);
-  });
+  return orderAddresses(addresses, defaultRouteAddress());
 }
 
 export function isPrivateIPv4(address: string): boolean {

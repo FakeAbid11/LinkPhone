@@ -112,6 +112,9 @@ export class AppController {
   async start(): Promise<void> {
     if (this.started) return;
     this.started = true;
+    // The updater is independent of the connection: it must still run when the
+    // server cannot start, or the user has no way to install a fix.
+    this.updates.start();
     try {
       this.cert = ensureCertificate(this.certDir);
       this.logger.log('TLS', `PC certificate ${this.cert.fingerprintHex.slice(0, 16)}…`);
@@ -146,7 +149,6 @@ export class AppController {
         void this.clipboardService.maybeAutoSend(this.store.settings.autoClipboard);
       }, 1_200);
       this.autoClipboardTimer.unref?.();
-      this.updates.start();
       this.scheduleBroadcast();
     } catch (error) {
       this.serverError =
@@ -378,7 +380,11 @@ export class AppController {
     this.mirrorService.onDisconnected();
     this.streams.rejectAll('Phone disconnected');
     this.logger.log('App', `Phone disconnected: ${reason}`);
-    this.notify('Phone disconnected', reason || 'The connection closed.');
+    // A reconnect closes the old socket with "Replaced by a newer connection";
+    // saying "disconnected" there just before "connected" is noise.
+    if (!/replaced by a newer connection/i.test(reason)) {
+      this.notify('Phone disconnected', reason || 'The connection closed.');
+    }
     this.scheduleBroadcast();
   }
 
@@ -859,11 +865,13 @@ export class AppController {
   }
 
   private pushState(): void {
+    // Build the snapshot once, even with the window closed, so the tray keeps
+    // reflecting the connection state while LinkPhone is minimised.
+    const snapshot = this.snapshot();
     if (this.window && !this.window.isDestroyed()) {
-      const snapshot = this.snapshot();
       this.window.webContents.send('state', snapshot);
-      this.trayUpdater?.(snapshot);
     }
+    this.trayUpdater?.(snapshot);
   }
 
   async stop(): Promise<void> {

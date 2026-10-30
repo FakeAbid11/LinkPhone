@@ -22,9 +22,14 @@ import app.linkphone.core.util.FeaturePermissionException
 import app.linkphone.core.util.LinkStatus
 import app.linkphone.core.util.SafeInput
 import app.linkphone.features.Permissions
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class CallController(
     private val context: Context,
+    private val scope: CoroutineScope,
     private val onState: (CallState) -> Unit,
 ) {
     private val telephony: TelephonyManager? =
@@ -36,6 +41,9 @@ class CallController(
     private var listener: PhoneStateListener? = null
     private var speakerOn = false
     private var lastState: CallState? = null
+
+    /** Invalidates a contact lookup that started before the last state change. */
+    private var generation = 0
 
     fun isSupported(): Boolean =
         context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) ||
@@ -60,12 +68,14 @@ class CallController(
                 val next = CallState(
                     state = mapped,
                     number = number,
-                    contactName = number?.let(::contactName),
                     timestamp = System.currentTimeMillis(),
                     speakerOn = speakerOn,
                 )
                 lastState = next
                 onState(next)
+                // The name comes from a content provider, so it is resolved off
+                // the main thread and sent as a follow-up update.
+                if (number != null) resolveContactName(number, mapped)
             }
         }
         try {
@@ -93,6 +103,7 @@ class CallController(
 
     @Suppress("DEPRECATION")
     fun stop() {
+        generation += 1
         val current = listener
         if (current != null) {
             runCatching { telephony?.listen(current, PhoneStateListener.LISTEN_NONE) }
@@ -265,6 +276,26 @@ class CallController(
             audio?.isSpeakerphoneOn = false
         }
         speakerOn = false
+    }
+
+    /**
+     * Resolves the caller's name off the main thread and sends a second
+     * call.state update. Skipped when the call has already moved on.
+     */
+    private fun resolveContactName(number: String, state: String) {
+        val current = ++generation
+        scope.launch {
+            val name = contactName(number) ?: return@launch
+            withContext(Dispatchers.Main.immediate) {
+                if (current != generation) return@withContext
+                val latest = lastState ?: return@withContext
+                if (latest.state != state) return@withContext
+                if (latest.contactName == name) return@withContext
+                val named = latest.copy(contactName = name)
+                lastState = named
+                onState(named)
+            }
+        }
     }
 
     @SuppressLint("MissingPermission")

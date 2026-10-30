@@ -51,6 +51,11 @@ export class SmsService {
     this.readIds.clear();
     if (this.debounce) clearTimeout(this.debounce);
     this.debounce = undefined;
+    // Do not keep message bodies in memory, or in the snapshot the renderer
+    // receives, after the phone is gone.
+    this.messages = [];
+    this.local = [];
+    this.error = undefined;
     this.onChange();
   }
 

@@ -73,7 +73,7 @@ const api: LinkPhoneApi = {
   downloadUpdate: () => ipcRenderer.invoke('updater:download'),
   installUpdate: () => ipcRenderer.invoke('updater:install'),
   openReleasePage: () => ipcRenderer.invoke('updater:openRelease'),
-  refresh: () => ipcRenderer.invoke('app:refresh'),
+  refresh: () => ipcRenderer.invoke('app:refresh') as Promise<AppSnapshot>,
 };
 
 contextBridge.exposeInMainWorld('linkphone', api);

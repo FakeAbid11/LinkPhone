@@ -24,6 +24,13 @@ object Permissions {
             has(context, Manifest.permission.SEND_SMS) &&
             has(context, Manifest.permission.RECEIVE_SMS)
 
+    /** What the SMS feature is still missing, phrased for the PC's error message. */
+    fun smsMissing(context: Context): List<String> = buildList {
+        if (!has(context, Manifest.permission.READ_SMS)) add("read messages")
+        if (!has(context, Manifest.permission.SEND_SMS)) add("send messages")
+        if (!has(context, Manifest.permission.RECEIVE_SMS)) add("receive messages")
+    }
+
     fun photos(context: Context): Boolean {
         val full = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             has(context, Manifest.permission.READ_MEDIA_IMAGES)
