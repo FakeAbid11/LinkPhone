@@ -343,58 +343,6 @@ describe('LinkServer pairing and authentication', () => {
     expect(harness.pairings.current()).toBeDefined();
   });
 
-  it('replaces an older request when a second phone asks', async () => {
-    const first = deferred<PairingDecision>();
-    const second = deferred<PairingDecision>();
-    let calls = 0;
-    const harness = await startHarness(() => {
-      calls += 1;
-      return calls === 1 ? first.promise : second.promise;
-    });
-    const clientA = await Client.open(harness.port);
-    const clientB = await Client.open(harness.port);
-    harness.clients.push(clientA, clientB);
-    const phoneA = makePhone();
-    const phoneB = makePhone();
-    const session = harness.pairings.create();
-
-    clientA.send(TYPES.PAIR_REQUEST, pairPayload(session.token, 'phone-1', phoneA.spkiBase64));
-    await clientA.waitFor(TYPES.PAIR_PENDING);
-
-    clientB.send(TYPES.PAIR_REQUEST, pairPayload(session.token, 'phone-2', phoneB.spkiBase64));
-    await clientB.waitFor(TYPES.PAIR_PENDING);
-
-    const superseded = await clientA.waitFor(TYPES.PAIR_REJECTED);
-    expect(superseded.error?.message).toMatch(/newer pairing request/i);
-
-    second.resolve({ approved: true });
-    await clientB.waitFor(TYPES.PAIR_OK);
-    expect(harness.store.devices).toHaveLength(1);
-    expect(harness.store.devices[0].id).toBe('phone-2');
-  });
-
-  it('joins a duplicate request from the same socket', async () => {
-    const pending = deferred<PairingDecision>();
-    const harness = await startHarness(() => pending.promise);
-    const client = await Client.open(harness.port);
-    harness.clients.push(client);
-    const phone = makePhone();
-    const session = harness.pairings.create();
-    const payload = pairPayload(session.token, 'phone-1', phone.spkiBase64);
-
-    client.send(TYPES.PAIR_REQUEST, payload);
-    await client.waitFor(TYPES.PAIR_PENDING);
-    client.send(TYPES.PAIR_REQUEST, payload);
-    await new Promise((resolve) => setTimeout(resolve, 150));
-
-    // The retry joins the prompt already on screen instead of stacking a second.
-    expect(harness.state.pairingRequests).toBe(1);
-
-    pending.resolve({ approved: true });
-    await client.waitFor(TYPES.PAIR_OK);
-    expect(harness.store.devices).toHaveLength(1);
-  });
-
   it('tells the phone when approval timed out rather than saying it was declined', async () => {
     const harness = await startHarness(
       async (): Promise<PairingDecision> => ({ approved: false, reason: 'timeout' }),

@@ -14,6 +14,7 @@ import { ensureCertificate, type PcCertificate } from './core/certs';
 import { Logger } from './core/logger';
 import { buildPairingUri, getLanAddresses } from './core/network';
 import { PairingManager } from './core/pairing';
+import { PairingApprovals } from './core/pairing-approvals';
 import { normalizePhoneInfo } from './core/phone-info';
 import { Store } from './core/store';
 import { StreamRegistry } from './core/streams';
@@ -56,19 +57,6 @@ import {
   type UpdateMode,
 } from '../shared/types';
 
-interface PendingPairing {
-  context: PairingRequestContext;
-  /** Epoch ms after which the prompt stops waiting for an answer. */
-  deadline: number;
-  /** Returned to a duplicate request from the same socket so it joins this prompt. */
-  promise: Promise<PairingDecision>;
-  resolve: (decision: PairingDecision) => void;
-  timer: NodeJS.Timeout;
-}
-
-/** How long a pairing prompt stays up before it resolves as a timeout. */
-const PAIRING_APPROVAL_MS = 90_000;
-
 export class AppController {
   private readonly logger: Logger;
   private readonly store: Store;
@@ -92,7 +80,19 @@ export class AppController {
   private updates!: UpdateService;
 
   private pairingOffer: PairingOffer | undefined;
-  private pendingPairing: PendingPairing | undefined;
+  private readonly approvals = new PairingApprovals({
+    onChange: () => this.scheduleBroadcast(),
+    onTimeout: (context) => {
+      this.pairingError = `${context.name} was not approved in time. Scan the code again.`;
+    },
+    onSuperseded: () => {
+      this.logger.log('Pair', 'A newer pairing request replaced the pending one');
+    },
+    onDisconnected: () => {
+      this.pairingError =
+        'The phone disconnected before the request was approved. Scan the code again.';
+    },
+  });
   private pairingError: string | undefined;
   private serverError: string | undefined;
   private lastError: string | undefined;
@@ -211,13 +211,14 @@ export class AppController {
       subscriptions: [...this.subscriptions],
       since: this.connectedAt,
     };
-    const pairingRequest: PairingRequestUi | undefined = this.pendingPairing
+    const pendingApproval = this.approvals.current;
+    const pairingRequest: PairingRequestUi | undefined = pendingApproval
       ? {
-          id: this.pendingPairing.context.id,
-          name: this.pendingPairing.context.name,
-          fingerprint: this.pendingPairing.context.fingerprint,
-          platform: this.pendingPairing.context.platform,
-          expiresAt: this.pendingPairing.deadline,
+          id: pendingApproval.context.id,
+          name: pendingApproval.context.name,
+          fingerprint: pendingApproval.context.fingerprint,
+          platform: pendingApproval.context.platform,
+          expiresAt: pendingApproval.deadline,
         }
       : undefined;
     return {
@@ -342,7 +343,6 @@ export class AppController {
       onPaired: (device) => {
         this.pairingOffer = undefined;
         this.pairingError = undefined;
-        this.pendingPairing = undefined;
         this.logger.log('Pair', `Paired with ${device.name}`);
         this.notify('Phone paired', `${device.name} is now paired with this PC.`);
         this.scheduleBroadcast();
@@ -549,79 +549,30 @@ export class AppController {
   cancelPairing(): void {
     // Without this the prompt outlives the code it belongs to, and the next scan
     // is answered "declined" because the stale entry is still sitting there.
-    if (this.pendingPairing) {
-      this.clearPendingPairing({ approved: false, reason: 'cancelled' });
-    }
+    this.approvals.cancel();
     this.pairings.clear();
     this.pairingOffer = undefined;
     this.scheduleBroadcast();
   }
 
   private requestPairingApproval(context: PairingRequestContext): Promise<PairingDecision> {
-    const pending = this.pendingPairing;
-    if (pending) {
-      // The same socket asking again is a retry over the connection that is
-      // already waiting, so join the prompt instead of stacking a second one.
-      if (pending.context.sessionId === context.sessionId) return pending.promise;
-      // A different phone: the newest request wins. Declining the newcomer is
-      // what left people staring at "declined" with no dialog at all, because
-      // the older entry could belong to a socket that is already gone.
-      this.logger.log('Pair', 'A newer pairing request replaced the pending one');
-      this.clearPendingPairing({ approved: false, reason: 'superseded' });
-    }
-
-    let resolve: (decision: PairingDecision) => void = () => undefined;
-    const promise = new Promise<PairingDecision>((done) => {
-      resolve = done;
-    });
-    const deadline = Date.now() + PAIRING_APPROVAL_MS;
-    const timer = setTimeout(() => {
-      if (this.pendingPairing?.context.id !== context.id) return;
-      this.pairingError = `${context.name} was not approved in time. Scan the code again.`;
-      this.clearPendingPairing({ approved: false, reason: 'timeout' });
-    }, PAIRING_APPROVAL_MS);
-    timer.unref?.();
-
-    this.pendingPairing = { context, deadline, promise, resolve, timer };
+    const decision = this.approvals.request(context);
     this.pairingError = undefined;
     this.logger.log('Pair', `Approval requested by ${context.name} (${context.remoteAddress})`);
     this.focusForAttention();
-    this.scheduleBroadcast();
-    return promise;
+    return decision;
   }
 
   approvePairing(id: string): void {
-    const pending = this.pendingPairing;
-    if (!pending || pending.context.id !== id) {
-      throw new Error('This pairing request is no longer active');
-    }
-    this.clearPendingPairing({ approved: true });
+    this.approvals.approve(id);
   }
 
   rejectPairing(id: string): void {
-    const pending = this.pendingPairing;
-    if (!pending || pending.context.id !== id) {
-      throw new Error('This pairing request is no longer active');
-    }
-    this.clearPendingPairing({ approved: false, reason: 'declined' });
+    this.approvals.reject(id);
   }
 
-  /** The phone walked away before the prompt was answered. */
   private handlePairingSocketClosed(sessionId: string): void {
-    if (this.pendingPairing?.context.sessionId !== sessionId) return;
-    this.logger.log('Pair', 'The phone closed the pairing connection before approval');
-    this.pairingError =
-      'The phone disconnected before the request was approved. Scan the code again.';
-    this.clearPendingPairing({ approved: false, reason: 'disconnected' });
-  }
-
-  private clearPendingPairing(decision: PairingDecision): void {
-    const pending = this.pendingPairing;
-    if (!pending) return;
-    clearTimeout(pending.timer);
-    this.pendingPairing = undefined;
-    pending.resolve(decision);
-    this.scheduleBroadcast();
+    this.approvals.socketClosed(sessionId);
   }
 
   removeDevice(id: string): void {
@@ -784,7 +735,7 @@ export class AppController {
 
   async resetIdentity(): Promise<void> {
     this.logger.log('App', 'Resetting PC identity');
-    if (this.pendingPairing) this.clearPendingPairing({ approved: false, reason: 'cancelled' });
+    this.approvals.cancel();
     this.pairingOffer = undefined;
     this.pairings.clear();
     const server = this.server;
@@ -934,7 +885,7 @@ export class AppController {
     this.autoClipboardTimer = undefined;
     if (this.broadcastTimer) clearTimeout(this.broadcastTimer);
     this.broadcastTimer = undefined;
-    if (this.pendingPairing) this.clearPendingPairing({ approved: false, reason: 'cancelled' });
+    this.approvals.cancel();
     this.discovery?.stop();
     this.discovery = undefined;
     const server = this.server;
