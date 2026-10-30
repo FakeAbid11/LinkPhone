@@ -41,6 +41,7 @@ class MainActivity : ComponentActivity() {
                 BackHandler(enabled = screen != Screen.Home) { viewModel.goHome() }
                 when (screen) {
                     Screen.Onboarding -> OnboardingScreen(
+                        vm = viewModel,
                         onPair = {
                             viewModel.completeOnboarding()
                             viewModel.openPair()

@@ -47,6 +47,8 @@ locally.
   capped).
 - `features/BatteryParserTest` — the charge level from the battery broadcast, rounding, the range
   clamp, the charging states, and unusable readings.
+- `ui/OnboardingPermissionsTest` — "Grant all" covers every permission a feature asks for, has no
+  duplicates, every row has a title and an explanation, and special-access rows request no dialog.
 
 Run in CI:
 
@@ -160,6 +162,20 @@ Use two devices on the same Wi-Fi. Check each item and keep the diagnostics log 
       logo matches it.
 - [ ] Android launcher, round icon, and (on Android 13+) themed icon show the same mark without
       clipped edges.
+
+### Onboarding
+
+- [ ] Fresh install shows step 1; the primary button is visible without scrolling on a small screen.
+- [ ] Step 2 lists every feature with what it is for and its current status.
+- [ ] A row's **Grant** shows only that feature's system dialog.
+- [ ] **Grant all** walks the permission groups and the rows flip to **Allowed** on return.
+- [ ] Deny a permission twice; that row's button becomes **Open settings** instead of doing nothing.
+- [ ] Notification access and Remote taps open their system screens; returning updates the row.
+- [ ] Android 12: the Notifications row reads **Allowed** with no dialog.
+- [ ] **Skip**, **Not now** and **Pair later** all land on Home and mark setup done; relaunching does
+      not show the guide again.
+- [ ] A phone that was already paired before this update skips the guide; Home's setup icon reopens it.
+- [ ] Font scale 1.3 does not clip the pinned buttons; light and dark both stay legible.
 
 ### Interface and accessibility
 

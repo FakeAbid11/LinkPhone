@@ -267,7 +267,7 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
                         )
                     },
                     onBattery = {
-                        if (!requestBatteryExemption(context)) {
+                        if (!context.requestIgnoreBatteryOptimizations()) {
                             openSettings(
                                 context,
                                 Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
@@ -411,7 +411,7 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
                         if (!batteryExempt) {
                             OutlinedButton(
                                 onClick = {
-                                    if (!requestBatteryExemption(context)) {
+                                    if (!context.requestIgnoreBatteryOptimizations()) {
                                         openSettings(
                                             context,
                                             Intent(
@@ -1056,16 +1056,6 @@ private fun promptBody(kind: PermissionPrompt): String = when (kind) {
 private fun openSettings(context: android.content.Context, intent: Intent) {
     runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }
-
-private fun requestBatteryExemption(context: android.content.Context): Boolean = runCatching {
-    context.startActivity(
-        Intent(
-            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-            Uri.parse("package:${context.packageName}"),
-        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-    )
-    true
-}.getOrDefault(false)
 
 private fun shareLogs(context: android.content.Context, logs: List<String>) {
     val text = logs.joinToString("\n").ifBlank { "No LinkPhone events logged." }

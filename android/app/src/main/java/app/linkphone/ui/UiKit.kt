@@ -363,10 +363,21 @@ fun Context.findHostActivity(): Activity? {
     return current as? Activity
 }
 
-fun Context.openSystemSettings(action: String) {
+fun Context.openSystemSettings(action: String, data: android.net.Uri? = null) {
     runCatching {
         startActivity(
-            Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            Intent(action).setData(data).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
         )
     }
 }
+
+/** Opens the system prompt that exempts LinkPhone from battery optimisation. */
+fun Context.requestIgnoreBatteryOptimizations(): Boolean = runCatching {
+    startActivity(
+        Intent(
+            android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+            android.net.Uri.parse("package:$packageName"),
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+    )
+    true
+}.getOrDefault(false)

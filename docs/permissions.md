@@ -4,6 +4,12 @@ LinkPhone asks for each capability at the point of use and explains why. Nothing
 silently. The PC can only use features the phone has granted; revoking a permission takes effect the
 next time the feature is used (reconnect to refresh the capability list).
 
+The Android first-run guide's **step 2** is the main entry point: it lists every capability with
+what it is for and its own **Grant** button, plus a **Grant all** button that walks the runtime
+prompts in turn. Special access (notification access, the accessibility service, battery
+optimisation) opens a system screen rather than a dialog, and the page says so. Everything can also
+be granted later from Home.
+
 ## Android permissions
 
 | Permission | Android | Feature | When it is requested | If denied |
