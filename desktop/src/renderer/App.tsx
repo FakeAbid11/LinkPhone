@@ -55,6 +55,8 @@ export function App() {
   const [updateBannerHidden, setUpdateBannerHidden] = useState(false);
   const toastId = useRef(1);
   const mainRef = useRef<HTMLElement>(null);
+  /** Counts pushed snapshots so a slow initial getState() cannot overwrite one. */
+  const stateGeneration = useRef(0);
 
   const dismissToast = useCallback((id: number) => {
     setToasts((current) => current.filter((toast) => toast.id !== id));
@@ -105,15 +107,21 @@ export function App() {
 
   useEffect(() => {
     let mounted = true;
+    const generation = stateGeneration.current;
     void api
       .getState()
       .then((snapshot) => {
-        if (mounted) setState(snapshot);
+        // A pushed snapshot may have arrived while this request was in flight;
+        // that one is newer, so do not clobber it with the older reply.
+        if (mounted && stateGeneration.current === generation) setState(snapshot);
       })
       .catch((error: unknown) => {
         if (mounted) setFatal(errorMessage(error));
       });
-    const offState = api.onState((snapshot) => setState(snapshot));
+    const offState = api.onState((snapshot) => {
+      stateGeneration.current += 1;
+      setState(snapshot);
+    });
     const offToast = api.onToast((toast) => {
       pushToast(toast.kind === 'error' ? 'error' : 'info', toast.message);
     });

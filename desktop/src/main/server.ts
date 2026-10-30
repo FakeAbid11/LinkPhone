@@ -172,11 +172,12 @@ export class PeerSession {
 
   handleText(text: string): void {
     this.markAlive();
-    this.messageCount += 1;
-    if (Date.now() - this.messageWindowStart > 60_000) {
-      this.messageWindowStart = Date.now();
+    const now = Date.now();
+    if (now - this.messageWindowStart > 60_000) {
+      this.messageWindowStart = now;
       this.messageCount = 0;
     }
+    this.messageCount += 1;
     if (this.messageCount > 400) {
       this.close(4009, 'Too many messages');
       return;
@@ -526,7 +527,14 @@ export class LinkServer {
       this.sendPairingError(session, ERROR_CODES.BAD_REQUEST, 'Invalid pairing request');
       return;
     }
-    if (this.active) {
+    const deviceId = request.deviceId.trim();
+    if (!deviceId || deviceId.length > 64) {
+      this.sendPairingError(session, ERROR_CODES.BAD_REQUEST, 'Invalid phone identifier');
+      return;
+    }
+    // A phone that is already connected may re-pair to replace its own entry,
+    // for example after the PC identity was reset. A different phone is BUSY.
+    if (this.active && this.active.device?.id !== deviceId) {
       this.sendPairingError(
         session,
         ERROR_CODES.BUSY,
@@ -544,11 +552,6 @@ export class LinkServer {
       return;
     }
 
-    const deviceId = request.deviceId.trim();
-    if (!deviceId || deviceId.length > 64) {
-      this.sendPairingError(session, ERROR_CODES.BAD_REQUEST, 'Invalid phone identifier');
-      return;
-    }
     const name = request.name.trim().slice(0, 80) || 'Android phone';
     const platform = (request.platform || 'android').slice(0, 40);
     let key: { pem: string; fingerprint: string };

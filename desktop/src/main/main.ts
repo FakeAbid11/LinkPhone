@@ -9,6 +9,7 @@ import {
 } from 'electron';
 import { AppController } from './app';
 import { registerIpc } from './ipc';
+import type { AppSnapshot } from '../shared/types';
 
 const isE2E = process.env.LINKPHONE_E2E === '1';
 if (process.env.LINKPHONE_USER_DATA) {
@@ -104,19 +105,24 @@ function createTray(): Tray {
   return trayInstance;
 }
 
-function refreshTray(): void {
+function refreshTray(snapshot?: AppSnapshot): void {
   if (!tray || !controller) return;
-  const snapshot = controller.getSnapshot();
-  const device = snapshot.connection.deviceName;
-  const updateReady = snapshot.updates.phase === 'ready';
+  // Prefer the snapshot that was just pushed: recomputing it here doubled the
+  // work on every state change.
+  const current = snapshot ?? controller.getSnapshot();
+  const device = current.connection.deviceName;
+  const updateReady = current.updates.phase === 'ready';
   tray.setToolTip(
-    snapshot.connection.connected
+    current.connection.connected
       ? `LinkPhone — connected to ${device ?? 'phone'}${updateReady ? ' — update ready' : ''}`
       : `LinkPhone — not connected${updateReady ? ' — update ready' : ''}`,
   );
 }
 
 app.whenReady().then(async () => {
+  // The losing instance of requestSingleInstanceLock() is already quitting;
+  // starting a second server and window here would race the winner.
+  if (!gotLock) return;
   app.setAppUserModelId('app.linkphone.desktop');
   Menu.setApplicationMenu(null);
 
@@ -126,7 +132,7 @@ app.whenReady().then(async () => {
 
   mainWindow = createWindow();
   controller.attachWindow(mainWindow);
-  controller.setTrayUpdater(() => refreshTray());
+  controller.setTrayUpdater((snapshot) => refreshTray(snapshot));
 
   if (!isE2E) {
     tray = createTray();

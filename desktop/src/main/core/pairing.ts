@@ -46,7 +46,8 @@ export class PairingManager {
     }
     const session = this.session;
     if (!session) {
-      this.recordFailure(ip);
+      // Not a wrong guess: the PC has not shown a code yet. Counting it would
+      // lock an innocent phone out for 15 minutes.
       return { ok: false, reason: 'Start pairing on the PC first.' };
     }
     if (session.used) {
