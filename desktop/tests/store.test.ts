@@ -117,4 +117,44 @@ describe('settings store', () => {
       .filter((name) => name.includes('.corrupt-'));
     expect(backups.length).toBe(1);
   });
+
+  it('restores the last good snapshot instead of dropping the identity', () => {
+    const file = tempFile();
+    const store = new Store(file);
+    const identity = store.pcId;
+    store.addDevice({
+      id: 'phone-1',
+      name: 'Pixel',
+      platform: 'android',
+      publicKeyPem: 'pem',
+      fingerprint: 'ab'.repeat(32),
+      pairedAt: Date.now(),
+    });
+    store.addDevice({
+      id: 'phone-2',
+      name: 'Nokia',
+      platform: 'android',
+      publicKeyPem: 'pem',
+      fingerprint: 'cd'.repeat(32),
+      pairedAt: Date.now(),
+    });
+
+    // A crash mid-write leaves a truncated file behind.
+    fs.writeFileSync(file, '');
+
+    const recovered = new Store(file);
+    expect(recovered.pcId).toBe(identity);
+    expect(recovered.devices.map((device) => device.id)).toEqual(['phone-1']);
+    const corrupt = fs
+      .readdirSync(path.dirname(file))
+      .filter((name) => name.includes('.corrupt-'));
+    expect(corrupt.length).toBe(1);
+  });
+
+  it('leaves no temp file behind after a save', () => {
+    const file = tempFile();
+    const store = new Store(file);
+    store.updateSettings({ notificationsToasts: false });
+    expect(fs.existsSync(`${file}.tmp`)).toBe(false);
+  });
 });
