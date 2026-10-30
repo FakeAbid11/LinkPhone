@@ -97,6 +97,15 @@ describe('SMS grouping', () => {
     expect(threads[0].messages[0].body).toBe('real');
   });
 
+  it('keeps messages the provider has no text for', () => {
+    const threads = groupSmsThreads([
+      message({ id: 'm1', address: '+15550101999', type: 1, body: '' }),
+    ]);
+    expect(threads).toHaveLength(1);
+    expect(threads[0].messages).toHaveLength(1);
+    expect(threads[0].messages[0].body).toBe('');
+  });
+
   it('merges locally sent messages without duplicating them', () => {
     const remote = [message({ id: 'r', type: 2, body: 'sent', date: 5_000 })];
     const local = [
