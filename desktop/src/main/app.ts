@@ -97,6 +97,8 @@ export class AppController {
   private autoClipboardTimer: NodeJS.Timeout | undefined;
   private pendingInstaller: string | undefined;
   private started = false;
+  /** Stream ids already reported as dropped, so one failure logs once. */
+  private readonly droppedStreams = new Set<number>();
 
   constructor(
     private readonly userDataDir: string,
@@ -475,7 +477,21 @@ export class AppController {
       this.mirrorService.onBinaryFrame(frame);
       return;
     }
-    this.streams.add(frame);
+    if (this.streams.add(frame) === 'dropped') this.logDroppedFrame(frame);
+  }
+
+  /** A dropped frame used to be silent, which made a stalled transfer opaque. */
+  private logDroppedFrame(frame: BinaryFrame): void {
+    if (this.droppedStreams.has(frame.streamId)) return;
+    this.droppedStreams.add(frame.streamId);
+    if (this.droppedStreams.size > 64) {
+      const oldest = this.droppedStreams.values().next().value;
+      if (oldest !== undefined) this.droppedStreams.delete(oldest);
+    }
+    this.logger.log(
+      'Stream',
+      `Dropped a binary frame for unknown stream ${frame.streamId} (type ${frame.type})`,
+    );
   }
 
   private sendMirrorFrame(frame: BinaryFrame): void {
@@ -662,6 +678,10 @@ export class AppController {
 
   async getThumbnail(id: string): Promise<string | null> {
     return this.photos.thumbnail(id);
+  }
+
+  async getPhotoPreview(id: string): Promise<string> {
+    return this.photos.preview(id);
   }
 
   async savePhoto(id: string): Promise<string> {
