@@ -494,6 +494,7 @@ export interface LinkPhoneApi {
   selectPhotoAlbum(bucket: string | null): Promise<void>;
   loadMorePhotos(): Promise<void>;
   getThumbnail(id: string): Promise<string | null>;
+  getPhotoPreview(id: string): Promise<string>;
   savePhoto(id: string): Promise<string>;
   copyPhoto(id: string): Promise<void>;
   dial(number: string, subId?: number | null): Promise<void>;

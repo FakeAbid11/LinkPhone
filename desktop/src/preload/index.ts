@@ -51,6 +51,7 @@ const api: LinkPhoneApi = {
   selectPhotoAlbum: (bucket) => ipcRenderer.invoke('photos:album', bucket),
   loadMorePhotos: () => ipcRenderer.invoke('photos:more'),
   getThumbnail: (id) => ipcRenderer.invoke('photos:thumb', id) as Promise<string | null>,
+  getPhotoPreview: (id) => ipcRenderer.invoke('photos:preview', id) as Promise<string>,
   savePhoto: (id) => ipcRenderer.invoke('photos:save', id) as Promise<string>,
   copyPhoto: (id) => ipcRenderer.invoke('photos:copy', id),
   dial: (number, subId) => ipcRenderer.invoke('call:dial', number, subId),

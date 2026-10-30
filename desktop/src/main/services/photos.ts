@@ -377,4 +377,11 @@ export class PhotoService {
     this.copyImage(buffer);
     this.logger.log('Photos', 'Copied a photo to the clipboard');
   }
+
+  /** The full-size image for the preview modal, as a data URL. */
+  async preview(id: string): Promise<string> {
+    const item = this.items.find((photo) => photo.id === id);
+    const buffer = await this.fetchImage(id, 'full', FULL_MAX_BYTES, item?.volume ?? null);
+    return `data:image/jpeg;base64,${buffer.toString('base64')}`;
+  }
 }

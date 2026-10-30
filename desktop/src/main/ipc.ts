@@ -68,6 +68,9 @@ export function registerIpc(controller: AppController): void {
   ipcMain.handle('photos:thumb', (_event, id: unknown) =>
     controller.getThumbnail(requireString(id, 'photo id', 80)),
   );
+  ipcMain.handle('photos:preview', (_event, id: unknown) =>
+    controller.getPhotoPreview(requireString(id, 'photo id', 80)),
+  );
   ipcMain.handle('photos:save', (_event, id: unknown) =>
     controller.savePhoto(requireString(id, 'photo id', 80)),
   );
