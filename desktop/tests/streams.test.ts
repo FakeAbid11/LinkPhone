@@ -71,8 +71,20 @@ describe('binary stream registry', () => {
 
     const received = registry.create(7, 1_024, 1_000, 'photo');
 
-    expect(registry.has(7)).toBe(true);
     expect((await received).toString()).toBe('firstsecond');
+  });
+
+  it('keeps a replayed stream open until its last chunk', async () => {
+    const registry = new StreamRegistry();
+    expect(registry.add(frame(8, 0, 'first'))).toBe('buffered');
+
+    const received = registry.create(8, 1_024, 1_000, 'photo');
+    expect(registry.has(8)).toBe(true);
+
+    expect(registry.add(frame(8, 1, 'second', true))).toBe('accepted');
+
+    expect((await received).toString()).toBe('firstsecond');
+    expect(registry.has(8)).toBe(false);
   });
 
   it('drops a frame that cannot be buffered', () => {
