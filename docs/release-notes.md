@@ -1,3 +1,32 @@
+## LinkPhone v0.8.4
+
+A pairing fix. No pairing, encryption or transport change, so this is a drop-in update over 0.8.3.
+
+### What's fixed
+
+- **Pairing no longer fails as "declined" with no prompt.** If the phone dropped while the
+  approval dialog was open — screen lock, a Wi-Fi blip, or the app going to the background — the
+  PC kept the stale prompt, and every later scan was answered instantly with "Pairing was
+  declined on the PC." and no dialog at all. The prompt is now cleared the moment the phone
+  disconnects, and "New code" clears it too.
+- **The approval dialog says what happened.** It shows a countdown, and when it ends the
+  Connection tab explains why — timed out, cancelled, replaced by a newer request, or the phone
+  disconnected — instead of the dialog simply disappearing.
+- **Approving a request whose phone is gone no longer wastes the code.** The pairing code stays
+  valid, so you can scan again without creating a new one.
+- **A second phone no longer cancels the one in front of you.** The newest request replaces the
+  pending prompt, and the older phone is told it was replaced.
+
+If you are stuck on 0.8.3, quitting LinkPhone from the tray and starting it again clears the
+stale prompt; updating to 0.8.4 fixes it for good.
+
+### Downloads
+
+- `LinkPhone-0.8.4.apk` - Android 10+ companion (sideload; same release key)
+- `LinkPhone-Portable-0.8.4.exe` - Windows portable app
+- `LinkPhone-Setup-0.8.4.exe` - Windows installer (recommended for automatic updates)
+- `SHA256SUMS.txt` - checksums for the files above
+
 ## LinkPhone v0.8.3
 
 A layout release for the Windows app. No pairing, encryption or transport change, so this is a
