@@ -22,6 +22,7 @@ export function PhotosView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
     state.connection.capabilities.includes(CAPABILITIES.PHOTOS_ALBUMS);
   const [preview, setPreview] = useState<PhotoUi | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState(false);
   const [savedPath, setSavedPath] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const loadedRef = useRef(false);
@@ -39,18 +40,23 @@ export function PhotosView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   useEffect(() => {
     if (!preview) {
       setPreviewUrl(null);
+      setPreviewError(false);
       setSavedPath(null);
       return;
     }
     let cancelled = false;
     setPreviewUrl(null);
+    setPreviewError(false);
     setSavedPath(null);
+    // The grid uses 512 px thumbnails; the modal shows the full image.
     void api
-      .getThumbnail(preview.id)
+      .getPhotoPreview(preview.id)
       .then((url) => {
         if (!cancelled) setPreviewUrl(url);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!cancelled) setPreviewError(true);
+      });
     return () => {
       cancelled = true;
     };
@@ -118,8 +124,6 @@ export function PhotosView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
     void ui.run(() => api.selectPhotoAlbum(bucket));
   };
 
-  const totalPhotos = state.photos.albums.reduce((sum, album) => sum + album.count, 0);
-
   return (
     <>
       <PageHeader
@@ -164,7 +168,6 @@ export function PhotosView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
               onClick={() => selectAlbum(null)}
             >
               All photos
-              {totalPhotos > 0 && <span className="album-count">{totalPhotos}</span>}
             </button>
             {state.photos.albums.map((album) => (
               <button
@@ -261,6 +264,8 @@ export function PhotosView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
         <div className="photo-preview">
           {previewUrl ? (
             <img src={previewUrl} alt={preview?.name ?? 'Photo preview'} />
+          ) : previewError ? (
+            <p className="muted">This photo could not be loaded from the phone.</p>
           ) : (
             <Spinner label="Loading preview…" />
           )}

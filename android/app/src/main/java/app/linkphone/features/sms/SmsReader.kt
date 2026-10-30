@@ -50,7 +50,10 @@ class SmsReader(private val context: Context) {
             while (it.moveToNext() && messages.size < safeLimit) {
                 val address = it.getString(addressIndex)?.trim().orEmpty()
                 val body = it.getString(bodyIndex).orEmpty()
-                if (address.isEmpty() || body.isEmpty()) continue
+                // Keep rows without text: an MMS-only thread has entries the
+                // provider cannot give a body for, and skipping them hid the
+                // whole conversation on the PC.
+                if (address.isEmpty()) continue
                 val type = it.getInt(typeIndex)
                 if (type !in 1..6) continue
                 messages += SmsMessageDto(

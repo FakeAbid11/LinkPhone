@@ -218,7 +218,7 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
                       <span>{timeAgo(thread.latest)}</span>
                     </span>
                     <span className="thread-preview">
-                      {thread.messages[thread.messages.length - 1]?.body ?? ''}
+                      {thread.messages[thread.messages.length - 1]?.body || '(no text)'}
                     </span>
                   </span>
                   {thread.unread > 0 && (
@@ -274,7 +274,11 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
                     className={`msg-row ${outgoing ? 'is-out' : 'is-in'}`}
                   >
                     <div className={`msg-bubble ${message.failed ? 'is-failed' : ''}`}>
-                      <p>{message.body}</p>
+                      {message.body ? (
+                        <p>{message.body}</p>
+                      ) : (
+                        <p className="muted">(no text — MMS or unsupported message)</p>
+                      )}
                       <span className="msg-time">
                         {formatTime(message.date)}
                         {message.local ? ' · sent by LinkPhone' : ''}

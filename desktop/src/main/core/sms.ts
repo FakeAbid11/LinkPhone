@@ -6,7 +6,9 @@ export function groupSmsThreads(messages: SmsMessageUi[], maxMessages = 1_000): 
   const byAddress = new Map<string, SmsMessageUi[]>();
 
   for (const message of messages) {
-    if (!message.address || !message.body) continue;
+    // An empty body is kept: MMS and provider placeholder rows have no text, and
+    // dropping them removed the whole conversation from the list.
+    if (!message.address) continue;
     if (message.type === 3) continue;
     if (seen.has(message.id)) continue;
     seen.add(message.id);
