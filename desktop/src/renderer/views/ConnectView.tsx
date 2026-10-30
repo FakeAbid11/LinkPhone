@@ -223,6 +223,13 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
                   Create a new code to pair another phone.
                 </Notice>
               )}
+              {/* Without this, anything that goes wrong while a code is on
+                  screen is a five-second toast and then nothing. */}
+              {state.pairing.error && (
+                <Notice tone="bad" title="Pairing">
+                  {state.pairing.error}
+                </Notice>
+              )}
               <div className={`qr-frame ${expired ? 'is-expired' : ''}`}>
                 <img src={offer.qrDataUrl} alt="LinkPhone pairing QR code" />
               </div>

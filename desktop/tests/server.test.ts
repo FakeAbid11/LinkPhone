@@ -10,7 +10,7 @@ import { PairingManager } from '../src/main/core/pairing';
 import { Store } from '../src/main/core/store';
 import { buildAuthPayload, parsePhoneKey } from '../src/main/core/auth';
 import { decodeEnvelope, encodeEnvelope, eventEnvelope } from '../src/main/core/protocol';
-import { LinkServer, type PeerSession, type ServerCallbacks } from '../src/main/server';
+import { LinkServer, type PairingDecision, type PeerSession, type ServerCallbacks } from '../src/main/server';
 import { TYPES, type Envelope } from '../src/shared/types';
 
 let tempRoot = '';
@@ -34,6 +34,10 @@ interface Harness {
     authorized?: PeerSession;
     pairingRequests: number;
     messages: Envelope[];
+    /** Sessions reported through onClosed — authorized only. */
+    closed: string[];
+    /** Sockets reported through onPairingSocketClosed — every unauthorized close. */
+    pairingSocketClosed: string[];
   };
   clients: Client[];
 }
@@ -49,7 +53,9 @@ function makePhone() {
 }
 
 async function setup(
-  onPairingRequest: ServerCallbacks['onPairingRequest'] = async () => true,
+  onPairingRequest: ServerCallbacks['onPairingRequest'] = async (): Promise<PairingDecision> => ({
+    approved: true,
+  }),
 ): Promise<Harness> {
   const directory = fs.mkdtempSync(path.join(tempRoot, 'case-'));
   const store = new Store(path.join(directory, 'state.json'));
@@ -60,7 +66,7 @@ async function setup(
     store,
     pairings,
     port: 0,
-    state: { pairingRequests: 0, messages: [] },
+    state: { pairingRequests: 0, messages: [], closed: [], pairingSocketClosed: [] },
     clients: [],
   };
   const callbacks: ServerCallbacks = {
@@ -72,7 +78,12 @@ async function setup(
     onAuthorized: (session) => {
       harness.state.authorized = session;
     },
-    onClosed: () => undefined,
+    onClosed: (session) => {
+      harness.state.closed.push(session.id);
+    },
+    onPairingSocketClosed: (sessionId) => {
+      harness.state.pairingSocketClosed.push(sessionId);
+    },
     onMessage: (_session, envelope) => {
       harness.state.messages.push(envelope);
     },
@@ -205,6 +216,36 @@ async function startHarness(
   return harness;
 }
 
+/** A promise the test resolves by hand, so an approval can hang on purpose. */
+function deferred<T>() {
+  let resolve: (value: T) => void = () => undefined;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+/** Polls a condition instead of sleeping for a guessed duration. */
+async function waitUntil(check: () => boolean, timeoutMs = 2_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (check()) return;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error('condition was not met in time');
+}
+
+function pairPayload(token: string, deviceId: string, spkiBase64: string) {
+  return {
+    token,
+    deviceId,
+    name: `Test phone ${deviceId}`,
+    platform: 'android',
+    appVersion: '0.1.0',
+    publicKeySpki: spkiBase64,
+  };
+}
+
 describe('LinkServer pairing and authentication', () => {
   it('pairs a phone and stores its public key', async () => {
     const harness = await startHarness();
@@ -242,7 +283,9 @@ describe('LinkServer pairing and authentication', () => {
   });
 
   it('honors a rejection from the desktop UI', async () => {
-    const harness = await startHarness(async () => false);
+    const harness = await startHarness(
+      async (): Promise<PairingDecision> => ({ approved: false, reason: 'declined' }),
+    );
     const client = await Client.open(harness.port);
     harness.clients.push(client);
     const phone = makePhone();
@@ -258,6 +301,127 @@ describe('LinkServer pairing and authentication', () => {
     const rejected = await client.waitFor(TYPES.PAIR_REJECTED);
     expect(rejected.error?.code).toBe('PAIRING_REJECTED');
     expect(harness.store.devices).toHaveLength(0);
+  });
+
+  it('reports a pairing socket that closes before approval', async () => {
+    const pending = deferred<PairingDecision>();
+    const harness = await startHarness(() => pending.promise);
+    const client = await Client.open(harness.port);
+    harness.clients.push(client);
+    const phone = makePhone();
+    const session = harness.pairings.create();
+
+    client.send(TYPES.PAIR_REQUEST, pairPayload(session.token, 'phone-1', phone.spkiBase64));
+    await client.waitFor(TYPES.PAIR_PENDING);
+    client.close();
+
+    // This is what clears the prompt on the PC. Without it the stale entry makes
+    // every later attempt look "declined" with no dialog.
+    await waitUntil(() => harness.state.pairingSocketClosed.length === 1);
+    // A phone that never authenticated must not look like a disconnect.
+    expect(harness.state.closed).toHaveLength(0);
+  });
+
+  it('keeps the code when the phone leaves before approval', async () => {
+    const pending = deferred<PairingDecision>();
+    const harness = await startHarness(() => pending.promise);
+    const client = await Client.open(harness.port);
+    harness.clients.push(client);
+    const phone = makePhone();
+    const session = harness.pairings.create();
+
+    client.send(TYPES.PAIR_REQUEST, pairPayload(session.token, 'phone-1', phone.spkiBase64));
+    await client.waitFor(TYPES.PAIR_PENDING);
+    client.close();
+    await waitUntil(() => harness.state.pairingSocketClosed.length === 1);
+
+    // Approving after the phone is gone must not burn the code or store a device
+    // the phone will never hear about — the token stays valid for a rescan.
+    pending.resolve({ approved: true });
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(harness.store.devices).toHaveLength(0);
+    expect(harness.pairings.current()).toBeDefined();
+  });
+
+  it('replaces an older request when a second phone asks', async () => {
+    const first = deferred<PairingDecision>();
+    const second = deferred<PairingDecision>();
+    let calls = 0;
+    const harness = await startHarness(() => {
+      calls += 1;
+      return calls === 1 ? first.promise : second.promise;
+    });
+    const clientA = await Client.open(harness.port);
+    const clientB = await Client.open(harness.port);
+    harness.clients.push(clientA, clientB);
+    const phoneA = makePhone();
+    const phoneB = makePhone();
+    const session = harness.pairings.create();
+
+    clientA.send(TYPES.PAIR_REQUEST, pairPayload(session.token, 'phone-1', phoneA.spkiBase64));
+    await clientA.waitFor(TYPES.PAIR_PENDING);
+
+    clientB.send(TYPES.PAIR_REQUEST, pairPayload(session.token, 'phone-2', phoneB.spkiBase64));
+    await clientB.waitFor(TYPES.PAIR_PENDING);
+
+    const superseded = await clientA.waitFor(TYPES.PAIR_REJECTED);
+    expect(superseded.error?.message).toMatch(/newer pairing request/i);
+
+    second.resolve({ approved: true });
+    await clientB.waitFor(TYPES.PAIR_OK);
+    expect(harness.store.devices).toHaveLength(1);
+    expect(harness.store.devices[0].id).toBe('phone-2');
+  });
+
+  it('joins a duplicate request from the same socket', async () => {
+    const pending = deferred<PairingDecision>();
+    const harness = await startHarness(() => pending.promise);
+    const client = await Client.open(harness.port);
+    harness.clients.push(client);
+    const phone = makePhone();
+    const session = harness.pairings.create();
+    const payload = pairPayload(session.token, 'phone-1', phone.spkiBase64);
+
+    client.send(TYPES.PAIR_REQUEST, payload);
+    await client.waitFor(TYPES.PAIR_PENDING);
+    client.send(TYPES.PAIR_REQUEST, payload);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    // The retry joins the prompt already on screen instead of stacking a second.
+    expect(harness.state.pairingRequests).toBe(1);
+
+    pending.resolve({ approved: true });
+    await client.waitFor(TYPES.PAIR_OK);
+    expect(harness.store.devices).toHaveLength(1);
+  });
+
+  it('tells the phone when approval timed out rather than saying it was declined', async () => {
+    const harness = await startHarness(
+      async (): Promise<PairingDecision> => ({ approved: false, reason: 'timeout' }),
+    );
+    const client = await Client.open(harness.port);
+    harness.clients.push(client);
+    const phone = makePhone();
+    const session = harness.pairings.create();
+
+    client.send(TYPES.PAIR_REQUEST, pairPayload(session.token, 'phone-1', phone.spkiBase64));
+    const rejected = await client.waitFor(TYPES.PAIR_REJECTED);
+    expect(rejected.error?.code).toBe('PAIRING_REJECTED');
+    expect(rejected.error?.message).toMatch(/timed out/i);
+  });
+
+  it('tells the phone when the code was cancelled', async () => {
+    const harness = await startHarness(
+      async (): Promise<PairingDecision> => ({ approved: false, reason: 'cancelled' }),
+    );
+    const client = await Client.open(harness.port);
+    harness.clients.push(client);
+    const phone = makePhone();
+    const session = harness.pairings.create();
+
+    client.send(TYPES.PAIR_REQUEST, pairPayload(session.token, 'phone-1', phone.spkiBase64));
+    const rejected = await client.waitFor(TYPES.PAIR_REJECTED);
+    expect(rejected.error?.message).toMatch(/cancelled/i);
   });
 
   it('authenticates a paired phone and routes events', async () => {

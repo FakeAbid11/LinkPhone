@@ -19,6 +19,19 @@ import type { Logger } from './core/logger';
 
 type AuthResponseWire = { signature: string };
 
+/**
+ * What the phone is told when approval does not happen. The Android client
+ * shows this string verbatim on its "Pairing failed" card, so each reason has to
+ * say what to do next rather than collapse into "declined".
+ */
+const PAIRING_DECLINE_MESSAGES: Record<PairingDeclineReason, string> = {
+  declined: 'Pairing was declined on the PC.',
+  timeout: 'The approval request timed out on the PC. Scan the code again and approve it promptly.',
+  cancelled: 'The pairing code was cancelled on the PC. Create a new code and scan it again.',
+  superseded: 'A newer pairing request replaced this one.',
+  disconnected: 'The PC lost the connection before the request was approved.',
+};
+
 interface PendingReply {
   resolve: (envelope: Envelope) => void;
   reject: (error: Error) => void;
@@ -36,11 +49,29 @@ export interface PairingRequestContext {
   remoteAddress: string;
 }
 
+/** Why the PC stopped waiting for approval. Drives the message the phone shows. */
+export type PairingDeclineReason =
+  | 'declined'
+  | 'timeout'
+  | 'cancelled'
+  | 'superseded'
+  | 'disconnected';
+
+export type PairingDecision =
+  | { approved: true }
+  | { approved: false; reason: PairingDeclineReason };
+
 export interface ServerCallbacks {
-  onPairingRequest(context: PairingRequestContext): Promise<boolean>;
+  onPairingRequest(context: PairingRequestContext): Promise<PairingDecision>;
   onPaired(device: DeviceRecord): void;
   onAuthorized(session: PeerSession): void;
   onClosed(session: PeerSession, reason: string): void;
+  /**
+   * Every socket close, authorized or not. A pairing socket never authenticates,
+   * so onClosed never fires for it — without this the host cannot tell that the
+   * phone walked away from an open approval prompt.
+   */
+  onPairingSocketClosed(sessionId: string): void;
   onMessage(session: PeerSession, envelope: Envelope): void;
   onBinary(session: PeerSession, frame: BinaryFrame): void;
 }
@@ -57,6 +88,8 @@ export class PeerSession {
   readonly id = randomUUID();
   readonly remoteAddress: string;
   authorized = false;
+  /** Set once this socket's pairing has been committed, so a duplicate request cannot pair twice. */
+  pairingCommitted = false;
   device: DeviceRecord | undefined;
   phoneName: string | undefined;
   connectedAt = Date.now();
@@ -86,6 +119,11 @@ export class PeerSession {
 
   get open(): boolean {
     return this.socket.readyState === WebSocket.OPEN;
+  }
+
+  /** True while the socket is usable: open and not yet cleaned up. */
+  get alive(): boolean {
+    return this.open && !this.closed;
   }
 
   send(envelope: Envelope): boolean {
@@ -388,6 +426,9 @@ export class LinkServer {
     if (session.authorized) {
       this.log('Server', `Phone disconnected: ${reason}`);
       this.options.callbacks.onClosed(session, reason);
+    } else {
+      // Pairing sockets are never authorized, so onClosed never fires for them.
+      this.options.callbacks.onPairingSocketClosed(session.id);
     }
   }
 
@@ -579,28 +620,44 @@ export class LinkServer {
       remoteAddress: session.remoteAddress,
     };
 
-    let approved = false;
+    let decision: PairingDecision = { approved: false, reason: 'declined' };
     try {
-      approved = await Promise.race([
+      decision = await Promise.race([
         this.options.callbacks.onPairingRequest(context),
-        new Promise<boolean>((resolve) => {
-          const timer = setTimeout(() => resolve(false), 90_000);
+        // Safety net only. The host answers with a real reason at 90 s; this
+        // sits behind it so the reason survives instead of becoming a decline.
+        new Promise<PairingDecision>((resolve) => {
+          const timer = setTimeout(() => resolve({ approved: false, reason: 'timeout' }), 100_000);
           timer.unref?.();
         }),
       ]);
     } catch {
-      approved = false;
+      decision = { approved: false, reason: 'declined' };
     }
 
-    if (!approved) {
+    if (!decision.approved) {
       this.sendPairingError(
         session,
         ERROR_CODES.PAIRING_REJECTED,
-        'Pairing was declined on the PC.',
+        PAIRING_DECLINE_MESSAGES[decision.reason],
       );
-      session.close(4007, 'Pairing declined');
+      session.close(4007, `Pairing ${decision.reason}`);
       return;
     }
+
+    // The prompt can outlive the socket it belongs to: the phone locks, loses
+    // Wi-Fi, or the user approves a request whose phone is already gone. Do not
+    // burn the code or store a device the phone will never hear about — leaving
+    // the token valid lets them rescan without creating a new one.
+    if (!session.alive) {
+      this.log('Pair', `Pairing aborted: ${context.name} disconnected before approval`);
+      return;
+    }
+
+    // A retry on the same socket joins the prompt already on screen, so both
+    // waiters resume here. Only the first one may commit.
+    if (session.pairingCommitted) return;
+    session.pairingCommitted = true;
 
     const device: DeviceRecord = {
       id: context.deviceId,

@@ -385,6 +385,8 @@ export interface PairingRequestUi {
   name: string;
   fingerprint: string;
   platform: string;
+  /** Epoch ms after which the PC stops waiting for approval. */
+  expiresAt: number;
 }
 
 export interface ServerInfo {
