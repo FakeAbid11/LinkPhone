@@ -451,6 +451,11 @@ class LinkConnectionService : Service() {
             smsObserver?.stop()
             smsObserver = SmsObserver(this) { scheduleSmsChanged() }.also { it.start() }
         }
+        // Access can be granted while the listener is not bound; nudge Android so
+        // the first notif.list does not have to fail and retry.
+        if (Permissions.notificationAccess(this) && !LinkNotificationListener.isConnected()) {
+            LinkNotificationListener.requestRebind(this)
+        }
         mainHandler.post { calls.start() }
     }
 
@@ -640,22 +645,14 @@ class LinkConnectionService : Service() {
                 if (LinkNotificationListener.dismiss(request.key)) {
                     replyOk(envelope)
                 } else {
-                    replyError(
-                        envelope,
-                        ErrorCodes.PERMISSION_DENIED,
-                        "Notification access is not available on the phone",
-                    )
+                    replyNotificationUnavailable(envelope)
                 }
             }
 
             Types.NOTIF_LIST -> {
                 val notifications = LinkNotificationListener.active()
                 if (notifications == null) {
-                    replyError(
-                        envelope,
-                        ErrorCodes.PERMISSION_DENIED,
-                        "Notification access is not available on the phone",
-                    )
+                    replyNotificationUnavailable(envelope)
                 } else {
                     reply(envelope, ProtocolCodec.data(NotificationListResult(notifications)))
                 }
@@ -867,6 +864,30 @@ class LinkConnectionService : Service() {
 
     private fun replyError(request: Envelope, code: String, message: String) {
         ConnectionHub.sendEnvelope(ProtocolCodec.failure(request, code, message))
+    }
+
+    /**
+     * A granted permission is not the same thing as a bound listener. Android can
+     * take a moment — or need a nudge — before it connects the service, and until
+     * it does there is nothing to read. Report that as retryable (BUSY) instead of
+     * claiming the permission is missing, which the PC cannot act on.
+     */
+    private fun replyNotificationUnavailable(request: Envelope) {
+        if (!Permissions.notificationAccess(this)) {
+            replyError(
+                request,
+                ErrorCodes.PERMISSION_DENIED,
+                "Notification access is not granted on the phone",
+            )
+            return
+        }
+        LinkNotificationListener.requestRebind(this)
+        replyError(
+            request,
+            ErrorCodes.BUSY,
+            "Notification access is granted but the phone's listener has not started yet. " +
+                "Turn notification access off and on for LinkPhone on the phone.",
+        )
     }
 
     @Suppress("DEPRECATION")

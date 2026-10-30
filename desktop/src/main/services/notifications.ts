@@ -1,6 +1,7 @@
+import { setTimeout as delay } from 'node:timers/promises';
 import type { PeerSession } from '../server';
 import type { NotificationListResultWire, NotificationUi, NotificationWire } from '../../shared/types';
-import { TYPES } from '../../shared/types';
+import { ERROR_CODES, TYPES } from '../../shared/types';
 import type { Store } from '../core/store';
 import type { Logger } from '../core/logger';
 
@@ -13,6 +14,18 @@ export interface NotificationStatus {
 const MAX_ITEMS = 100;
 const MAX_SEEN = 500;
 const REFRESH_DELAY_MS = 300;
+const LIST_RETRIES = 4;
+const LIST_RETRY_MS = 700;
+
+/** The phone has the permission but its listener has not been bound yet. */
+function isStartingOnPhone(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: string }).code === ERROR_CODES.BUSY
+  );
+}
 
 /**
  * A live mirror of the phone's notifications. The phone pushes every change and
@@ -87,11 +100,7 @@ export class NotificationService {
     this.error = undefined;
     this.onChange();
     try {
-      const response = await session.request<NotificationListResultWire>(
-        TYPES.NOTIF_LIST,
-        undefined,
-        15_000,
-      );
+      const response = await this.requestList(session);
       const data = response.data;
       if (!data || !Array.isArray(data.notifications)) {
         throw new Error('The phone returned an invalid notification list');
@@ -111,6 +120,29 @@ export class NotificationService {
     } finally {
       this.loading = false;
       this.onChange();
+    }
+  }
+
+  /**
+   * Reads the phone's notifications, retrying while the phone reports that its
+   * listener is still starting. Access can be granted before Android binds the
+   * service, and a hard error there is a permission message the user cannot act
+   * on — the condition clears itself in a second or two.
+   */
+  private async requestList(session: PeerSession) {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await session.request<NotificationListResultWire>(
+          TYPES.NOTIF_LIST,
+          undefined,
+          15_000,
+        );
+      } catch (error) {
+        if (attempt >= LIST_RETRIES || !isStartingOnPhone(error)) throw error;
+        this.logger.log('Notif', 'The phone is still starting its listener; retrying');
+        await delay(LIST_RETRY_MS, undefined, { ref: false });
+        if (session !== this.session) throw error;
+      }
     }
   }
 

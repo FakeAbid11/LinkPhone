@@ -2,6 +2,7 @@ package app.linkphone.features.notifications
 
 import android.app.Notification
 import android.content.ComponentName
+import android.content.Context
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import app.linkphone.core.model.NotificationChanged
@@ -121,6 +122,20 @@ class LinkNotificationListener : NotificationListenerService() {
         private var instance: LinkNotificationListener? = null
 
         fun isConnected(): Boolean = instance != null
+
+        /**
+         * Asks Android to bind the listener again. The system normally does this
+         * itself, but it can lag behind a process restart, an app update, or a
+         * freshly granted permission — and until it happens [active] is null even
+         * though the setting already says access is allowed.
+         */
+        fun requestRebind(context: Context) {
+            runCatching {
+                NotificationListenerService.requestRebind(
+                    ComponentName(context, LinkNotificationListener::class.java),
+                )
+            }
+        }
 
         /** The phone's current notifications, or null when notification access is off. */
         fun active(): List<NotificationDto>? = instance?.currentNotifications()
