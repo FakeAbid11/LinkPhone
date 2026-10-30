@@ -1,3 +1,62 @@
+## LinkPhone v0.7.5
+
+A direct, LAN-only companion link between an Android phone and a Windows PC. This release is a
+bug-fix pass over both apps: one data-loss bug, one reconnect loop, and a set of smaller
+correctness problems found in a full read-through of the code.
+
+### What's fixed
+
+- **A crash can no longer un-pair your phone.** The PC saved `state.json` by truncating the live
+  file and copying over it. A power loss in that window left an unreadable file, and the app
+  answered by generating a new PC identity — after which every paired phone failed the identity
+  check and stopped reconnecting with "The PC identity does not match the paired PC". The file is
+  now replaced atomically, the previous copy is kept as `state.json.bak`, and a corrupt file is
+  recovered from that backup instead of losing the identity.
+- **A large SMS history no longer loops the connection.** The PC asks for up to 500 messages; on a
+  phone with many long ones the reply passed the 1 MiB protocol limit, the PC closed the session,
+  and the phone — treating that close as retryable — reconnected and asked again. The phone now
+  trims the oldest messages until the reply fits.
+- **The phone's clipboard is no longer echoed back to it.** With auto-send on, text sent from the
+  phone to the PC was immediately sent back, posting a "Copied from PC" notification each time.
+- **Messages use the SIM you expect.** The composer used to preselect the first SIM. It now starts
+  on **Default SIM** and only sends a subscription when you pick one.
+- **Caller ID no longer blocks the phone.** The contact lookup ran on the main thread inside the
+  call-state callback, on every ring, answer and hang-up.
+- **The mirrored screen is no longer cropped** on phones with a camera cutout, because the virtual
+  display is sized from the real display instead of the app window.
+- **Notifications:** no phantom "Phone disconnected" on every reconnect, and a notification that
+  arrives while the list is refreshing is no longer overwritten by the older list.
+- **The updater keeps working when the server cannot start**, and an installer that is already
+  downloaded is reused instead of fetched again after a restart.
+- Smaller fixes: a failed SMS send puts your text back in the composer; "New code" cancels the old
+  pairing code first; a rejected image share says so instead of vanishing; the Quick Settings
+  clipboard tile refreshes; a photo error surfaces as an error instead of an empty album; a phone
+  that is already paired can re-pair while connected; and the Windows app no longer builds the
+  whole snapshot twice per update.
+
+### Which updates do I need?
+
+- **Both.** The phone app and the PC app both changed. Updating one side is safe, but the fixes
+  above are split between them.
+
+### Known issues
+
+- The JPEG mirror path — phones without a hardware H.264 encoder, and the PC's "Compatible" mode —
+  has not been checked on a device for colour accuracy.
+- Sent SMS are reported as handed to the phone; delivery reports are not read back yet.
+- After Android restarts the app, a downloaded update has to be re-checked before it can be
+  installed.
+
+### Download
+
+- `LinkPhone-0.7.5.apk` — Android 10+ companion (sideload; same release key)
+- `LinkPhone-Portable-0.7.5.exe` — Windows portable app
+- `LinkPhone-Setup-0.7.5.exe` — Windows installer (recommended for automatic updates)
+- `SHA256SUMS.txt` — verify your downloads
+
+Built, unit-tested, linted, and E2E-tested in GitHub Actions. The device checklist in
+`docs/testing.md` still applies to the phone-only paths.
+
 ## LinkPhone v0.7.4
 
 A direct, LAN-only companion link between an Android phone and a Windows PC. This release brings the
