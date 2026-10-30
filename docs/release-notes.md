@@ -1,3 +1,40 @@
+## LinkPhone v0.7.3
+
+A direct, LAN-only companion link between an Android phone and a Windows PC. This release turns the
+Android first-run guide into a working setup wizard.
+
+### What's new
+
+- **Step 2 of the phone setup now grants the permissions instead of describing them.** Every feature
+  gets a row that says what the permission is for and its own **Grant** button, which shows that
+  feature's real Android dialog.
+- **One "Grant all" button** asks for every runtime permission in turn, so a new install can be
+  ready in a few taps. When nothing is missing the button becomes **Continue**.
+- **Special access is separated and labelled.** Notification access, Remote taps and battery
+  optimisation open a system screen rather than a popup, and the page says so instead of leaving you
+  hunting for a dialog.
+- **A permission you declined twice points at the app settings.** Android stops showing a prompt after
+  two denials, so that row's button changes to **Open settings** instead of silently doing nothing.
+- **The whole flow looks like the rest of the app.** It uses the same top bar and cards as Home, the
+  buttons stay pinned to the bottom so the primary action is never below the fold, and pages slide
+  instead of jumping.
+- Nothing else changed. The Windows app is unchanged.
+
+### Which updates do I need?
+
+- **Phone v0.7.3** for the new setup wizard. The PC app needs nothing.
+- Updating only one side is safe; the two apps are versioned independently.
+
+### Download
+
+- `LinkPhone-0.7.3.apk` — Android 10+ companion (sideload; same release key)
+- `LinkPhone-Portable-0.7.3.exe` — Windows portable app
+- `LinkPhone-Setup-0.7.3.exe` — Windows installer (recommended for automatic updates)
+- `SHA256SUMS.txt` — verify your downloads
+
+Built, unit-tested, linted, and E2E-tested in GitHub Actions. The permission prompts need the device
+checklist in `docs/testing.md`.
+
 ## LinkPhone v0.7.2
 
 A direct, LAN-only companion link between an Android phone and a Windows PC. This release makes the
