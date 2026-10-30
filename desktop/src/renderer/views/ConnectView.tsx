@@ -104,9 +104,11 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
           <div className="capabilities">
             {connection.capabilities.length === 0 ? (
               <span className="muted">
-                {connection.connected
-                  ? 'Waiting for the phone to report its permissions…'
-                  : 'Feature permissions are granted on the phone.'}
+                {!connection.connected
+                  ? 'Feature permissions are granted on the phone.'
+                  : connection.infoReceived
+                    ? 'No feature permissions were granted on the phone. Grant them in the LinkPhone app.'
+                    : 'Waiting for the phone to report its permissions…'}
               </span>
             ) : (
               connection.capabilities.map((capability) => (

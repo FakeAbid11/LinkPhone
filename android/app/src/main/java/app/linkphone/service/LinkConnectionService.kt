@@ -356,10 +356,14 @@ class LinkConnectionService : Service() {
                 releaseReconnectWakeLock()
                 LinkStatus.log("Net", "Authenticated with ${target.pcName} at ${target.host}")
                 refreshNotification()
-                startFeatureObservers()
-                sendPhoneInfo()
-                sendBattery(force = true)
-                sendSmsChanged()
+                // Reporting the feature set is best effort. If an observer or a
+                // provider lookup threw here, the generic catch below would mark
+                // the session failed and reconnect forever, turning a missing
+                // Info card into an endless reconnect loop.
+                reportAfterAuth("Feature observers") { startFeatureObservers() }
+                reportAfterAuth("Phone info") { sendPhoneInfo() }
+                reportAfterAuth("Battery report") { sendBattery(force = true) }
+                reportAfterAuth("SMS change report") { sendSmsChanged() }
                 val reason = closed.await()
                 LinkStatus.log("Net", "Connection ended: $reason")
             } catch (error: LinkAuthException) {
@@ -429,6 +433,16 @@ class LinkConnectionService : Service() {
             }
             refreshNotification()
             stopSelfResult(lastStartId)
+        }
+    }
+
+    private inline fun reportAfterAuth(step: String, block: () -> Unit) {
+        try {
+            block()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            LinkStatus.log("Net", "$step failed: ${error.message}")
         }
     }
 

@@ -100,6 +100,21 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
     );
   }
 
+  if (!state.connection.infoReceived) {
+    return (
+      <>
+        <PageHeader title="Messages" subtitle="Read and send SMS from your PC." />
+        <Card>
+          <EmptyState
+            icon="message"
+            title="Waiting for the phone to report its permissions"
+            body="The phone is connected but has not said which features it can provide yet. If this stays here, update the LinkPhone app on the phone and reconnect."
+          />
+        </Card>
+      </>
+    );
+  }
+
   if (!supported) {
     return (
       <>
@@ -300,6 +315,12 @@ export function MessagesView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
                 placeholder="Write a message…"
                 rows={2}
                 onKeyDown={(event) => {
+                  // An IME uses Enter to commit a candidate. Sending here would
+                  // ship a half-typed message; keyCode 229 is the legacy signal
+                  // some IMEs still send after composition ends.
+                  if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) {
+                    return;
+                  }
                   if (event.key === 'Enter' && !event.shiftKey) {
                     event.preventDefault();
                     void send();

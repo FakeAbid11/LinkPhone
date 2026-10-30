@@ -9,6 +9,14 @@ function requireString(value: unknown, name: string, max = 1_000): string {
   return value;
 }
 
+/** A normalized 0..1 coordinate on the mirrored screen. */
+function requireFraction(value: unknown, name: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) {
+    throw new Error(`Invalid ${name}`);
+  }
+  return value;
+}
+
 export function registerIpc(controller: AppController): void {
   ipcMain.handle('state', () => controller.getSnapshot());
 
@@ -114,7 +122,23 @@ export function registerIpc(controller: AppController): void {
   ipcMain.handle('mirror:keyframe', () => controller.requestMirrorKeyframe());
   ipcMain.handle('mirror:touch', (_event, touch: unknown) => {
     if (!touch || typeof touch !== 'object') throw new Error('Invalid touch');
-    return controller.mirrorTouch(touch as MirrorTouchWire);
+    const raw = touch as Record<string, unknown>;
+    const action: 'tap' | 'swipe' | null =
+      raw.action === 'tap' ? 'tap' : raw.action === 'swipe' ? 'swipe' : null;
+    if (!action) throw new Error('Invalid touch action');
+    const durationMs =
+      typeof raw.durationMs === 'number' && Number.isFinite(raw.durationMs)
+        ? Math.round(raw.durationMs)
+        : 60;
+    const payload: MirrorTouchWire = {
+      action,
+      x: requireFraction(raw.x, 'touch x'),
+      y: requireFraction(raw.y, 'touch y'),
+      x2: action === 'swipe' ? requireFraction(raw.x2, 'touch x2') : null,
+      y2: action === 'swipe' ? requireFraction(raw.y2, 'touch y2') : null,
+      durationMs,
+    };
+    return controller.mirrorTouch(payload);
   });
 
   ipcMain.handle('app:openLogs', () => controller.openLogs());

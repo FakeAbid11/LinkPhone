@@ -398,6 +398,8 @@ export interface ServerInfo {
 
 export interface ConnectionInfo {
   connected: boolean;
+  /** True once the phone has sent `phone.info` for this session. */
+  infoReceived: boolean;
   deviceId?: string;
   deviceName?: string;
   phoneModel?: string;

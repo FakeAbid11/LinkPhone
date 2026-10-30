@@ -37,6 +37,21 @@ export function NotificationsView({ state, ui }: { state: AppSnapshot; ui: Ui })
     );
   }
 
+  if (!state.connection.infoReceived) {
+    return (
+      <>
+        <PageHeader title="Notifications" subtitle="Mirror phone notifications on the PC." />
+        <Card>
+          <EmptyState
+            icon="bell"
+            title="Waiting for the phone to report its permissions"
+            body="The phone is connected but has not said which features it can provide yet. If this stays here, update the LinkPhone app on the phone and reconnect."
+          />
+        </Card>
+      </>
+    );
+  }
+
   if (!supported) {
     return (
       <>

@@ -79,8 +79,9 @@ export function verifyPhoneSignature(
 }
 
 export function constantTimeEqual(left: string, right: string): boolean {
-  const a = Buffer.from(left);
-  const b = Buffer.from(right);
-  if (a.length !== b.length) return false;
+  // Hash both sides so the buffers are always 32 bytes. Returning early on a
+  // length mismatch would leak the length of the pairing code.
+  const a = createHash('sha256').update(left, 'utf8').digest();
+  const b = createHash('sha256').update(right, 'utf8').digest();
   return timingSafeEqual(a, b);
 }

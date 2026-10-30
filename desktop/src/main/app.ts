@@ -14,6 +14,7 @@ import { ensureCertificate, type PcCertificate } from './core/certs';
 import { Logger } from './core/logger';
 import { buildPairingUri, getLanAddresses } from './core/network';
 import { PairingManager } from './core/pairing';
+import { normalizePhoneInfo } from './core/phone-info';
 import { Store } from './core/store';
 import { StreamRegistry } from './core/streams';
 import {
@@ -88,6 +89,8 @@ export class AppController {
   private serverError: string | undefined;
   private lastError: string | undefined;
   private phoneInfo: PhoneInfoWire | undefined;
+  /** False until the phone reports its feature set for this session. */
+  private infoReceived = false;
   private batteryLevel: number | undefined;
   private batteryCharging: boolean | undefined;
   private capabilities: string[] = [];
@@ -188,6 +191,7 @@ export class AppController {
   snapshot(): AppSnapshot {
     const connection: ConnectionInfo = {
       connected: Boolean(this.session),
+      infoReceived: this.infoReceived,
       deviceId: this.session?.device?.id,
       deviceName: this.session?.device?.name,
       phoneModel: this.phoneInfo?.model,
@@ -344,6 +348,7 @@ export class AppController {
   private handleAuthorized(session: PeerSession): void {
     this.session = session;
     this.phoneInfo = undefined;
+    this.infoReceived = false;
     this.capabilities = [];
     this.subscriptions = [];
     this.connectedAt = Date.now();
@@ -368,6 +373,7 @@ export class AppController {
     if (session !== this.session) return;
     this.session = undefined;
     this.phoneInfo = undefined;
+    this.infoReceived = false;
     this.batteryLevel = undefined;
     this.batteryCharging = undefined;
     this.capabilities = [];
@@ -394,21 +400,9 @@ export class AppController {
     if (session !== this.session) return;
     switch (envelope.type) {
       case TYPES.PHONE_INFO: {
-        const info = envelope.data as PhoneInfoWire | undefined;
-        if (!info) return;
-        this.phoneInfo = {
-          model: String(info.model ?? 'Android').slice(0, 80),
-          androidVersion: String(info.androidVersion ?? '').slice(0, 40),
-          appVersion: String(info.appVersion ?? '').slice(0, 40),
-          capabilities: Array.isArray(info.capabilities)
-            ? info.capabilities.filter((item): item is string => typeof item === 'string')
-            : [],
-          subscriptions: Array.isArray(info.subscriptions)
-            ? info.subscriptions
-                .filter((item) => item && typeof item.subscriptionId === 'number')
-                .slice(0, 4)
-            : [],
-        };
+        if (!envelope.data || typeof envelope.data !== 'object') return;
+        this.phoneInfo = normalizePhoneInfo(envelope.data);
+        this.infoReceived = true;
         this.capabilities = this.phoneInfo.capabilities;
         this.subscriptions = this.phoneInfo.subscriptions;
         this.photos.setCapabilities(this.capabilities);
