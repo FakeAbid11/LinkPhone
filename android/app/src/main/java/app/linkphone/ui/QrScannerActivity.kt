@@ -116,10 +116,8 @@ private fun ScannerScreen(onDecoded: (String) -> Unit, onClose: () -> Unit) {
                 ?.shouldShowRequestPermissionRationale(Manifest.permission.CAMERA) == false
     }
 
-    LaunchedEffect(Unit) {
-        if (!hasCamera) permissionLauncher.launch(Manifest.permission.CAMERA)
-    }
-
+    // The system dialog is requested from the "Allow camera" button below, so
+    // the user sees why the camera is needed before Android asks.
     Box(modifier = Modifier.fillMaxSize()) {
         if (hasCamera) {
             CameraScanner(onDecoded = onDecoded)

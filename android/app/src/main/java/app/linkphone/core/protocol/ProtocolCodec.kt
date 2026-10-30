@@ -21,7 +21,15 @@ object ProtocolCodec {
     fun encode(envelope: Envelope): String = json.encodeToString(Envelope.serializer(), envelope)
 
     fun decode(text: String): Envelope {
+        // The PC measures the limit in UTF-8 bytes, so measure the same thing.
+        // A char is at most 3 bytes, so only pay for the conversion when the
+        // char count alone cannot settle it.
         require(text.length <= MAX_JSON_BYTES) { "message exceeds JSON limit" }
+        if (text.length * 3 > MAX_JSON_BYTES) {
+            require(text.toByteArray(Charsets.UTF_8).size <= MAX_JSON_BYTES) {
+                "message exceeds JSON limit"
+            }
+        }
         val envelope = json.decodeFromString(Envelope.serializer(), text)
         require(envelope.v == Envelope.PROTOCOL_VERSION) {
             "unsupported protocol version ${envelope.v}"

@@ -110,11 +110,13 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
         Manifest.permission.READ_EXTERNAL_STORAGE
     }
 
-    var smsAsked by rememberSaveable { mutableStateOf(false) }
-    var notificationsAsked by rememberSaveable { mutableStateOf(false) }
-    var callsAsked by rememberSaveable { mutableStateOf(false) }
-    var contactsAsked by rememberSaveable { mutableStateOf(false) }
-    var photosAsked by rememberSaveable { mutableStateOf(false) }
+    var smsAsked by rememberSaveable { mutableStateOf(vm.wasPermissionAsked("sms")) }
+    var notificationsAsked by rememberSaveable {
+        mutableStateOf(vm.wasPermissionAsked("notifications"))
+    }
+    var callsAsked by rememberSaveable { mutableStateOf(vm.wasPermissionAsked("calls")) }
+    var contactsAsked by rememberSaveable { mutableStateOf(vm.wasPermissionAsked("contacts")) }
+    var photosAsked by rememberSaveable { mutableStateOf(vm.wasPermissionAsked("photos")) }
 
     val smsLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -171,26 +173,31 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
         when (kind) {
             PermissionPrompt.Sms -> {
                 smsAsked = true
+                vm.markPermissionAsked("sms")
                 smsLauncher.launch(Permissions.smsPermissions())
             }
             PermissionPrompt.Notifications -> {
                 notificationsAsked = true
+                vm.markPermissionAsked("notifications")
                 if (notificationsRuntimeRequired) {
                     notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
             }
             PermissionPrompt.Calls -> {
                 callsAsked = true
+                vm.markPermissionAsked("calls")
                 callLauncher.launch(
                     Permissions.callPermissions() + Permissions.optionalCallPermissions(),
                 )
             }
             PermissionPrompt.Contacts -> {
                 contactsAsked = true
+                vm.markPermissionAsked("contacts")
                 contactsLauncher.launch(Manifest.permission.READ_CONTACTS)
             }
             PermissionPrompt.Photos -> {
                 photosAsked = true
+                vm.markPermissionAsked("photos")
                 photoLauncher.launch(Permissions.photoPermissions())
             }
         }

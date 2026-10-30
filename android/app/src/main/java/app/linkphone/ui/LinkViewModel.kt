@@ -229,4 +229,10 @@ class LinkViewModel(application: Application) : AndroidViewModel(application) {
     fun identityFingerprint(): String = runCatching {
         formatFingerprint(identity.fingerprintHex())
     }.getOrDefault("Unavailable")
+
+    fun wasPermissionAsked(key: String): Boolean = prefs.wasPermissionAsked(key)
+
+    fun markPermissionAsked(key: String) {
+        prefs.markPermissionAsked(key)
+    }
 }

@@ -92,6 +92,9 @@ class PhotoRepository(private val context: Context) {
             }
         } catch (error: Exception) {
             LinkStatus.log("Photos", "Photo query failed: ${error.javaClass.simpleName}")
+            // An empty page reads as "no photos" on the PC, which hides a real
+            // failure. Let the command fail so the PC can show it.
+            throw IllegalStateException("The photo library could not be read", error)
         }
         return PhotoPage(photos, hasMore)
     }
@@ -163,6 +166,7 @@ class PhotoRepository(private val context: Context) {
             }
         } catch (error: Exception) {
             LinkStatus.log("Photos", "Album query failed: ${error.javaClass.simpleName}")
+            throw IllegalStateException("Photo albums could not be read", error)
         }
         return accumulator.result()
     }
