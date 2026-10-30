@@ -36,7 +36,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            LinkPhoneTheme {
+            val darkTheme = androidx.compose.foundation.isSystemInDarkTheme()
+            val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
+            LinkPhoneTheme(darkTheme = darkTheme, dynamicColor = dynamicColor) {
                 val screen by viewModel.screen.collectAsStateWithLifecycle()
                 BackHandler(enabled = screen != Screen.Home) { viewModel.goHome() }
                 when (screen) {

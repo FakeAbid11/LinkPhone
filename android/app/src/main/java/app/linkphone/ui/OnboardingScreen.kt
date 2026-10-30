@@ -43,6 +43,7 @@ import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -137,26 +138,32 @@ fun OnboardingScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("LinkPhone")
-                        Text(
-                            "Step ${page + 1} of $PAGE_COUNT",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                },
-                actions = {
-                    if (page < PAGE_COUNT - 1) {
-                        TextButton(onClick = onFinish) { Text("Skip") }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
-            )
+            Column {
+                TopAppBar(
+                    title = {
+                        Column {
+                            Text("LinkPhone")
+                            Text(
+                                "Step ${page + 1} of $PAGE_COUNT",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    },
+                    actions = {
+                        if (page < PAGE_COUNT - 1) {
+                            TextButton(onClick = onFinish) { Text("Skip") }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                    ),
+                )
+                LinearProgressIndicator(
+                    progress = { (page + 1) / PAGE_COUNT.toFloat() },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                )
+            }
         },
         containerColor = MaterialTheme.colorScheme.background,
     ) { padding ->
@@ -409,18 +416,18 @@ private fun PairPage() {
 private fun HeroMark() {
     Box(
         modifier = Modifier
-            .size(64.dp)
+            .size(72.dp)
             .background(
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
-                MaterialTheme.shapes.large,
+                MaterialTheme.colorScheme.primaryContainer,
+                MaterialTheme.shapes.extraLarge,
             ),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             Icons.Outlined.Lock,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(30.dp),
+            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            modifier = Modifier.size(34.dp),
         )
     }
 }

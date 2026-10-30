@@ -1,3 +1,39 @@
+## LinkPhone v0.8.0
+
+A design release. Both apps are rebuilt on Material 3: the Android companion uses the
+Material 3 colour roles, type scale and shape system (with Material You on Android 12+), and
+the Windows app adopts the same roles, tonal surfaces and component shapes. Nothing in the
+pairing, encryption or transport protocol changed, so this is a drop-in update over 0.7.6.
+
+### What's new
+
+- **Android is Material 3.** The theme now uses a full Material 3 tonal palette around a blue
+  seed, the canonical shape scale (4/8/12/16/28 dp) and the Material 3 type scale. Cards step up
+  the surface-container ladder instead of drawing shadows, buttons are filled or tonal, and
+  notices, permission rows and status pills use the container/on-container pairs.
+- **Material You.** On Android 12 and later, LinkPhone follows the wallpaper-derived palette by
+  default. The About card on the home screen has a "Match wallpaper colors" switch to fall back to
+  the LinkPhone blue theme; the choice is remembered.
+- **A new home screen.** The home screen has a large collapsing top app bar with the live
+  connection state, an extended "Pair" floating action button, a redesigned connection card, and
+  labelled quick actions.
+- **The Windows app is Material 3 too.** The navigation rail is now a Material 3 drawer with
+  pill-shaped destinations, the content sits on tonal surface containers, buttons are pills,
+  text fields are filled with a focus underline, the toggle is a Material 3 switch, and dialogs,
+  snackbars, chips and notices all use the Material 3 shapes and roles.
+
+### What's fixed
+
+- **Text stays legible at every window size.** All small labels are at least 11 px, and the
+  two-column layout still collapses to one column on narrow windows.
+
+### Downloads
+
+- `LinkPhone-0.8.0.apk` - Android 10+ companion (sideload; same release key)
+- `LinkPhone-Portable-0.8.0.exe` - Windows portable app
+- `LinkPhone-Setup-0.8.0.exe` - Windows installer (recommended for automatic updates)
+- `SHA256SUMS.txt` - checksums for the files above
+
 ## LinkPhone v0.7.6
 
 A direct, LAN-only companion link between an Android phone and a Windows PC. A small follow-up to

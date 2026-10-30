@@ -46,16 +46,19 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -65,6 +68,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -91,6 +95,7 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
     val logs by vm.logs.collectAsStateWithLifecycle()
     val lastError by LinkStatus.lastError.collectAsStateWithLifecycle()
     val updateStatus by vm.updateStatus.collectAsStateWithLifecycle()
+    val dynamicColor by vm.dynamicColor.collectAsStateWithLifecycle()
 
     val hasTelephony = remember { PhoneInfoBuilder.hasTelephony(context) }
     val smsGranted = remember(revision) { Permissions.sms(context) }
@@ -169,6 +174,10 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
         )
     }
 
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(
+        rememberTopAppBarState(),
+    )
+
     fun launchPrompt(kind: PermissionPrompt) {
         when (kind) {
             PermissionPrompt.Sms -> {
@@ -204,8 +213,9 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
     }
 
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
+            LargeTopAppBar(
                 title = {
                     Column {
                         Text("LinkPhone")
@@ -217,7 +227,7 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
                                 LinkState.Stopped ->
                                     if (paired == null) "Not paired" else "Disconnected"
                             },
-                            style = MaterialTheme.typography.labelMedium,
+                            style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -230,17 +240,28 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
                         Icon(Icons.Outlined.Refresh, contentDescription = "Refresh")
                     }
                 },
+                scrollBehavior = scrollBehavior,
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
                 ),
+            )
+        },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = onPair,
+                icon = { Icon(Icons.Outlined.QrCodeScanner, contentDescription = null) },
+                text = { Text("Pair") },
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             )
         },
         containerColor = MaterialTheme.colorScheme.background,
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 104.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {
                 ConnectionCard(
@@ -480,7 +501,7 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(
-                                        MaterialTheme.colorScheme.surfaceVariant,
+                                        MaterialTheme.colorScheme.surfaceContainerHighest,
                                         MaterialTheme.shapes.small,
                                     )
                                     .padding(10.dp),
@@ -546,6 +567,15 @@ fun HomeScreen(vm: LinkViewModel, onPair: () -> Unit, onSetup: () -> Unit) {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        ToggleRow(
+                            title = "Match wallpaper colors",
+                            description = "Material You: use the palette Android derives from your " +
+                                "wallpaper. Turn this off for the LinkPhone blue theme.",
+                            checked = dynamicColor,
+                            onCheckedChange = vm::setDynamicColor,
+                        )
+                    }
                     Text(
                         "Phone identity fingerprint",
                         style = MaterialTheme.typography.labelMedium,
@@ -872,16 +902,17 @@ private fun ConnectionCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         ),
+        shape = MaterialTheme.shapes.extraLarge,
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(22.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
+                        .size(56.dp)
                         .background(
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                            MaterialTheme.colorScheme.primaryContainer,
                             CircleShape,
                         ),
                     contentAlignment = Alignment.Center,
@@ -889,25 +920,26 @@ private fun ConnectionCard(
                     Icon(
                         Icons.Outlined.Wifi,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(28.dp),
                     )
                 }
-                Spacer(Modifier.width(13.dp))
+                Spacer(Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         StatusPill(statusText, tone)
                         if (state is LinkState.Connecting) {
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(10.dp))
                             CircularProgressIndicator(
-                                modifier = Modifier.size(14.dp),
+                                modifier = Modifier.size(16.dp),
                                 strokeWidth = 2.dp,
                             )
                         }
                     }
                     Text(
                         pairedName ?: "No PC paired yet",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(top = 6.dp),
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(top = 8.dp),
                     )
                     Text(
                         when {
@@ -917,28 +949,29 @@ private fun ConnectionCard(
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp),
                     )
                 }
             }
 
             if (state is LinkState.Error && lastError != null) {
-                Text(
-                    lastError,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(top = 10.dp),
+                Notice(
+                    title = "Connection problem",
+                    body = lastError,
+                    tone = StatusTone.Bad,
+                    modifier = Modifier.padding(top = 14.dp),
                 )
             }
 
             Row(
-                modifier = Modifier.padding(top = 14.dp),
+                modifier = Modifier.padding(top = 18.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (pairedName == null) {
                     Button(onClick = onPair) {
                         Icon(Icons.Outlined.QrCodeScanner, contentDescription = null)
-                        Spacer(Modifier.width(7.dp))
+                        Spacer(Modifier.width(8.dp))
                         Text("Pair with your PC")
                     }
                 } else {
@@ -948,7 +981,11 @@ private fun ConnectionCard(
                         Button(onClick = onConnect) { Text("Connect") }
                         OutlinedButton(onClick = onDisconnect) { Text("Stop") }
                     }
-                    TextButton(onClick = onPair) { Text("Pair a different PC") }
+                }
+            }
+            if (pairedName != null) {
+                TextButton(onClick = onPair, modifier = Modifier.padding(top = 4.dp)) {
+                    Text("Pair a different PC")
                 }
             }
         }
@@ -973,7 +1010,7 @@ private fun SetupCard(onSetup: () -> Unit, onPair: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Button(onClick = onSetup) { Text("Open setup guide") }
-            OutlinedButton(onClick = onPair) { Text("Pair now") }
+            FilledTonalButton(onClick = onPair) { Text("Pair now") }
         }
     }
 }
@@ -986,13 +1023,9 @@ private fun QuickActionsCard(
     onBattery: () -> Unit,
     batteryExempt: Boolean,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(
-            "Quick actions",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(horizontal = 2.dp),
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SectionLabel("Quick actions")
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             QuickAction(
                 icon = Icons.Outlined.ContentPaste,
                 title = "Send clipboard",
@@ -1008,7 +1041,7 @@ private fun QuickActionsCard(
                 modifier = Modifier.weight(1f),
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             QuickAction(
                 icon = Icons.Outlined.NotificationsActive,
                 title = "Notification access",

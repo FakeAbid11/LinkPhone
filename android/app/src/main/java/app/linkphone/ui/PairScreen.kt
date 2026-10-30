@@ -62,7 +62,16 @@ fun PairScreen(vm: LinkViewModel, onScan: () -> Unit, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Pair with PC") },
+                title = {
+                    Column {
+                        Text("Pair with PC")
+                        Text(
+                            "Scan the code or enter it by hand",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")

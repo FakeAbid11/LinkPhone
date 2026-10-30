@@ -1,88 +1,101 @@
 package app.linkphone.ui
 
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+/**
+ * Material 3 colour roles for LinkPhone.
+ *
+ * The values follow the Material 3 tonal-palette model around a blue seed, so
+ * every role keeps its intended relationship to the others (primary/onPrimary,
+ * the container pairs, and the surface-container elevation ladder) instead of
+ * being picked one by one. ThemeContrastTest checks the pairs the UI actually
+ * draws text with.
+ */
 internal object LinkPhonePalette {
-    const val DarkBackground = 0xFF0B0F19
-    const val DarkSurface = 0xFF141B2B
-    const val DarkSurfaceVariant = 0xFF1E283D
-    const val DarkOnBackground = 0xFFE7ECF5
-    const val DarkOnSurfaceVariant = 0xFFC3CCE0
-    const val DarkPrimary = 0xFF8B93FF
-    const val DarkOnPrimary = 0xFF0B0F19
-    const val DarkPrimaryContainer = 0xFF3A3F8F
-    const val DarkOnPrimaryContainer = 0xFFE1E3FF
-    const val DarkSecondary = 0xFF9DB8FF
-    const val DarkOnSecondary = 0xFF0B1830
-    const val DarkSecondaryContainer = 0xFF263A66
-    const val DarkOnSecondaryContainer = 0xFFD8E2FF
-    const val DarkTertiary = 0xFFFFCF7A
-    const val DarkOnTertiary = 0xFF3A2A00
-    const val DarkTertiaryContainer = 0xFF564214
-    const val DarkOnTertiaryContainer = 0xFFFFE2AF
+    const val DarkBackground = 0xFF101418
+    const val DarkSurface = 0xFF1C2024
+    const val DarkSurfaceVariant = 0xFF42474E
+    const val DarkOnBackground = 0xFFE1E2E8
+    const val DarkOnSurfaceVariant = 0xFFC2C7CF
+    const val DarkPrimary = 0xFFA9C7FF
+    const val DarkOnPrimary = 0xFF003258
+    const val DarkPrimaryContainer = 0xFF00497D
+    const val DarkOnPrimaryContainer = 0xFFD1E4FF
+    const val DarkSecondary = 0xFFB9C7DA
+    const val DarkOnSecondary = 0xFF233240
+    const val DarkSecondaryContainer = 0xFF394857
+    const val DarkOnSecondaryContainer = 0xFFD5E3F7
+    const val DarkTertiary = 0xFFEBC38D
+    const val DarkOnTertiary = 0xFF432C00
+    const val DarkTertiaryContainer = 0xFF5C4200
+    const val DarkOnTertiaryContainer = 0xFFFFDFA6
     const val DarkError = 0xFFFFB4AB
     const val DarkOnError = 0xFF690005
     const val DarkErrorContainer = 0xFF93000A
     const val DarkOnErrorContainer = 0xFFFFDAD6
-    const val DarkOutline = 0xFF5D6A85
-    const val DarkOutlineVariant = 0xFF2C3650
-    const val DarkSurfaceDim = 0xFF0B0F19
-    const val DarkSurfaceBright = 0xFF2A3448
-    const val DarkSurfaceContainerLowest = 0xFF0E1422
-    const val DarkSurfaceContainerLow = 0xFF111726
-    const val DarkSurfaceContainer = 0xFF171F31
-    const val DarkSurfaceContainerHigh = 0xFF1C2537
-    const val DarkSurfaceContainerHighest = 0xFF212C42
-    const val DarkInverseSurface = 0xFFE7ECF5
-    const val DarkInverseOnSurface = 0xFF141A28
-    const val DarkInversePrimary = 0xFF4F46E5
+    const val DarkOutline = 0xFF8C9199
+    const val DarkOutlineVariant = 0xFF42474E
+    const val DarkSurfaceDim = 0xFF101418
+    const val DarkSurfaceBright = 0xFF363A3E
+    const val DarkSurfaceContainerLowest = 0xFF0B0F13
+    const val DarkSurfaceContainerLow = 0xFF181C20
+    const val DarkSurfaceContainer = 0xFF1C2024
+    const val DarkSurfaceContainerHigh = 0xFF262A2F
+    const val DarkSurfaceContainerHighest = 0xFF31353A
+    const val DarkInverseSurface = 0xFFE1E2E8
+    const val DarkInverseOnSurface = 0xFF2D3135
+    const val DarkInversePrimary = 0xFF0061A4
     const val DarkScrim = 0xFF000000
 
-    const val LightBackground = 0xFFF7F8FC
-    const val LightSurface = 0xFFFFFFFF
-    const val LightSurfaceVariant = 0xFFE7EAF3
-    const val LightOnBackground = 0xFF141A28
-    const val LightOnSurfaceVariant = 0xFF46506A
-    const val LightPrimary = 0xFF4F46E5
+    const val LightBackground = 0xFFFDFCFF
+    const val LightSurface = 0xFFFDFCFF
+    const val LightSurfaceVariant = 0xFFDFE2EB
+    const val LightOnBackground = 0xFF1A1C1E
+    const val LightOnSurfaceVariant = 0xFF43474E
+    const val LightPrimary = 0xFF0061A4
     const val LightOnPrimary = 0xFFFFFFFF
-    const val LightPrimaryContainer = 0xFFDFE0FF
-    const val LightOnPrimaryContainer = 0xFF11144A
-    const val LightSecondary = 0xFF3A5FA8
+    const val LightPrimaryContainer = 0xFFD1E4FF
+    const val LightOnPrimaryContainer = 0xFF001D36
+    const val LightSecondary = 0xFF515F6F
     const val LightOnSecondary = 0xFFFFFFFF
-    const val LightSecondaryContainer = 0xFFD9E3FF
-    const val LightOnSecondaryContainer = 0xFF0A1C3A
-    const val LightTertiary = 0xFF8A5A00
+    const val LightSecondaryContainer = 0xFFD5E3F7
+    const val LightOnSecondaryContainer = 0xFF0D1C2A
+    const val LightTertiary = 0xFF6B5778
     const val LightOnTertiary = 0xFFFFFFFF
-    const val LightTertiaryContainer = 0xFFFFDEA6
-    const val LightOnTertiaryContainer = 0xFF2C1D00
-    const val LightError = 0xFFB3261E
+    const val LightTertiaryContainer = 0xFFF2DAFF
+    const val LightOnTertiaryContainer = 0xFF251432
+    const val LightError = 0xFFBA1A1A
     const val LightOnError = 0xFFFFFFFF
     const val LightErrorContainer = 0xFFFFDAD6
     const val LightOnErrorContainer = 0xFF410002
-    const val LightOutline = 0xFF737E94
-    const val LightOutlineVariant = 0xFFC6CDDC
-    const val LightSurfaceDim = 0xFFDDE2EC
-    const val LightSurfaceBright = 0xFFFFFFFF
+    const val LightOutline = 0xFF73777F
+    const val LightOutlineVariant = 0xFFC3C7CF
+    const val LightSurfaceDim = 0xFFD9DBE0
+    const val LightSurfaceBright = 0xFFFDFCFF
     const val LightSurfaceContainerLowest = 0xFFFFFFFF
-    const val LightSurfaceContainerLow = 0xFFF4F6FB
-    const val LightSurfaceContainer = 0xFFEEF1F7
-    const val LightSurfaceContainerHigh = 0xFFE8ECF4
-    const val LightSurfaceContainerHighest = 0xFFE2E7F0
-    const val LightInverseSurface = 0xFF2A3242
-    const val LightInverseOnSurface = 0xFFE7ECF5
-    const val LightInversePrimary = 0xFF8B93FF
+    const val LightSurfaceContainerLow = 0xFFF7F9FC
+    const val LightSurfaceContainer = 0xFFF1F4F9
+    const val LightSurfaceContainerHigh = 0xFFEBEEF3
+    const val LightSurfaceContainerHighest = 0xFFE5E8ED
+    const val LightInverseSurface = 0xFF2F3033
+    const val LightInverseOnSurface = 0xFFF0F0F4
+    const val LightInversePrimary = 0xFFA9C7FF
     const val LightScrim = 0xFF000000
 }
 
@@ -162,92 +175,119 @@ private val LightScheme = lightColorScheme(
     scrim = Color(LinkPhonePalette.LightScrim),
 )
 
+/** Material 3 type scale, tuned to the system UI font. */
 private val LinkTypography = Typography(
     displayLarge = TextStyle(
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 50.sp,
-        lineHeight = 58.sp,
-        letterSpacing = (-0.5).sp,
-    ),
-    displayMedium = TextStyle(
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 42.sp,
-        lineHeight = 50.sp,
-        letterSpacing = (-0.4).sp,
-    ),
-    displaySmall = TextStyle(
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 34.sp,
-        lineHeight = 42.sp,
-        letterSpacing = (-0.3).sp,
-    ),
-    headlineLarge = TextStyle(
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 30.sp,
-        lineHeight = 38.sp,
+        fontWeight = FontWeight.Normal,
+        fontSize = 57.sp,
+        lineHeight = 64.sp,
         letterSpacing = (-0.25).sp,
     ),
-    headlineSmall = TextStyle(
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 24.sp,
-        lineHeight = 31.sp,
-        letterSpacing = (-0.2).sp,
+    displayMedium = TextStyle(
+        fontWeight = FontWeight.Normal,
+        fontSize = 45.sp,
+        lineHeight = 52.sp,
+    ),
+    displaySmall = TextStyle(
+        fontWeight = FontWeight.Normal,
+        fontSize = 36.sp,
+        lineHeight = 44.sp,
+    ),
+    headlineLarge = TextStyle(
+        fontWeight = FontWeight.Normal,
+        fontSize = 32.sp,
+        lineHeight = 40.sp,
     ),
     headlineMedium = TextStyle(
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Normal,
         fontSize = 28.sp,
         lineHeight = 36.sp,
     ),
+    headlineSmall = TextStyle(
+        fontWeight = FontWeight.Medium,
+        fontSize = 24.sp,
+        lineHeight = 32.sp,
+    ),
     titleLarge = TextStyle(
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 21.sp,
+        fontWeight = FontWeight.Medium,
+        fontSize = 22.sp,
         lineHeight = 28.sp,
     ),
     titleMedium = TextStyle(
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Medium,
         fontSize = 16.sp,
-        lineHeight = 23.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.15.sp,
     ),
     titleSmall = TextStyle(
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
         lineHeight = 20.sp,
+        letterSpacing = 0.1.sp,
     ),
-    bodyLarge = TextStyle(fontSize = 16.sp, lineHeight = 24.sp),
-    bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 21.sp),
-    bodySmall = TextStyle(fontSize = 12.5.sp, lineHeight = 18.sp),
+    bodyLarge = TextStyle(
+        fontWeight = FontWeight.Normal,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.5.sp,
+    ),
+    bodyMedium = TextStyle(
+        fontWeight = FontWeight.Normal,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.25.sp,
+    ),
+    bodySmall = TextStyle(
+        fontWeight = FontWeight.Normal,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.4.sp,
+    ),
     labelLarge = TextStyle(
         fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
         lineHeight = 20.sp,
+        letterSpacing = 0.1.sp,
     ),
     labelMedium = TextStyle(
         fontWeight = FontWeight.Medium,
         fontSize = 12.sp,
         lineHeight = 16.sp,
+        letterSpacing = 0.5.sp,
     ),
     labelSmall = TextStyle(
         fontWeight = FontWeight.Medium,
         fontSize = 11.sp,
-        lineHeight = 15.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.5.sp,
     ),
 )
 
+/** The Material 3 shape scale (4, 8, 12, 16, 28 dp). */
 private val LinkShapes = Shapes(
-    extraSmall = RoundedCornerShape(6.dp),
-    small = RoundedCornerShape(10.dp),
-    medium = RoundedCornerShape(14.dp),
-    large = RoundedCornerShape(20.dp),
-    extraLarge = RoundedCornerShape(26.dp),
+    extraSmall = RoundedCornerShape(4.dp),
+    small = RoundedCornerShape(8.dp),
+    medium = RoundedCornerShape(12.dp),
+    large = RoundedCornerShape(16.dp),
+    extraLarge = RoundedCornerShape(28.dp),
 )
 
 @Composable
 fun LinkPhoneTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    dynamicColor: Boolean = true,
     content: @Composable () -> Unit,
 ) {
+    val context = LocalContext.current
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        darkTheme -> DarkScheme
+        else -> LightScheme
+    }
     MaterialTheme(
-        colorScheme = if (darkTheme) DarkScheme else LightScheme,
+        colorScheme = colorScheme,
         typography = LinkTypography,
         shapes = LinkShapes,
         content = content,

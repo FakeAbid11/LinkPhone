@@ -1,25 +1,77 @@
 :root {
   color-scheme: dark;
-  --bg: #0b0f19;
-  --bg-soft: #0e1422;
-  --surface: #141b2b;
-  --surface-2: #1a2234;
-  --surface-3: #212b41;
-  --input-bg: #0f1626;
-  --border: #2a3550;
-  --border-soft: #202a40;
-  --text: #e7ecf5;
-  --muted: #a6b0c6;
-  --faint: #8a96ae;
-  --primary: #8b93ff;
-  --primary-hover: #a7adff;
-  --primary-rgb: 139 147 255;
-  --primary-ink: #0b0f19;
-  --primary-dim: #7b84ee;
-  --secondary: #9db8ff;
-  --secondary-rgb: 157 184 255;
-  --focus: #a7adff;
-  --ring: 0 0 0 3px rgba(139, 147, 255, 0.32);
+
+  /*
+   * Material 3 colour roles, dark theme, blue seed.
+   * Roles are declared in pairs (primary/on-primary, container/on-container)
+   * so components can be written against the Material 3 model rather than
+   * inventing one-off colours. The legacy names at the bottom alias the roles
+   * used by the existing components.
+   */
+  --md-primary: #a9c7ff;
+  --md-on-primary: #003258;
+  --md-primary-container: #00497d;
+  --md-on-primary-container: #d1e4ff;
+  --md-secondary: #b9c7da;
+  --md-on-secondary: #233240;
+  --md-secondary-container: #394857;
+  --md-on-secondary-container: #d5e3f7;
+  --md-tertiary: #ebc38d;
+  --md-on-tertiary: #432c00;
+  --md-tertiary-container: #5c4200;
+  --md-on-tertiary-container: #ffdfa6;
+  --md-error: #ffb4ab;
+  --md-on-error: #690005;
+  --md-error-container: #93000a;
+  --md-on-error-container: #ffdad6;
+  --md-background: #101418;
+  --md-on-background: #e1e2e8;
+  --md-surface: #101418;
+  --md-on-surface: #e1e2e8;
+  --md-surface-variant: #42474e;
+  --md-on-surface-variant: #c2c7cf;
+  --md-outline: #8c9199;
+  --md-outline-variant: #42474e;
+  --md-surface-dim: #101418;
+  --md-surface-bright: #363a3e;
+  --md-surface-container-lowest: #0b0f13;
+  --md-surface-container-low: #181c20;
+  --md-surface-container: #1c2024;
+  --md-surface-container-high: #262a2f;
+  --md-surface-container-highest: #31353a;
+  --md-inverse-surface: #e1e2e8;
+  --md-inverse-on-surface: #2d3135;
+  --md-inverse-primary: #0061a4;
+  --md-scrim: #000000;
+
+  /* Material 3 shape scale */
+  --shape-xs: 4px;
+  --shape-sm: 8px;
+  --shape-md: 12px;
+  --shape-lg: 16px;
+  --shape-xl: 28px;
+
+  /* Component aliases */
+  --bg: #101418;
+  --bg-soft: #0b0f13;
+  --surface: #1c2024;
+  --surface-2: #262a2f;
+  --surface-3: #31353a;
+  --input-bg: #262a2f;
+  --border: #42474e;
+  --border-soft: #31353a;
+  --text: #e1e2e8;
+  --muted: #aeb4bd;
+  --faint: #969ca5;
+  --primary: #a9c7ff;
+  --primary-hover: #c9dbff;
+  --primary-rgb: 169 199 255;
+  --primary-ink: #003258;
+  --primary-dim: #7fa9e0;
+  --secondary: #b9c7da;
+  --secondary-rgb: 185 199 218;
+  --focus: #c9dbff;
+  --ring: 0 0 0 3px rgb(var(--primary-rgb) / 0.32);
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -29,12 +81,14 @@
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
-  --warn: #ffcf7a;
-  --danger: #ff9e9e;
-  --danger-bg: #3a1a22;
-  --good: #7be0b0;
-  --shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
-  font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --warn: #ebc38d;
+  --danger: #ffb4ab;
+  --danger-bg: #3b1f22;
+  --good: #8ed8b0;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
+  --shadow-2: 0 2px 6px 2px rgba(0, 0, 0, 0.15), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-3: 0 6px 18px 4px rgba(0, 0, 0, 0.2), 0 2px 6px 2px rgba(0, 0, 0, 0.15);
+  font-family: 'Segoe UI Variable Text', 'Segoe UI', Roboto, system-ui, -apple-system, sans-serif;
   background: var(--bg);
   color: var(--text);
 }

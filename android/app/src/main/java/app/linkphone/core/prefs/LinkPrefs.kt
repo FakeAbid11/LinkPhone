@@ -49,6 +49,13 @@ class LinkPrefs(context: Context) {
             store.edit().putBoolean(KEY_AUTO_CHECK_UPDATES, value).apply()
         }
 
+    /** Material You: follow the wallpaper palette on Android 12+. */
+    var dynamicColor: Boolean
+        get() = store.getBoolean(KEY_DYNAMIC_COLOR, true)
+        set(value) {
+            store.edit().putBoolean(KEY_DYNAMIC_COLOR, value).apply()
+        }
+
     /** When the updater last contacted GitHub, in epoch milliseconds. */
     var lastUpdateCheckAt: Long
         get() = store.getLong(KEY_LAST_UPDATE_CHECK, 0L)
@@ -137,6 +144,7 @@ class LinkPrefs(context: Context) {
         const val KEY_DESIRED_CONNECTED = "connection.desired"
         const val KEY_ONBOARDING = "onboarding.done"
         const val KEY_AUTO_CHECK_UPDATES = "update.autoCheck"
+        const val KEY_DYNAMIC_COLOR = "theme.dynamicColor"
         const val KEY_LAST_UPDATE_CHECK = "update.lastCheckAt"
         const val KEY_PC_ID = "pc.id"
         const val KEY_PC_NAME = "pc.name"

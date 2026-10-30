@@ -28,6 +28,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -35,10 +37,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -51,6 +53,11 @@ enum class StatusTone { Good, Warn, Bad, Neutral }
 
 enum class PermissionStatus { Allowed, NeedsAccess, Unavailable }
 
+/**
+ * A Material 3 filled card. Surfaces step up the tonal elevation ladder instead
+ * of drawing drop shadows, which is how Material 3 separates content in both
+ * light and dark themes.
+ */
 @Composable
 fun SectionCard(
     title: String,
@@ -61,14 +68,17 @@ fun SectionCard(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = MaterialTheme.shapes.large,
     ) {
-        Column(modifier = Modifier.padding(18.dp)) {
+        Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (icon != null) {
                     IconBadge(icon)
-                    Spacer(Modifier.width(11.dp))
+                    Spacer(Modifier.width(14.dp))
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -86,7 +96,7 @@ fun SectionCard(
                     }
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(16.dp))
             content()
         }
     }
@@ -95,18 +105,22 @@ fun SectionCard(
 @Composable
 fun IconBadge(
     icon: ImageVector,
-    tint: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary,
+    tint: Color = MaterialTheme.colorScheme.onPrimaryContainer,
+    container: Color = MaterialTheme.colorScheme.primaryContainer,
+    size: Int = 40,
 ) {
     Box(
         modifier = Modifier
-            .size(38.dp)
-            .background(
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
-                MaterialTheme.shapes.small,
-            ),
+            .size(size.dp)
+            .background(container, MaterialTheme.shapes.medium),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size((size * 0.55f).dp),
+        )
     }
 }
 
@@ -116,7 +130,7 @@ fun StatusPill(text: String, tone: StatusTone) {
         StatusTone.Good -> MaterialTheme.colorScheme.primaryContainer
         StatusTone.Warn -> MaterialTheme.colorScheme.tertiaryContainer
         StatusTone.Bad -> MaterialTheme.colorScheme.errorContainer
-        StatusTone.Neutral -> MaterialTheme.colorScheme.surfaceVariant
+        StatusTone.Neutral -> MaterialTheme.colorScheme.surfaceContainerHighest
     }
     val foreground = when (tone) {
         StatusTone.Good -> MaterialTheme.colorScheme.onPrimaryContainer
@@ -128,7 +142,7 @@ fun StatusPill(text: String, tone: StatusTone) {
         Text(
             text,
             style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
         )
     }
 }
@@ -145,7 +159,7 @@ fun ToggleRow(
         modifier = modifier
             .fillMaxWidth()
             .semantics(mergeDescendants = true) {}
-            .padding(vertical = 8.dp),
+            .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -157,7 +171,7 @@ fun ToggleRow(
                 modifier = Modifier.padding(top = 2.dp),
             )
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(16.dp))
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
@@ -173,7 +187,7 @@ fun Notice(
         StatusTone.Good -> MaterialTheme.colorScheme.primaryContainer
         StatusTone.Warn -> MaterialTheme.colorScheme.tertiaryContainer
         StatusTone.Bad -> MaterialTheme.colorScheme.errorContainer
-        StatusTone.Neutral -> MaterialTheme.colorScheme.surfaceVariant
+        StatusTone.Neutral -> MaterialTheme.colorScheme.surfaceContainerHighest
     }
     val foreground = when (tone) {
         StatusTone.Good -> MaterialTheme.colorScheme.onPrimaryContainer
@@ -187,7 +201,7 @@ fun Notice(
         contentColor = foreground,
         shape = MaterialTheme.shapes.medium,
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(14.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
             Text(
                 body,
@@ -209,11 +223,16 @@ fun PermissionRow(
     last: Boolean = false,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconBadge(icon, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.width(12.dp))
+        IconBadge(
+            icon,
+            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+            container = MaterialTheme.colorScheme.secondaryContainer,
+            size = 36,
+        )
+        Spacer(Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
             Text(
@@ -223,7 +242,7 @@ fun PermissionRow(
                 modifier = Modifier.padding(top = 2.dp),
             )
         }
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(12.dp))
         when (status) {
             PermissionStatus.Allowed -> StatusPill("Allowed", StatusTone.Good)
             PermissionStatus.Unavailable -> Text(
@@ -231,7 +250,7 @@ fun PermissionRow(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            PermissionStatus.NeedsAccess -> OutlinedButton(
+            PermissionStatus.NeedsAccess -> FilledTonalButton(
                 onClick = onAction,
                 modifier = Modifier.semantics {
                     contentDescription = "$actionLabel $title"
@@ -260,13 +279,20 @@ fun QuickAction(
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .semantics(mergeDescendants = true) {},
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            disabledContainerColor = MaterialTheme.colorScheme.surface,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         ),
+        shape = MaterialTheme.shapes.large,
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            IconBadge(icon)
-            Spacer(Modifier.height(10.dp))
+        Column(modifier = Modifier.padding(16.dp)) {
+            IconBadge(
+                icon,
+                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                container = MaterialTheme.colorScheme.secondaryContainer,
+                size = 44,
+            )
+            Spacer(Modifier.height(14.dp))
             Text(title, style = MaterialTheme.typography.titleSmall)
             Text(
                 subtitle,
@@ -274,7 +300,7 @@ fun QuickAction(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 2.dp),
+                modifier = Modifier.padding(top = 3.dp),
             )
         }
     }
@@ -291,46 +317,57 @@ fun ConsentScaffold(
     onSecondary: () -> Unit,
     detail: String? = null,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .imePadding()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        IconBadge(icon)
-        Text(title, style = MaterialTheme.typography.headlineSmall)
-        Text(
-            message,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (detail != null) {
+    Surface(color = MaterialTheme.colorScheme.background) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            IconBadge(icon, size = 56)
+            Text(title, style = MaterialTheme.typography.headlineMedium)
             Text(
-                detail,
-                style = MaterialTheme.typography.bodySmall,
+                message,
+                style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (detail != null) {
+                Text(
+                    detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Button(onClick = onPrimary, modifier = Modifier.fillMaxWidth()) {
+                Text(primaryLabel)
+            }
+            OutlinedButton(onClick = onSecondary, modifier = Modifier.fillMaxWidth()) {
+                Text(secondaryLabel)
+            }
         }
-        Spacer(Modifier.height(8.dp))
-        Button(onClick = onPrimary) { Text(primaryLabel) }
-        TextButton(onClick = onSecondary) { Text(secondaryLabel) }
     }
 }
 
 @Composable
 fun BulletRow(icon: ImageVector, title: String, detail: String) {
     Row(verticalAlignment = Alignment.Top) {
-        IconBadge(icon)
-        Spacer(Modifier.width(12.dp))
-        Column {
+        IconBadge(
+            icon,
+            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+            container = MaterialTheme.colorScheme.secondaryContainer,
+        )
+        Spacer(Modifier.width(14.dp))
+        Column(modifier = Modifier.padding(top = 2.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
             Text(
                 detail,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp),
             )
         }
     }
@@ -342,24 +379,38 @@ fun ProgressScaffold(
     message: String,
     icon: ImageVector,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .padding(horizontal = 28.dp, vertical = 32.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.Start,
-    ) {
-        IconBadge(icon)
-        Spacer(Modifier.height(16.dp))
-        Text(title, style = MaterialTheme.typography.headlineSmall)
-        Text(
-            message,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 8.dp),
-        )
+    Surface(color = MaterialTheme.colorScheme.background) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(horizontal = 28.dp, vertical = 32.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.Start,
+        ) {
+            IconBadge(icon, size = 56)
+            Spacer(Modifier.height(18.dp))
+            Text(title, style = MaterialTheme.typography.headlineSmall)
+            Text(
+                message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Spacer(Modifier.height(20.dp))
+            CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp)
+        }
     }
+}
+
+@Composable
+fun SectionLabel(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier.padding(horizontal = 4.dp),
+    )
 }
 
 fun Context.findHostActivity(): Activity? {

@@ -54,6 +54,9 @@ class LinkViewModel(application: Application) : AndroidViewModel(application) {
     private val _permissionRevision = MutableStateFlow(0)
     val permissionRevision: StateFlow<Int> = _permissionRevision.asStateFlow()
 
+    private val _dynamicColor = MutableStateFlow(prefs.dynamicColor)
+    val dynamicColor: StateFlow<Boolean> = _dynamicColor.asStateFlow()
+
     val updateStatus: StateFlow<UpdateStatus> = AppUpdater.status
 
     private var pairingJob: Job? = null
@@ -161,6 +164,11 @@ class LinkViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearLogs() {
         LinkStatus.logs.value = emptyList()
+    }
+
+    fun setDynamicColor(enabled: Boolean) {
+        prefs.dynamicColor = enabled
+        _dynamicColor.value = enabled
     }
 
     fun resetPairingState() {
