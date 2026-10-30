@@ -1,3 +1,43 @@
+## LinkPhone v0.8.3
+
+A layout release for the Windows app. No pairing, encryption or transport change, so this is a
+drop-in update over 0.8.2.
+
+### What's new
+
+- **Cards no longer stretch to match their neighbours.** A short card used to grow to the height
+  of the tallest one beside it, which left large empty blocks under the Calls dialer and beside
+  the notification feed.
+- **One place for each fact.** The paired-phone list, the per-app mute control and the version
+  number each appeared twice; the duplicate on Settings, inside every notification, and in the
+  security card are gone. Settings also loses its "Firewall and network" card, which only told
+  you to look at Connection.
+
+### What's fixed
+
+- **The message composer stays on screen.** The panel was sized from a fixed viewport offset
+  that assumed no page header and no banner, so with a banner the composer dropped below the
+  fold and a second scrollbar appeared.
+- **The photo preview opens wide.** The wide-dialog style was being overridden, so full-size
+  photos opened in the narrow dialog.
+- **Mirroring draws a phone, not a strip.** A tall phone screen used to render letterboxed in a
+  wide black box, and because taps are mapped across the whole box, they landed in the wrong
+  place.
+- **The sidebar keeps its status line on small windows.** At the minimum window height the
+  connection state and port were clipped; the navigation list now scrolls instead.
+- **Long shared text scrolls instead of stopping mid-sentence.** Clipboard and share items were
+  cut off at a fixed height with no way to read the rest.
+- **The Connection tab shows the address and fingerprint once,** with copy buttons, instead of
+  repeating them in the pairing card — and no longer says "on the right" when the two columns
+  have stacked.
+
+### Downloads
+
+- `LinkPhone-0.8.3.apk` - Android 10+ companion (sideload; same release key)
+- `LinkPhone-Portable-0.8.3.exe` - Windows portable app
+- `LinkPhone-Setup-0.8.3.exe` - Windows installer (recommended for automatic updates)
+- `SHA256SUMS.txt` - checksums for the files above
+
 ## LinkPhone v0.8.2
 
 A consistency and reliability release. No pairing, encryption or transport change, so this is a
