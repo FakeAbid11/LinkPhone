@@ -80,6 +80,10 @@
 | Saved photos/files | User-selected folders | Normal OS file permissions |
 | Logs | `userData/logs/linkphone.log` | Connection events only; no message or notification bodies; tokens never logged |
 
+The PC keeps the current SMS list and notification feed in memory so the UI can render them, and
+sends that snapshot to the renderer on every state change while the phone is connected. Both are
+cleared when the session ends; neither is written to disk.
+
 The PC's state file is not separately encrypted. Use full-disk encryption and a locked OS account.
 The phone side keeps only what it needs; it does not cache SMS bodies or notifications.
 

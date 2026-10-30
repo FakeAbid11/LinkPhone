@@ -1,3 +1,47 @@
+## LinkPhone v0.7.6
+
+A direct, LAN-only companion link between an Android phone and a Windows PC. A small follow-up to
+0.7.5 that closes the last review findings which could be verified without a device.
+
+### What's fixed
+
+- **A photo transfer no longer loses its first chunk.** The phone starts sending as soon as it
+  answers `photo.fetch`, so the reply and the first chunks can arrive together. The PC used to drop
+  a chunk that had no stream yet, and the transfer then stalled until it timed out. The PC now
+  holds those leading frames for two seconds and replays them once the stream is registered.
+- **A thread that is only MMS is no longer invisible.** Rows the SMS provider cannot give a body
+  for were filtered out on both sides, which hid the whole conversation. They now appear with
+  "(no text)" instead of disappearing.
+- **The photo preview is the real image.** The modal used to show the 512 px thumbnail; it now
+  fetches the full-size JPEG, and says so when it cannot be loaded.
+- **The "All photos" chip no longer shows an invented total.** It summed the album counts, which
+  can disagree with the camera roll. The per-album counts stay.
+- **Docs:** `docs/security.md` now states that the current SMS list and notification feed travel to
+  the renderer in each state snapshot while the phone is connected, and are cleared when the
+  session ends.
+- A binary frame for an unknown stream is logged once instead of vanishing silently, so a stalled
+  transfer is diagnosable.
+
+### Which updates do I need?
+
+- **Both.** The phone change (MMS-only threads) and the PC changes are independent, so updating one
+  side is safe.
+
+### Known issues
+
+- Unchanged from v0.7.5: the JPEG mirror path still needs a device check for colour accuracy, sent
+  SMS still report only "handed to the phone", and a downloaded Android update must be re-checked
+  after the app restarts.
+
+### Download
+
+- `LinkPhone-0.7.6.apk` — Android 10+ companion (sideload; same release key)
+- `LinkPhone-Portable-0.7.6.exe` — Windows portable app
+- `LinkPhone-Setup-0.7.6.exe` — Windows installer (recommended for automatic updates)
+- `SHA256SUMS.txt` — verify your downloads
+
+Built, unit-tested, linted, and E2E-tested in GitHub Actions.
+
 ## LinkPhone v0.7.5
 
 A direct, LAN-only companion link between an Android phone and a Windows PC. This release is a
