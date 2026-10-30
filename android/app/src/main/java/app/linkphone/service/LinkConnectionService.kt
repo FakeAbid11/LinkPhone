@@ -87,6 +87,7 @@ import app.linkphone.features.mirror.MirrorController
 import app.linkphone.features.notifications.LinkNotificationListener
 import app.linkphone.features.photos.PhotoRepository
 import app.linkphone.features.sms.SmsObserver
+import app.linkphone.features.sms.SmsPayload
 import app.linkphone.features.sms.SmsReader
 import app.linkphone.features.sms.SmsSender
 import app.linkphone.ui.ClipboardApplyActivity
@@ -104,6 +105,8 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonElement
 import java.util.concurrent.atomic.AtomicLong
@@ -119,6 +122,9 @@ class LinkConnectionService : Service() {
     private val reconnectSignal = Channel<Unit>(Channel.CONFLATED)
     private val streamCounter = AtomicLong(1)
     private val photoGate = java.util.concurrent.Semaphore(2)
+
+    /** Bounds how many PC commands run at once; a flood would starve the pool. */
+    private val commandGate = Semaphore(4)
 
     private var loopJob: Job? = null
     private var currentConnector: PhoneConnector? = null
@@ -136,17 +142,11 @@ class LinkConnectionService : Service() {
     private var explicitStop = false
     private var lastStartId = 0
 
-    @Volatile
-    private var pendingMirrorCodec = MirrorCodecChoice.JPEG
-
-    @Volatile
-    private var pendingMirrorFps = MirrorCodecChoice.FPS_30
-
     private val smsReader by lazy { SmsReader(this) }
     private val smsSender by lazy { SmsSender(this) }
     private val contactRepository by lazy { ContactRepository(this) }
     private val photos by lazy { PhotoRepository(this) }
-    private val calls by lazy { CallController(this) { state -> sendCallState(state) } }
+    private val calls by lazy { CallController(this, scope) { state -> sendCallState(state) } }
     private val mirror by lazy {
         MirrorController(
             context = this,
@@ -347,6 +347,11 @@ class LinkConnectionService : Service() {
                 ConnectionHub.attach(session)
                 lastConnectFailed = false
                 backoff.reset()
+                // A wake-up queued while connecting would otherwise skip the
+                // next backoff and spin the loop.
+                while (reconnectSignal.tryReceive().isSuccess) {
+                    // Drain stale signals.
+                }
                 LinkStatus.setState(LinkState.Connected(target.pcName, target.host))
                 releaseReconnectWakeLock()
                 LinkStatus.log("Net", "Authenticated with ${target.pcName} at ${target.host}")
@@ -528,8 +533,15 @@ class LinkConnectionService : Service() {
         if (!state.active) refreshNotification()
     }
 
+    @Volatile
+    private var mirrorSendFailed = false
+
     private fun sendMirrorFrame(frame: ByteArray) {
-        ConnectionHub.sendBinary(frame)
+        if (mirrorSendFailed) return
+        if (ConnectionHub.sendBinary(frame)) return
+        mirrorSendFailed = true
+        // The socket is gone; stop encoding instead of burning the battery.
+        mainHandler.post { runCatching { mirror.stop("The connection closed") } }
     }
 
     private fun onMirrorStopped() {
@@ -540,11 +552,15 @@ class LinkConnectionService : Service() {
         if (envelope.replyTo != null) return
         scope.launch {
             try {
-                route(envelope)
+                commandGate.withPermit { route(envelope) }
             } catch (error: FeaturePermissionException) {
                 replyError(envelope, ErrorCodes.PERMISSION_DENIED, error.message ?: "Permission missing")
             } catch (error: IllegalArgumentException) {
                 replyError(envelope, ErrorCodes.BAD_REQUEST, error.message ?: "Invalid request")
+            } catch (cancelled: CancellationException) {
+                // Waiting for a command slot can be cancelled when the service
+                // stops; do not turn that into an INTERNAL error reply.
+                throw cancelled
             } catch (error: Exception) {
                 LinkStatus.log(
                     "Net",
@@ -566,7 +582,18 @@ class LinkConnectionService : Service() {
             Types.SMS_LIST -> {
                 val request = envelope.decodeData<SmsListRequest>()
                 val messages = smsReader.listMessages(request.limit)
-                reply(envelope, ProtocolCodec.data(SmsListResult(messages)))
+                // The PC closes the session above 1 MiB, so trim here rather
+                // than start a reconnect loop that re-requests the same list.
+                val fitted = SmsPayload.fit(
+                    messages = messages,
+                    sizeOf = { candidate ->
+                        ProtocolCodec.data(SmsListResult(candidate))
+                            .toString()
+                            .toByteArray(Charsets.UTF_8)
+                            .size
+                    },
+                )
+                reply(envelope, ProtocolCodec.data(SmsListResult(fitted)))
             }
 
             Types.SMS_SEND -> {
@@ -695,9 +722,10 @@ class LinkConnectionService : Service() {
                 }
                 val request = runCatching { envelope.decodeData<MirrorStartRequest>() }
                     .getOrDefault(MirrorStartRequest())
-                pendingMirrorCodec = MirrorCodecChoice.normalize(request.codec)
-                pendingMirrorFps = MirrorCodecChoice.normalizeFps(request.fps)
-                postMirrorConsentNotification()
+                postMirrorConsentNotification(
+                    codec = MirrorCodecChoice.normalize(request.codec),
+                    fps = MirrorCodecChoice.normalizeFps(request.fps),
+                )
                 replyOk(envelope)
             }
 
@@ -842,7 +870,17 @@ class LinkConnectionService : Service() {
             return
         }
         try {
-            mirror.start(resultCode, resultData, pendingMirrorCodec, pendingMirrorFps)
+            mirrorSendFailed = false
+            mirror.start(
+                resultCode = resultCode,
+                data = resultData,
+                requestedCodec = MirrorCodecChoice.normalize(
+                    intent.getStringExtra(EXTRA_MIRROR_CODEC),
+                ),
+                requestedFps = MirrorCodecChoice.normalizeFps(
+                    intent.getIntExtra(EXTRA_MIRROR_FPS, MirrorCodecChoice.FPS_30),
+                ),
+            )
             cancelAlert(MIRROR_REQUEST_ID)
         } catch (error: Exception) {
             LinkStatus.log("Mirror", "Start failed: ${error.message}")
@@ -1041,8 +1079,12 @@ class LinkConnectionService : Service() {
         notifySafely(LINK_NOTIFICATION_ID, notification)
     }
 
-    private fun postMirrorConsentNotification() {
+    private fun postMirrorConsentNotification(codec: String, fps: Int) {
         val intent = Intent(this, MirrorConsentActivity::class.java)
+            // Carry the request with the consent so a second request cannot
+            // overwrite the codec this one will start with.
+            .putExtra(EXTRA_MIRROR_CODEC, codec)
+            .putExtra(EXTRA_MIRROR_FPS, fps)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         val pending = PendingIntent.getActivity(
             this,
@@ -1206,6 +1248,8 @@ class LinkConnectionService : Service() {
         const val EXTRA_RESULT_CODE = "app.linkphone.extra.RESULT_CODE"
         const val EXTRA_RESULT_DATA = "app.linkphone.extra.RESULT_DATA"
         const val EXTRA_CLIPBOARD_TEXT = "app.linkphone.extra.CLIPBOARD_TEXT"
+        const val EXTRA_MIRROR_CODEC = "app.linkphone.extra.MIRROR_CODEC"
+        const val EXTRA_MIRROR_FPS = "app.linkphone.extra.MIRROR_FPS"
 
         const val CHANNEL_CONNECTION = "connection"
         const val CHANNEL_ALERTS = "alerts"

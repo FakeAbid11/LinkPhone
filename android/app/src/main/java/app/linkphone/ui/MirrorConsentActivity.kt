@@ -23,10 +23,15 @@ import app.linkphone.core.model.MirrorState
 import app.linkphone.core.net.ConnectionHub
 import app.linkphone.core.protocol.ProtocolCodec
 import app.linkphone.core.protocol.Types
+import app.linkphone.features.mirror.MirrorCodecChoice
 import app.linkphone.service.LinkConnectionService
 
 class MirrorConsentActivity : ComponentActivity() {
     private var handled = false
+
+    /** The codec and frame rate this consent was requested with. */
+    private var codec: String = MirrorCodecChoice.JPEG
+    private var fps: Int = MirrorCodecChoice.FPS_30
 
     private val projectionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
@@ -39,7 +44,9 @@ class MirrorConsentActivity : ComponentActivity() {
                 Intent(this, LinkConnectionService::class.java)
                     .setAction(LinkConnectionService.ACTION_MIRROR_START)
                     .putExtra(LinkConnectionService.EXTRA_RESULT_CODE, result.resultCode)
-                    .putExtra(LinkConnectionService.EXTRA_RESULT_DATA, data),
+                    .putExtra(LinkConnectionService.EXTRA_RESULT_DATA, data)
+                    .putExtra(LinkConnectionService.EXTRA_MIRROR_CODEC, codec)
+                    .putExtra(LinkConnectionService.EXTRA_MIRROR_FPS, fps),
             )
             finish()
         } else {
@@ -49,6 +56,9 @@ class MirrorConsentActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        codec = intent.getStringExtra(LinkConnectionService.EXTRA_MIRROR_CODEC)
+            ?: MirrorCodecChoice.JPEG
+        fps = intent.getIntExtra(LinkConnectionService.EXTRA_MIRROR_FPS, MirrorCodecChoice.FPS_30)
         enableEdgeToEdge()
         setContent {
             LinkPhoneTheme {
