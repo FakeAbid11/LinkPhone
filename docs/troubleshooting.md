@@ -102,6 +102,10 @@ New-NetFirewallRule -DisplayName "LinkPhone" -Direction Inbound -Protocol TCP -L
 If Windows classifies the network as Public, change it to Private or add a rule for Public only if
 you understand the exposure. Do not expose the port to the internet.
 
+Connection → Network checklist → **Check this PC** answers this without a terminal: it reports the
+network profile, whether an enabled inbound rule actually covers TCP 48921, and whether any device
+other than this PC has ever reached the port.
+
 A blocked inbound packet is *dropped*, not refused, so it shows up as
 `failed to connect to … after 8000ms` rather than an instant `Failed to connect to …`. If the
 message has no “after …ms” suffix, the firewall is not the cause — work through the section above
@@ -111,7 +115,43 @@ first.
 
 Many guest, hotel, and corporate networks block device-to-device traffic even on the same subnet.
 LinkPhone cannot fix that. Use a normal home network or a phone hotspot (PC connected to the phone's
-hotspot) and pair there.
+hotspot) and pair there. See [Same subnet, nothing answers](#same-subnet-nothing-answers) for the
+`ping` test that proves it.
+
+### Same subnet, nothing answers
+
+The pairing screen shows `This phone 192.168.0.119/24` next to `PC in the code 192.168.0.111`, there
+is no VPN on either device, and the connect still fails with `EHOSTUNREACH (No route to host)`. The
+packet left the phone on a valid link and the router dropped it.
+
+**Prove it from the PC.** Run this with the phone's address, which the phone's pairing screen prints:
+
+```powershell
+ping 192.168.0.119
+```
+
+No reply (or `Destination host unreachable`) means the network is not delivering traffic between two
+of its own clients. No LinkPhone setting changes that. On the PC you can see the same thing one step
+earlier — an unresolvable ARP entry:
+
+```powershell
+Get-NetNeighbor -AddressFamily IPv4 | Where-Object { $_.IPAddress -eq "192.168.0.119" }
+```
+
+A `LinkLayerAddress` of `00-00-00-00-00-00` with `State: Unreachable` is that missing reply.
+
+Two causes produce this identical symptom:
+
+- **AP or client isolation.** Guest SSIDs, hotel and campus networks, and many mesh systems block
+  device-to-device traffic by default.
+- **Two boxes, one range.** A repeater or a second router can hand out the same `192.168.0.x`
+  addresses while keeping its own clients apart. If the PC is wired to one and the phone is on the
+  other, they are not on the same network even though the addresses look alike. Comparing the router
+  page the phone sees (`http://192.168.0.1`) with the one the PC sees tells the two apart.
+
+**Workaround that needs no router change:** connect the PC to the phone's Wi-Fi hotspot and pair
+there. Once layer 2 works, the next blocker is the PC side — run **Check this PC** on the Connection
+tab, which reports the Windows network profile and the firewall rule.
 
 ### VPN on the phone or PC
 

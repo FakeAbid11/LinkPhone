@@ -1,3 +1,40 @@
+## LinkPhone v0.8.7
+
+A diagnosis release. Pairing, encryption and the transport are unchanged, so this is a drop-in
+update over 0.8.6.
+
+### What's new
+
+- **The Connection tab can now check the PC instead of describing it.** **Check this PC** reports four
+  things: whether the network profile is Public (which makes Windows Firewall drop inbound traffic),
+  whether an enabled inbound rule actually covers TCP 48921 and the profile you are on, whether any
+  device other than this PC has ever reached the port, and — greyed out, because Windows cannot
+  answer it — whether the router forwards traffic between its own clients.
+- **"Nothing has ever reached this PC" is the decisive answer.** If no address other than the PC's own
+  ever appears, the packet is being dropped before LinkPhone sees it, so the problem is the network
+  rather than the code, the certificate or the app. That is the one question no Windows API can
+  answer, and it is the one worth asking first.
+- The check runs only when you press the button. It never runs at start and never on a timer.
+
+### What's fixed
+
+- **The same-subnet failure told you to turn off a VPN that was not running.** When the phone held an
+  address on the PC's subnet and the connect still failed, the card said "check for a VPN, and turn
+  mobile data off", and its first bullet read "Turn it off completely" with no VPN to turn off. That
+  case is what a router that does not forward between its own clients looks like, so it now says so:
+  it names both addresses, blames AP/client isolation, points at a repeater handing out the same
+  address range, gives the PC-side `ping` test that proves it, and offers the workaround that needs no
+  router change — pair over the phone's own hotspot. With a VPN actually active, the card is unchanged.
+- The Windows Firewall bullet stays in that list, because it is the next blocker once the two devices
+  can reach each other.
+
+### Downloads
+
+- `LinkPhone-0.8.7.apk` - Android 10+ companion (sideload; same release key)
+- `LinkPhone-Portable-0.8.7.exe` - Windows portable app
+- `LinkPhone-Setup-0.8.7.exe` - Windows installer (recommended for automatic updates)
+- `SHA256SUMS.txt` - checksums for the files above
+
 ## LinkPhone v0.8.6
 
 A one-fix release for a message introduced in 0.8.5. No pairing, encryption or transport change, so

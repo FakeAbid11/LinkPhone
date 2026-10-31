@@ -17,8 +17,10 @@ locally.
 
 - `PairingUriTest` — QR URI parsing, fingerprint/token/port validation, normalization.
 - `core/net/PairingFailureTest` — exception-to-message mapping by type, cause-chain unwrapping
-  through OkHttp's wrappers, pass-through of the PC's own auth text, single-line capped detail, and
-  which failures are eligible for the mDNS retry.
+  through OkHttp's wrappers, pass-through of the PC's own auth text, single-line capped detail,
+  which failures are eligible for the mDNS retry, and the two same-subnet copies: the VPN one, and
+  the one with no VPN that names client isolation, derives the repeater's address range from the PC's
+  own address, and offers the PC-side `ping` proof instead of mobile-data advice.
 - `CryptoTest` — SHA-256 known vector, hex/fingerprint formatting, canonical auth payload.
 - `ProtocolCodecTest` — envelope round-trip, unknown fields, version rejection, size limit, binary
   frame header/type/chunk tests.
@@ -75,6 +77,12 @@ gradle -p android :app:testDebugUnitTest :app:lintDebug
 - `network.test.ts` — LAN address ordering: default-route preference, private before public, no
   mutation of the caller's array, demotion of virtual/VPN adapters below the physical LAN, refusal to
   prefer a VPN default route, and the unchanged legacy order when adapter names are unknown.
+- `network-check.test.ts` — the on-demand connection check: PowerShell output parsing for profiles and
+  firewall rules (CRLF, empty output, a malformed line, a combined profile list), port and profile
+  matching including ranges and the numeric protocol, the foreign-peer filter, the status table for
+  every check (Public profile, missing vs disabled rule, outbound, Block, wrong port, wrong profile,
+  no inbound traffic, a stopped server, a failed command), and the guarantee that the port never
+  reaches a PowerShell string.
 - `server.test.ts` — **real TLS/WebSocket integration**: pair a phone, store its key, reject bad
   tokens/rejections, authenticate with a real ECDSA signature, reject a bad signature/unknown phone,
   reject pairing while busy, route a phone event, and record the inbound trail a failed connection
