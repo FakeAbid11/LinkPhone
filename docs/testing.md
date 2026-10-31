@@ -76,13 +76,26 @@ gradle -p android :app:testDebugUnitTest :app:lintDebug
   mapping, validation, connected-session requirement, and on-demand contact loading.
 - `network.test.ts` — LAN address ordering: default-route preference, private before public, no
   mutation of the caller's array, demotion of virtual/VPN adapters below the physical LAN, refusal to
-  prefer a VPN default route, and the unchanged legacy order when adapter names are unknown.
+  prefer a VPN default route, the unchanged legacy order when adapter names are unknown, and
+  `shouldRenewOffer` (no code, empty address list, address still present, address present but no
+  longer first, address gone).
+- `ipv4.test.ts` — the address validator: boundary octets, wrong octet counts, values above 255,
+  leading zeros, `0/8`, loopback, link-local, multicast, whitespace not being trimmed, CIDR/port/
+  hostname forms, and shell metacharacters; plus the first-three-octets comparison used to tell a LAN
+  router from a tunnel endpoint.
+- `pairing-offer-watch.test.ts` — the renewal timer: renews when the address is gone, stays quiet when
+  there is no code / the list is empty / the address is still present, renews once when two ticks
+  overlap, keeps working after a failed renewal, and starts/stops cleanly under fake timers.
 - `network-check.test.ts` — the on-demand connection check: PowerShell output parsing for profiles and
   firewall rules (CRLF, empty output, a malformed line, a combined profile list), port and profile
   matching including ranges and the numeric protocol, the foreign-peer filter, the status table for
   every check (Public profile, missing vs disabled rule, outbound, Block, wrong port, wrong profile,
   no inbound traffic, a stopped server, a failed command), and the guarantee that the port never
-  reaches a PowerShell string.
+  reaches a PowerShell string. With a phone address it also covers the probe script (the address
+  appears once, no double quote, the neighbour read follows the ping, an unvalidated value throws),
+  the line parser, every classification rule (reply, resolved ARP entry, `Stale` not counting as
+  taken, tunnel gateway, offline gateway, no default route, a ping that could not run), and the rule
+  that the phone row replaces the unverifiable one rather than adding a fifth.
 - `server.test.ts` — **real TLS/WebSocket integration**: pair a phone, store its key, reject bad
   tokens/rejections, authenticate with a real ECDSA signature, reject a bad signature/unknown phone,
   reject pairing while busy, route a phone event, and record the inbound trail a failed connection

@@ -124,7 +124,17 @@ The pairing screen shows `This phone 192.168.0.119/24` next to `PC in the code 1
 is no VPN on either device, and the connect still fails with `EHOSTUNREACH (No route to host)`. The
 packet left the phone on a valid link and the router dropped it.
 
-**Prove it from the PC.** Run this with the phone's address, which the phone's pairing screen prints:
+**Prove it from the PC, in the app.** Connection → **Network checklist** → type the address the
+phone's pairing screen shows under **This phone** into **Phone address** → **Check this PC**. The
+result names which of three things is happening:
+
+- **The router answers but the phone does not** — this PC reached its own gateway and the phone did
+  not reply and has no ARP entry. That is the isolating router described below.
+- **Another device holds that address** — the ARP entry resolves to a MAC, so the phone's address has
+  changed since the code was made.
+- **This PC has no working network** — not even the gateway answered, so the fault is on this side.
+
+The same test by hand, if you are on an older build:
 
 ```powershell
 ping 192.168.0.119
@@ -150,8 +160,9 @@ Two causes produce this identical symptom:
   page the phone sees (`http://192.168.0.1`) with the one the PC sees tells the two apart.
 
 **Workaround that needs no router change:** connect the PC to the phone's Wi-Fi hotspot and pair
-there. Once layer 2 works, the next blocker is the PC side — run **Check this PC** on the Connection
-tab, which reports the Windows network profile and the firewall rule.
+there. The PC's address changes when it joins the hotspot, so the code on screen renews itself within
+about ten seconds — scan the new one. Once layer 2 works, the next blocker is the PC side: **Check
+this PC** reports the Windows network profile and the firewall rule as well.
 
 ### VPN on the phone or PC
 
