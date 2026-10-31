@@ -210,17 +210,41 @@ object PairingFailureClassifier {
                 "This phone is on ${subnet.phone.summary()}, but the PC's address $host " +
                     "is on a different subnet."
 
-            // Containment is not reachability: a VPN that captures the LAN still
-            // leaves the phone holding an address on the PC's subnet, and a Wi-Fi
-            // the phone considers internet-less can lose the route to cellular.
+            // Containment is not reachability, and the two reasons it fails are
+            // fixed in completely different places: a VPN is switched off on the
+            // phone, an isolating router is not. The verdict and the errno are
+            // identical, so whether a tunnel is up is the only thing that can
+            // tell them apart.
             SubnetVerdict.REACHABLE ->
-                "This phone has an address on ${subnet.matched?.asCidr() ?: subnet.phone.summary()} " +
-                    "but the system still reported no route to $host — check for a VPN, and " +
-                    "turn mobile data off."
+                if (subnet.phone.vpnActive) {
+                    vpnUnreachableMessage(subnet, host)
+                } else {
+                    sameSubnetUnreachableMessage(subnet, host)
+                }
 
             SubnetVerdict.UNKNOWN -> "This phone has no route to $host."
         }
     }
+
+    /**
+     * A tunnel captured the route: the phone holds an address on the PC's subnet
+     * and still has nowhere to send the packet.
+     */
+    private fun vpnUnreachableMessage(subnet: SubnetReport, host: String): String =
+        "This phone has an address on ${subnet.matched?.asCidr() ?: subnet.phone.summary()} " +
+            "but the system still reported no route to $host — check for a VPN, and " +
+            "turn mobile data off."
+
+    /**
+     * Both devices share a subnet and nothing answered, which is what a router
+     * that does not forward between its own clients looks like: the phone's ARP
+     * for the PC goes unanswered, so the kernel reports "no route" even though
+     * the route exists.
+     */
+    private fun sameSubnetUnreachableMessage(subnet: SubnetReport, host: String): String =
+        "This phone is on ${subnet.matched?.asCidr() ?: subnet.phone.summary()} and the PC is " +
+            "at $host on the same network, but nothing answered — the network is most likely " +
+            "blocking traffic between its own devices."
 
     private fun unreachableChecklist(
         subnet: SubnetReport?,
@@ -237,12 +261,11 @@ object PairingFailureClassifier {
         }
         val vpnNote = if (subnet.phone.vpnActive) "A VPN is active on this phone. " else ""
         if (subnet.verdict == SubnetVerdict.REACHABLE) {
-            return listOf(
-                vpnNote + "Turn it off completely, not just disconnect, then try again.",
-                "Turn mobile data off while pairing: a phone that thinks the Wi-Fi has no " +
-                    "internet keeps cellular as its route.",
-                "Allow LinkPhone through Windows Firewall on Private networks (TCP $port).",
-            )
+            return if (subnet.phone.vpnActive) {
+                vpnChecklist(port)
+            } else {
+                sameSubnetChecklist(subnet, host, port)
+            }
         }
         return listOf(
             vpnNote + "Turn off any VPN on this phone completely, not just disconnect, " +
@@ -254,6 +277,52 @@ object PairingFailureClassifier {
                 "code, or enter the Wi-Fi address by hand.",
             "Join the same Wi-Fi as the PC; guest networks isolate clients from each other.",
         )
+    }
+
+    /** A tunnel is up, so the phone's own settings are the thing to change. */
+    private fun vpnChecklist(port: Int): List<String> = listOf(
+        "A VPN is active on this phone. Turn it off completely, not just disconnect, " +
+            "then try again.",
+        "Turn mobile data off while pairing: a phone that thinks the Wi-Fi has no " +
+            "internet keeps cellular as its route.",
+        "Allow LinkPhone through Windows Firewall on Private networks (TCP $port).",
+    )
+
+    /**
+     * Both devices are on one subnet and nothing answered. The router is the
+     * suspect, not the phone's settings, so every bullet either names a router
+     * behaviour or hands the user a way to prove it from the PC — which is the
+     * only place the missing reply is visible.
+     */
+    private fun sameSubnetChecklist(
+        subnet: SubnetReport,
+        host: String,
+        port: Int,
+    ): List<String> {
+        // The PC's own range, so a 10.x network is not told to look for
+        // 192.168.0.x. The prefix length is not carried in the code, so the first
+        // three octets are the most that can be assumed.
+        val range = host.substringBeforeLast('.', host)
+        val bullets = mutableListOf(
+            "The Wi-Fi is not passing traffic between its own devices (AP isolation or " +
+                "client isolation). Guest networks and many mesh systems do this by default.",
+            "A repeater or a second router can hand out the same $range.x addresses while " +
+                "keeping its clients apart. If the two devices connect to different boxes, " +
+                "they are not on the same network even though the addresses look alike.",
+        )
+        // REACHABLE always carries the matched link; the fallback only keeps the
+        // sentence grammatical if that ever stops being true. A bare address is
+        // required here, because ping does not accept a CIDR.
+        val phoneAddress = subnet.matched?.address
+            ?: subnet.phone.addresses.firstOrNull()?.address
+        if (phoneAddress != null) {
+            bullets += "Prove it from the PC: run ping $phoneAddress. If there is no reply, " +
+                "the network is dropping the traffic, not the app."
+        }
+        bullets += "Pair without the router: connect the PC to this phone's Wi-Fi hotspot and " +
+            "scan a new code there."
+        bullets += "Allow LinkPhone through Windows Firewall on Private networks (TCP $port)."
+        return bullets
     }
 
     private fun causeChain(error: Throwable): List<Throwable> {

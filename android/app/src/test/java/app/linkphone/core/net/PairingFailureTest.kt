@@ -201,6 +201,45 @@ class PairingFailureTest {
     }
 
     @Test
+    fun sameSubnetWithoutVpnNamesIsolationAndProvesItFromThePc() {
+        // The reported case: phone and PC on one /24, ARP unanswered in both
+        // directions, no tunnel. Telling this user to turn the VPN off was advice
+        // about something that was not running.
+        val phone = PhoneNetwork(listOf(LocalAddress("192.168.0.119", 24)))
+        val failure = classify(NoRouteToHostException("No route to host"), phone)
+
+        assertEquals(SubnetVerdict.REACHABLE, failure.subnet?.verdict)
+        assertTrue(failure.message.contains("192.168.0.119/24"))
+        assertTrue(failure.message.contains(host))
+        assertFalse(failure.message.contains("VPN"))
+
+        assertTrue(failure.checklist.any { it.contains("isolation") })
+        assertTrue(failure.checklist.any { it.contains("ping 192.168.0.119") })
+        assertTrue(failure.checklist.any { it.contains("hotspot") })
+        assertTrue(failure.checklist.any { it.contains("Firewall") })
+        // Neither of these explains a device that already holds an address on the
+        // PC's subnet, and the old first bullet opened with a pronoun that had no
+        // antecedent when no VPN was up.
+        assertFalse(failure.checklist.any { it.contains("mobile data") })
+        assertFalse(failure.checklist.any { it.contains("Turn it off completely") })
+    }
+
+    @Test
+    fun sameSubnetDerivesTheRepeatersRangeFromThePcAddress() {
+        val phone = PhoneNetwork(listOf(LocalAddress("10.0.7.20", 24)))
+        val failure = classify(
+            NoRouteToHostException("No route to host"),
+            phone,
+            target = "10.0.7.9",
+        )
+
+        assertEquals(SubnetVerdict.REACHABLE, failure.subnet?.verdict)
+        assertTrue(failure.message.contains("10.0.7.9"))
+        assertTrue(failure.checklist.any { it.contains("10.0.7.x") })
+        assertFalse(failure.checklist.any { it.contains("192.168.0.x") })
+    }
+
+    @Test
     fun otherKindsCarryNoSubnet() {
         val phone = PhoneNetwork(listOf(LocalAddress("192.168.1.23", 24)))
         val failure = classify(ConnectException("Failed to connect to /$host:$port"), phone)
@@ -220,6 +259,9 @@ class PairingFailureTest {
         assertTrue(detail.length <= 200)
     }
 
-    private fun classify(error: Throwable, phone: PhoneNetwork? = null): PairingFailure =
-        PairingFailureClassifier.classify(error, host, port, phone)
+    private fun classify(
+        error: Throwable,
+        phone: PhoneNetwork? = null,
+        target: String = host,
+    ): PairingFailure = PairingFailureClassifier.classify(error, target, port, phone)
 }
