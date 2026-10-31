@@ -205,8 +205,18 @@ export function evaluate(input: NetworkCheckInput): NetworkCheckResult {
   };
 }
 
-export interface RunNetworkCheckOptions extends Omit<NetworkCheckInput, 'port'> {
+/**
+ * What the caller supplies. The parsed PowerShell output is not here: it is
+ * produced inside `runNetworkCheck`, so it cannot disagree with what the check
+ * actually ran.
+ */
+export interface RunNetworkCheckOptions {
+  /** 0 when the server is not listening. */
   port: number;
+  serverRunning: boolean;
+  inboundPeers: string[];
+  lastInboundAt?: number;
+  localAddresses: string[];
   now?: number;
   runner?: CommandRunner;
   platform?: NodeJS.Platform;

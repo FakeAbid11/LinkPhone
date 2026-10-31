@@ -11,6 +11,7 @@ import {
   type CommandRunner,
   type FirewallRuleSummary,
   type NetworkCheckInput,
+  type RunNetworkCheckOptions,
 } from '../src/main/core/network-check';
 
 function rule(overrides: Partial<FirewallRuleSummary> = {}): FirewallRuleSummary {
@@ -35,6 +36,17 @@ function input(overrides: Partial<NetworkCheckInput> = {}): NetworkCheckInput {
     lastInboundAt: 1_700_000_000_000,
     localAddresses: ['192.168.0.111'],
     ...overrides,
+  };
+}
+
+/** The fields the caller supplies; the parsed output is produced inside. */
+function runBase(): RunNetworkCheckOptions {
+  return {
+    port: 48921,
+    serverRunning: true,
+    inboundPeers: ['192.168.0.119'],
+    lastInboundAt: 1_700_000_000_000,
+    localAddresses: ['192.168.0.111'],
   };
 }
 
@@ -265,7 +277,7 @@ describe('running the check', () => {
       },
     };
 
-    const result = await runNetworkCheck({ ...input(), runner, platform: 'linux', now: 42 });
+    const result = await runNetworkCheck({ ...runBase(), runner, platform: 'linux', now: 42 });
 
     expect(called).toBe(false);
     expect(result.supported).toBe(false);
@@ -286,7 +298,7 @@ describe('running the check', () => {
       },
     };
 
-    const result = await runNetworkCheck({ ...input(), runner, platform: 'win32', now: 7 });
+    const result = await runNetworkCheck({ ...runBase(), runner, platform: 'win32', now: 7 });
 
     expect(calls).toHaveLength(2);
     for (const call of calls) {
@@ -312,7 +324,7 @@ describe('running the check', () => {
       },
     };
 
-    const result = await runNetworkCheck({ ...input(), runner, platform: 'win32' });
+    const result = await runNetworkCheck({ ...runBase(), runner, platform: 'win32' });
 
     expect(item(result, 'profiles').status).toBe('unknown');
     expect(item(result, 'firewall').status).toBe('unknown');
@@ -326,7 +338,7 @@ describe('running the check', () => {
       },
     };
 
-    const result = await runNetworkCheck({ ...input(), runner, platform: 'win32' });
+    const result = await runNetworkCheck({ ...runBase(), runner, platform: 'win32' });
 
     expect(item(result, 'profiles').detail).toContain('ENOENT');
   });
