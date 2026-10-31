@@ -735,6 +735,7 @@ button {
 .filter-list,
 .handoff-list,
 .limit-list,
+.net-check,
 .checklist {
   list-style: none;
   margin: 0;
@@ -827,6 +828,45 @@ button {
 
 .checklist strong {
   color: var(--text);
+}
+
+/* Result of the on-demand connection check: a status chip per row, with the
+   explanation wrapping beside it. Plain text, not <code>, so long details wrap
+   instead of forcing a horizontal scrollbar. */
+.net-check {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.net-check li {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.net-check li > .badge {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.net-check-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.net-check-copy strong {
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+.net-check-copy span {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.45;
 }
 
 .code-block {

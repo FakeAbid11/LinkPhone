@@ -13,6 +13,7 @@ import type { BinaryFrame } from './core/binary';
 import { ensureCertificate, type PcCertificate } from './core/certs';
 import { Logger } from './core/logger';
 import { buildPairingUri, getLanAddresses } from './core/network';
+import { runNetworkCheck } from './core/network-check';
 import { PairingManager } from './core/pairing';
 import { PairingApprovals } from './core/pairing-approvals';
 import { normalizePhoneInfo } from './core/phone-info';
@@ -47,6 +48,7 @@ import {
   type HandoffShareWire,
   type MirrorCodec,
   type MirrorTouchWire,
+  type NetworkCheckResult,
   type NotificationRemovedWire,
   type NotificationWire,
   type PairingOffer,
@@ -95,6 +97,9 @@ export class AppController {
   });
   private pairingError: string | undefined;
   private serverError: string | undefined;
+  /** Last result of the on-demand connection check; never refreshed on its own. */
+  private networkCheck: NetworkCheckResult | undefined;
+  private networkCheckTask: Promise<void> | undefined;
   private lastError: string | undefined;
   private phoneInfo: PhoneInfoWire | undefined;
   /** False until the phone reports its feature set for this session. */
@@ -231,6 +236,7 @@ export class AppController {
         pcName: this.store.pcName,
         error: this.serverError,
       },
+      networkCheck: this.networkCheck,
       connection,
       devices: this.store.publicDevices(),
       pairing: {
@@ -782,6 +788,35 @@ export class AppController {
       this.lastError = this.serverError;
       this.logger.log('App', `Identity reset restart failed: ${this.serverError}`);
     }
+    this.scheduleBroadcast();
+  }
+
+  /**
+   * On-demand only: nothing runs on a timer, and nothing runs at start. The
+   * check spawns PowerShell, which this app otherwise never does, so it waits to
+   * be asked.
+   */
+  async checkNetwork(): Promise<void> {
+    // Two clicks must not spawn two PowerShell pairs; the second joins the first.
+    if (this.networkCheckTask) return this.networkCheckTask;
+    this.networkCheckTask = this.performNetworkCheck().finally(() => {
+      this.networkCheckTask = undefined;
+    });
+    return this.networkCheckTask;
+  }
+
+  private async performNetworkCheck(): Promise<void> {
+    const peers = this.server?.inboundPeers;
+    const result = await runNetworkCheck({
+      port: this.server?.listeningPort ?? 0,
+      serverRunning: Boolean(this.server),
+      inboundPeers: peers?.addresses ?? [],
+      lastInboundAt: peers?.lastAt,
+      localAddresses: getLanAddresses(),
+    });
+    this.networkCheck = result;
+    // The verdict only: the addresses are already in the Server log.
+    this.logger.log('Net', `Network check: ${result.verdict}`);
     this.scheduleBroadcast();
   }
 

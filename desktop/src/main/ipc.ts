@@ -33,6 +33,7 @@ export function registerIpc(controller: AppController): void {
     controller.removeDevice(requireString(id, 'device id', 128)),
   );
   ipcMain.handle('identity:reset', () => controller.resetIdentity());
+  ipcMain.handle('check:network', () => controller.checkNetwork());
 
   ipcMain.handle('settings:update', (_event, patch: unknown) => {
     if (!patch || typeof patch !== 'object') throw new Error('Invalid settings');

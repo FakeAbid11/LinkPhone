@@ -398,6 +398,28 @@ export interface ServerInfo {
   error?: string;
 }
 
+export type NetworkCheckStatus = 'ok' | 'warn' | 'bad' | 'unknown';
+
+export interface NetworkCheckItem {
+  /** `isolation` is always `unknown`: no Windows API reports it. */
+  id: 'profiles' | 'firewall' | 'inbound' | 'isolation';
+  status: NetworkCheckStatus;
+  title: string;
+  detail: string;
+  /** Epoch ms of the last foreign connection, for the `inbound` item only. */
+  at?: number;
+}
+
+export interface NetworkCheckResult {
+  /** Epoch ms when the check ran, so the card can say how stale it is. */
+  at: number;
+  /** False on a non-Windows host: the check never ran and nothing was spawned. */
+  supported: boolean;
+  verdict: NetworkCheckStatus;
+  port: number;
+  items: NetworkCheckItem[];
+}
+
 export interface ConnectionInfo {
   connected: boolean;
   /** True once the phone has sent `phone.info` for this session. */
@@ -417,6 +439,8 @@ export interface ConnectionInfo {
 export interface AppSnapshot {
   version: string;
   server: ServerInfo;
+  /** Present only after the user pressed "Check this PC" on the Connection tab. */
+  networkCheck?: NetworkCheckResult;
   connection: ConnectionInfo;
   devices: PairedDeviceInfo[];
   pairing: {
@@ -484,6 +508,7 @@ export interface LinkPhoneApi {
   rejectPairing(id: string): Promise<void>;
   removeDevice(id: string): Promise<void>;
   resetIdentity(): Promise<void>;
+  checkNetwork(): Promise<void>;
   updateSettings(patch: Partial<Settings>): Promise<void>;
   refreshSms(): Promise<void>;
   sendSms(address: string, body: string, subId?: number | null): Promise<void>;

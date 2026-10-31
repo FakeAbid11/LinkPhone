@@ -325,6 +325,15 @@ export class LinkServer {
   private heartbeat: NodeJS.Timeout | undefined;
   private port = 0;
   private sessions = new Set<PeerSession>();
+  /**
+   * Every peer that completed a TCP accept since start, capped so a noisy or
+   * hostile LAN cannot grow it without limit. The connection check uses it to
+   * tell "the packet never arrived" from "the packet arrived and pairing
+   * failed" — the one fact no Windows API can supply. Memory only, never
+   * persisted, and already in the log in the same form.
+   */
+  private readonly inbound = new Set<string>();
+  private lastInbound: number | undefined;
 
   constructor(options: ServerOptions) {
     this.options = options;
@@ -332,6 +341,10 @@ export class LinkServer {
 
   get activeSession(): PeerSession | undefined {
     return this.active;
+  }
+
+  get inboundPeers(): { addresses: string[]; lastAt: number | undefined } {
+    return { addresses: [...this.inbound], lastAt: this.lastInbound };
   }
 
   get listeningPort(): number {
@@ -369,10 +382,12 @@ export class LinkServer {
       // tls.Server types this event as a Duplex; at runtime it is the raw
       // net.Socket the TLS layer wraps, which is what carries the peer address.
       const raw = socket as Socket;
-      this.log(
-        'Server',
-        `TCP connection from ${bareAddress(raw.remoteAddress)}:${raw.remotePort ?? 0}`,
-      );
+      const peer = bareAddress(raw.remoteAddress);
+      if (peer !== 'unknown' && (this.inbound.has(peer) || this.inbound.size < 64)) {
+        this.inbound.add(peer);
+        this.lastInbound = Date.now();
+      }
+      this.log('Server', `TCP connection from ${peer}:${raw.remotePort ?? 0}`);
     });
     // A handshake that fails never reaches `ws`, so without this the client's
     // "certificate does not match" has no counterpart here.
@@ -424,6 +439,10 @@ export class LinkServer {
     for (const session of this.sessions) session.close(1001, 'Server stopping');
     this.sessions.clear();
     this.active = undefined;
+    // A stopped server has no history: a restart would otherwise report peers
+    // from a previous run as if they had just connected.
+    this.inbound.clear();
+    this.lastInbound = undefined;
     const wss = this.wss;
     const server = this.httpServer;
     this.wss = undefined;

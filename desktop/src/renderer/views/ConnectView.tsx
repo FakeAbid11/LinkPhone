@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
-import type { AppSnapshot, HandoffUi } from '../../shared/types';
+import type {
+  AppSnapshot,
+  HandoffUi,
+  NetworkCheckResult,
+  NetworkCheckStatus,
+} from '../../shared/types';
 import { api } from '../api';
 import {
   Badge,
@@ -22,6 +27,7 @@ import {
 
 export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -32,6 +38,8 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   const offer = state.pairing.offer;
   const connection = state.connection;
   const expired = offer ? offer.expiresAt <= Date.now() : false;
+  // Hoisted so the narrowing survives the JSX that reads it several times.
+  const check = state.networkCheck;
 
   const copy = async (text: string, label: string) => {
     try {
@@ -43,6 +51,17 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   };
 
   const firewallCommand = `New-NetFirewallRule -DisplayName "LinkPhone" -Direction Inbound -Protocol TCP -LocalPort ${state.server.port || 48921} -Action Allow -Profile Private`;
+
+  // Deliberately not an effect: the check spawns PowerShell, so it runs when the
+  // user asks and never on mount.
+  const runCheck = async () => {
+    setChecking(true);
+    try {
+      await ui.run(() => api.checkNetwork());
+    } finally {
+      setChecking(false);
+    }
+  };
 
   // The identity block shows where the PC is reachable *now*. The pairing card
   // shows what the code actually carries. Those diverge when the PC changes
@@ -332,16 +351,53 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
           )}
         </Card>
 
-        <Card icon="shield" title="Network checklist" subtitle="Most pairing failures are firewall or Wi-Fi isolation.">
-          <ol className="checklist">
-            <li>Both devices are on the same Wi-Fi and the network allows device-to-device traffic.</li>
-            <li>
-              Windows Firewall allows LinkPhone on <strong>Private</strong> networks, TCP port{' '}
-              <strong>{state.server.port || 48921}</strong>.
-            </li>
-            <li>VPN software on either device is disconnected (it can block LAN discovery).</li>
-            <li>The PC shows a local address above; if it does not, connect it to Wi-Fi or Ethernet.</li>
-          </ol>
+        <Card
+          icon="shield"
+          title="Network checklist"
+          subtitle="Most pairing failures are firewall or Wi-Fi isolation."
+          actions={
+            <Button
+              variant="secondary"
+              icon="shield"
+              loading={checking}
+              onClick={() => void runCheck()}
+            >
+              Check this PC
+            </Button>
+          }
+        >
+          {check ? (
+            <>
+              <Notice tone={toneFor(check.verdict)} title={verdictTitle(check.verdict)}>
+                {verdictBody(check)}
+              </Notice>
+              <ul className="net-check">
+                {check.items.map((entry) => (
+                  <li key={entry.id}>
+                    <Badge tone={toneFor(entry.status)}>{STATUS_LABELS[entry.status]}</Badge>
+                    <div className="net-check-copy">
+                      <strong>{entry.title}</strong>
+                      <span>
+                        {entry.detail}
+                        {entry.at ? ` Last seen ${timeAgo(entry.at)}.` : ''}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <p className="muted small">Checked {timeAgo(check.at)}.</p>
+            </>
+          ) : (
+            <ol className="checklist">
+              <li>Both devices are on the same Wi-Fi and the network allows device-to-device traffic.</li>
+              <li>
+                Windows Firewall allows LinkPhone on <strong>Private</strong> networks, TCP port{' '}
+                <strong>{state.server.port || 48921}</strong>.
+              </li>
+              <li>VPN software on either device is disconnected (it can block LAN discovery).</li>
+              <li>The PC shows a local address above; if it does not, connect it to Wi-Fi or Ethernet.</li>
+            </ol>
+          )}
           <div className="code-block">
             <code>{firewallCommand}</code>
             <Button small variant="ghost" onClick={() => void copy(firewallCommand, 'Command')}>
@@ -350,7 +406,8 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
           </div>
           <p className="muted small">
             Run that command in an Administrator PowerShell window once. Guest Wi-Fi and
-            "AP isolation" block direct connections and cannot be fixed by the app.
+            "AP isolation" block direct connections and cannot be fixed by the app — and the
+            check above cannot see them either, because no Windows API reports them.
           </p>
         </Card>
       </div>
@@ -525,4 +582,33 @@ function HandoffCard({ items, ui }: { items: HandoffUi[]; ui: Ui }) {
       </Notice>
     </Card>
   );
+}
+
+type Tone = 'neutral' | 'good' | 'warn' | 'bad';
+
+const STATUS_LABELS: Record<NetworkCheckStatus, string> = {
+  ok: 'OK',
+  warn: 'Warning',
+  bad: 'Blocked',
+  unknown: 'Not checked',
+};
+
+/** `unknown` is deliberately grey: an unverifiable check must not look like a failure. */
+function toneFor(status: NetworkCheckStatus): Tone {
+  return status === 'ok' ? 'good' : status === 'warn' ? 'warn' : status === 'bad' ? 'bad' : 'neutral';
+}
+
+function verdictTitle(verdict: NetworkCheckStatus): string {
+  if (verdict === 'ok') return 'This PC looks ready';
+  if (verdict === 'warn') return 'One thing to check';
+  if (verdict === 'bad') return 'This PC is blocking the connection';
+  return 'The check could not run';
+}
+
+/** The first failing check already says what to do; do not paraphrase it. */
+function verdictBody(result: NetworkCheckResult): string {
+  const first =
+    result.items.find((item) => item.status === 'bad') ??
+    result.items.find((item) => item.status === 'warn');
+  return first?.detail ?? 'Every check Windows can make passed.';
 }

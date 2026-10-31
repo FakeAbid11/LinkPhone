@@ -37,6 +37,7 @@ const api: LinkPhoneApi = {
   rejectPairing: (id) => ipcRenderer.invoke('pairing:reject', id),
   removeDevice: (id) => ipcRenderer.invoke('device:remove', id),
   resetIdentity: () => ipcRenderer.invoke('identity:reset'),
+  checkNetwork: () => ipcRenderer.invoke('check:network'),
   updateSettings: (patch: Partial<Settings>) => ipcRenderer.invoke('settings:update', patch),
   refreshSms: () => ipcRenderer.invoke('sms:refresh'),
   sendSms: (address, body, subId) => ipcRenderer.invoke('sms:send', address, body, subId),
