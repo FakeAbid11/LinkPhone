@@ -12,8 +12,9 @@ import QRCode from 'qrcode';
 import type { BinaryFrame } from './core/binary';
 import { ensureCertificate, type PcCertificate } from './core/certs';
 import { Logger } from './core/logger';
-import { buildPairingUri, getLanAddresses } from './core/network';
+import { buildPairingUri, getLanAddresses, listLanAddresses } from './core/network';
 import { runNetworkCheck } from './core/network-check';
+import { PairingOfferWatcher } from './core/pairing-offer-watch';
 import { PairingManager } from './core/pairing';
 import { PairingApprovals } from './core/pairing-approvals';
 import { normalizePhoneInfo } from './core/phone-info';
@@ -96,6 +97,17 @@ export class AppController {
     },
   });
   private pairingError: string | undefined;
+  /**
+   * A code whose address this PC no longer has cannot work, and the usual way to
+   * get into that state is the fix for an isolating router: joining the phone's
+   * hotspot changes this PC's address. Renewing is cheaper than asking the user to
+   * notice.
+   */
+  private readonly offerWatcher = new PairingOfferWatcher({
+    addresses: () => listLanAddresses(),
+    offerHost: () => this.pairingOffer?.host,
+    onStale: () => this.replaceStaleOffer(),
+  });
   private serverError: string | undefined;
   /** Last result of the on-demand connection check; never refreshed on its own. */
   private networkCheck: NetworkCheckResult | undefined;
@@ -167,6 +179,9 @@ export class AppController {
         void this.clipboardService.maybeAutoSend(this.store.settings.autoClipboard);
       }, 1_200);
       this.autoClipboardTimer.unref?.();
+      // Started after the first offer attempt, so the first tick already has a
+      // code to judge.
+      if (!this.e2e) this.offerWatcher.start();
       this.scheduleBroadcast();
     } catch (error) {
       this.serverError =
@@ -561,6 +576,28 @@ export class AppController {
     this.scheduleBroadcast();
   }
 
+  /**
+   * The code carries an address this PC no longer has, so it cannot work. Drops
+   * the token, the pending prompt and the offer exactly as Cancel does — the same
+   * sequence the card's "New code" button performs — then builds a new one.
+   */
+  private async replaceStaleOffer(): Promise<void> {
+    const previous = this.pairingOffer?.host;
+    this.cancelPairing();
+    try {
+      await this.createPairingOffer();
+      this.logger.log(
+        'Pair',
+        `Renewed the pairing code: ${previous} is no longer an address of this PC`,
+      );
+    } catch (error) {
+      this.logger.log(
+        'Pair',
+        `Could not renew the pairing code: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
   private requestPairingApproval(context: PairingRequestContext): Promise<PairingDecision> {
     const decision = this.approvals.request(context);
     this.pairingError = undefined;
@@ -796,16 +833,16 @@ export class AppController {
    * check spawns PowerShell, which this app otherwise never does, so it waits to
    * be asked.
    */
-  async checkNetwork(): Promise<void> {
+  async checkNetwork(phoneAddress?: string): Promise<void> {
     // Two clicks must not spawn two PowerShell pairs; the second joins the first.
     if (this.networkCheckTask) return this.networkCheckTask;
-    this.networkCheckTask = this.performNetworkCheck().finally(() => {
+    this.networkCheckTask = this.performNetworkCheck(phoneAddress).finally(() => {
       this.networkCheckTask = undefined;
     });
     return this.networkCheckTask;
   }
 
-  private async performNetworkCheck(): Promise<void> {
+  private async performNetworkCheck(phoneAddress?: string): Promise<void> {
     const peers = this.server?.inboundPeers;
     const result = await runNetworkCheck({
       port: this.server?.listeningPort ?? 0,
@@ -813,6 +850,7 @@ export class AppController {
       inboundPeers: peers?.addresses ?? [],
       lastInboundAt: peers?.lastAt,
       localAddresses: getLanAddresses(),
+      phoneAddress,
     });
     this.networkCheck = result;
     // The verdict only: the addresses are already in the Server log.
@@ -916,6 +954,7 @@ export class AppController {
 
   async stop(): Promise<void> {
     this.updates.stop();
+    this.offerWatcher.stop();
     if (this.autoClipboardTimer) clearInterval(this.autoClipboardTimer);
     this.autoClipboardTimer = undefined;
     if (this.broadcastTimer) clearTimeout(this.broadcastTimer);

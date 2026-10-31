@@ -1,16 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import type { NetworkCheckItem, NetworkCheckResult } from '../src/shared/types';
 import {
+  buildPhoneProbeScript,
+  classifyPhoneProbe,
   evaluate,
   foreignPeers,
   parseConnectionProfiles,
   parseFirewallRules,
+  parsePhoneProbe,
   ruleCoversPort,
   ruleCoversProfile,
   runNetworkCheck,
   type CommandRunner,
   type FirewallRuleSummary,
   type NetworkCheckInput,
+  type PhoneProbe,
+  type PhoneProbeRun,
   type RunNetworkCheckOptions,
 } from '../src/main/core/network-check';
 
@@ -341,5 +346,245 @@ describe('running the check', () => {
     const result = await runNetworkCheck({ ...runBase(), runner, platform: 'win32' });
 
     expect(item(result, 'profiles').detail).toContain('ENOENT');
+  });
+});
+
+function probe(overrides: Partial<PhoneProbe> = {}): PhoneProbe {
+  return {
+    phone: '192.168.0.119',
+    phoneReply: 'no',
+    phoneMac: '',
+    phoneState: '',
+    gateway: '192.168.0.1',
+    gatewayReply: 'yes',
+    ...overrides,
+  };
+}
+
+function phoneRun(overrides: Partial<PhoneProbeRun> = {}): PhoneProbeRun {
+  return { address: '192.168.0.119', probe: probe(), ...overrides };
+}
+
+const ours = ['192.168.0.111'];
+
+describe('phone probe script', () => {
+  it('carries the address once and never a double quote', () => {
+    const script = buildPhoneProbeScript('192.168.0.119');
+    expect(script.split('192.168.0.119')).toHaveLength(2);
+    // execFile escapes an embedded double quote as backslash-quote and the shell
+    // reads that differently, so a quoted script would fail at runtime.
+    expect(script).not.toContain('"');
+  });
+
+  it('refuses anything that is not a validated address', () => {
+    // The injection guard: the builder is the last place a bad value could reach
+    // a shell, so it must throw rather than sanitise.
+    expect(() => buildPhoneProbeScript("192.168.0.1'; whoami; '")).toThrow();
+    expect(() => buildPhoneProbeScript('192.168.0.1/24')).toThrow();
+    expect(() => buildPhoneProbeScript('')).toThrow();
+  });
+
+  it('reads the neighbour after the ping so the cache is warm', () => {
+    const script = buildPhoneProbeScript('192.168.0.119');
+    expect(script).toContain('ping -n 2 -w 600');
+    expect(script.indexOf('Get-NetNeighbor')).toBeGreaterThan(script.indexOf('ping -n 2'));
+    expect(script).toContain('Get-NetRoute -DestinationPrefix');
+    expect(script).toContain('-ErrorAction SilentlyContinue');
+  });
+});
+
+describe('phone probe parsing', () => {
+  it('parses every field of a reply line', () => {
+    expect(parsePhoneProbe('linkphone-probe|192.168.0.119|no|||192.168.0.1|yes')).toEqual({
+      phone: '192.168.0.119',
+      phoneReply: 'no',
+      phoneMac: '',
+      phoneState: '',
+      gateway: '192.168.0.1',
+      gatewayReply: 'yes',
+    });
+  });
+
+  it('parses an unresolved neighbour entry', () => {
+    const parsed = parsePhoneProbe(
+      'linkphone-probe|192.168.0.119|no|00-00-00-00-00-00|Unreachable|192.168.0.1|yes',
+    );
+    expect(parsed?.phoneState).toBe('Unreachable');
+    expect(parsed?.phoneMac).toBe('00-00-00-00-00-00');
+  });
+
+  it('finds the marker line among unrelated output', () => {
+    const output = [
+      'Pinging 192.168.0.119 with 32 bytes of data:',
+      'Request timed out.',
+      '',
+      'linkphone-probe|192.168.0.119|no|||192.168.0.1|yes',
+    ].join('\r\n');
+    expect(parsePhoneProbe(output)?.phone).toBe('192.168.0.119');
+  });
+
+  it('returns nothing for empty output', () => {
+    expect(parsePhoneProbe('')).toBeNull();
+  });
+
+  it('maps an unrecognised reply word to error', () => {
+    const parsed = parsePhoneProbe('linkphone-probe|192.168.0.119|maybe|||192.168.0.1|sure');
+    expect(parsed?.phoneReply).toBe('error');
+    expect(parsed?.gatewayReply).toBe('error');
+  });
+});
+
+describe('phone probe classification', () => {
+  it('a reply settles it', () => {
+    const run = phoneRun({ probe: probe({ phoneReply: 'yes' }) });
+    expect(classifyPhoneProbe(run, ours)).toBe('replies');
+  });
+
+  it('a resolved neighbour means something else holds the address', () => {
+    const run = phoneRun({
+      probe: probe({ phoneMac: 'AA-BB-CC-DD-EE-FF', phoneState: 'Reachable' }),
+    });
+    expect(classifyPhoneProbe(run, ours)).toBe('address-taken');
+  });
+
+  it('a stale neighbour entry is not proof that the address is taken', () => {
+    // A stale entry is often the phone's own old MAC after it moved.
+    const run = phoneRun({
+      probe: probe({ phoneMac: 'AA-BB-CC-DD-EE-FF', phoneState: 'Stale' }),
+    });
+    expect(classifyPhoneProbe(run, ours)).not.toBe('address-taken');
+  });
+
+  it('a router that answers while the phone does not is isolation', () => {
+    expect(classifyPhoneProbe(phoneRun(), ours)).toBe('isolated');
+  });
+
+  it('a gateway outside our own range is a tunnel, not the router', () => {
+    const run = phoneRun({ probe: probe({ gateway: '10.8.0.1', gatewayReply: 'yes' }) });
+    expect(classifyPhoneProbe(run, ours)).toBe('vpn-route');
+  });
+
+  it('a gateway that does not answer means this PC is offline', () => {
+    const run = phoneRun({ probe: probe({ gatewayReply: 'no' }) });
+    expect(classifyPhoneProbe(run, ours)).toBe('pc-offline');
+  });
+
+  it('no default route at all means this PC is offline', () => {
+    const run = phoneRun({ probe: probe({ gateway: '', gatewayReply: 'error' }) });
+    expect(classifyPhoneProbe(run, ours)).toBe('pc-offline');
+  });
+
+  it('a ping that could not run says nothing', () => {
+    const run = phoneRun({ probe: probe({ phoneReply: 'error' }) });
+    expect(classifyPhoneProbe(run, ours)).toBe('unknown');
+  });
+
+  it('no output at all says nothing', () => {
+    expect(classifyPhoneProbe(phoneRun({ probe: null }), ours)).toBe('unknown');
+  });
+
+  it('recognises this PC\u2019s own address', () => {
+    expect(classifyPhoneProbe(phoneRun({ address: '192.168.0.111' }), ours)).toBe('self');
+  });
+});
+
+describe('evaluation with a phone address', () => {
+  it('leads with the phone row and drops the unverifiable one', () => {
+    const result = evaluate(input({ phone: phoneRun() }));
+
+    expect(result.items).toHaveLength(4);
+    expect(result.items[0].id).toBe('phone');
+    expect(result.items.some((entry) => entry.id === 'isolation')).toBe(false);
+  });
+
+  it('keeps the unverifiable row when no address was supplied', () => {
+    const result = evaluate(input());
+
+    expect(result.items).toHaveLength(4);
+    expect(result.items.some((entry) => entry.id === 'phone')).toBe(false);
+    expect(item(result, 'isolation').status).toBe('unknown');
+  });
+
+  it('a blocked phone drives the verdict', () => {
+    expect(evaluate(input({ phone: phoneRun() })).verdict).toBe('bad');
+  });
+
+  it('an inconclusive probe does not downgrade a healthy result', () => {
+    const result = evaluate(input({ phone: phoneRun({ probe: null }) }));
+
+    expect(item(result, 'phone').status).toBe('unknown');
+    expect(result.verdict).toBe('ok');
+  });
+
+  it('the isolation copy names both addresses', () => {
+    const detail = item(evaluate(input({ phone: phoneRun() })), 'phone').detail;
+
+    expect(detail).toContain('192.168.0.1');
+    expect(detail).toContain('192.168.0.119');
+    expect(detail).toContain('isolation');
+  });
+
+  it('the taken-address copy names the MAC that answered', () => {
+    const run = phoneRun({
+      probe: probe({ phoneMac: 'AA-BB-CC-DD-EE-FF', phoneState: 'Reachable' }),
+    });
+    expect(item(evaluate(input({ phone: run })), 'phone').detail).toContain('AA-BB-CC-DD-EE-FF');
+  });
+});
+
+describe('running the check with a phone address', () => {
+  function probingRunner(calls: { file: string; args: string[] }[]): CommandRunner {
+    return {
+      async run(file, args) {
+        calls.push({ file, args });
+        const script = args.join(' ');
+        if (script.includes('Get-NetConnectionProfile')) {
+          return { code: 0, stdout: 'Wi-Fi|Private\r\n', stderr: '' };
+        }
+        if (script.includes('Get-NetNeighbor')) {
+          return {
+            code: 0,
+            stdout: 'linkphone-probe|192.168.0.119|no|||192.168.0.1|yes\r\n',
+            stderr: '',
+          };
+        }
+        return { code: 0, stdout: 'True|Inbound|Allow|Private|TCP|48921\r\n', stderr: '' };
+      },
+    };
+  }
+
+  it('runs a third query that carries the address', async () => {
+    const calls: { file: string; args: string[] }[] = [];
+
+    const result = await runNetworkCheck({
+      ...runBase(),
+      runner: probingRunner(calls),
+      platform: 'win32',
+      phoneAddress: '192.168.0.119',
+      now: 1,
+    });
+
+    expect(calls).toHaveLength(3);
+    const probeCall = calls.find((call) => call.args.join(' ').includes('Get-NetNeighbor'));
+    expect(probeCall?.args.join(' ')).toContain('192.168.0.119');
+    expect(probeCall?.args).toContain('-NoProfile');
+    expect(result.phoneAddress).toBe('192.168.0.119');
+    expect(item(result, 'phone').status).toBe('bad');
+  });
+
+  it('treats an invalid address as no address rather than throwing', async () => {
+    const calls: { file: string; args: string[] }[] = [];
+
+    const result = await runNetworkCheck({
+      ...runBase(),
+      runner: probingRunner(calls),
+      platform: 'win32',
+      phoneAddress: 'nope',
+    });
+
+    expect(calls).toHaveLength(2);
+    expect(result.items).toHaveLength(4);
+    expect(result.items.some((entry) => entry.id === 'phone')).toBe(false);
+    expect(result.phoneAddress).toBeUndefined();
   });
 });

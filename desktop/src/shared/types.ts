@@ -401,8 +401,11 @@ export interface ServerInfo {
 export type NetworkCheckStatus = 'ok' | 'warn' | 'bad' | 'unknown';
 
 export interface NetworkCheckItem {
-  /** `isolation` is always `unknown`: no Windows API reports it. */
-  id: 'profiles' | 'firewall' | 'inbound' | 'isolation';
+  /**
+   * `isolation` is present only when no phone address was supplied; `phone`
+   * replaces it, because an address turns "cannot be checked" into a measurement.
+   */
+  id: 'profiles' | 'firewall' | 'inbound' | 'isolation' | 'phone';
   status: NetworkCheckStatus;
   title: string;
   detail: string;
@@ -418,6 +421,8 @@ export interface NetworkCheckResult {
   verdict: NetworkCheckStatus;
   port: number;
   items: NetworkCheckItem[];
+  /** The address this check probed, so the card can restore it into the field. */
+  phoneAddress?: string;
 }
 
 export interface ConnectionInfo {
@@ -508,7 +513,7 @@ export interface LinkPhoneApi {
   rejectPairing(id: string): Promise<void>;
   removeDevice(id: string): Promise<void>;
   resetIdentity(): Promise<void>;
-  checkNetwork(): Promise<void>;
+  checkNetwork(phoneAddress?: string): Promise<void>;
   updateSettings(patch: Partial<Settings>): Promise<void>;
   refreshSms(): Promise<void>;
   sendSms(address: string, body: string, subId?: number | null): Promise<void>;

@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { isSameSlash24, isValidIPv4 } from '../../shared/ipv4';
 import type {
   NetworkCheckItem,
   NetworkCheckResult,
@@ -7,13 +8,17 @@ import type {
 
 /**
  * Everything the Connection tab can learn about *why* a phone cannot reach this
- * PC. The four checks answer three questions Windows will answer and one it
- * cannot:
+ * PC:
  *
  *   - is the network profile blocking inbound traffic?
  *   - is there a firewall rule that actually covers this port and this profile?
  *   - has anything other than this PC ever reached the port? (the decisive one)
- *   - is the router isolating its own clients? (unanswerable — see `isolation`)
+ *   - does the phone answer when this PC pings it? (only when an address is given)
+ *   - is the router isolating its own clients? (unanswerable without that address)
+ *
+ * The last two share one slot: an address turns "cannot be checked, run ping
+ * yourself" into an actual measurement, so supplying one replaces the
+ * unanswerable row rather than adding a fifth.
  */
 
 export interface CommandOutput {
@@ -34,12 +39,12 @@ const POWERSHELL = 'powershell.exe';
 /** Windows Firewall cmdlets are slow; long enough, short enough to stay a button. */
 const TIMEOUT_MS = 6_000;
 
-// Both scripts are constants. The port is never interpolated into a PowerShell
-// string — it is compared in JavaScript after parsing — so there is no command
-// injection surface to validate away.
+// These two scripts are constants. The port is never interpolated into a
+// PowerShell string — it is compared in JavaScript after parsing — so there is no
+// command injection surface to validate away.
 //
-// Neither script contains a double quote, deliberately: execFile escapes an
-// embedded `"` as `\"`, which PowerShell's own parser reads differently, so a
+// No script in this file contains a double quote, deliberately: execFile escapes
+// an embedded `"` as `\"`, which PowerShell's own parser reads differently, so a
 // quoted string here is the difference between a working button and a command
 // that silently fails. Concatenation replaces interpolation, and PowerShell
 // treats single quotes literally.
@@ -55,6 +60,66 @@ const RULE_SCRIPT = [
   "$_.Enabled.ToString() + '|' + $_.Direction + '|' + $_.Action + '|' + $_.Profile",
   "+ '|' + $f.Protocol + '|' + $f.LocalPort }",
 ].join(' ');
+
+/** Marks the one line the probe emits, so stray cmdlet output cannot be parsed as a result. */
+const PROBE_MARKER = 'linkphone-probe';
+
+/**
+ * PowerShell cold start, the first NetTCPIP module load, and two ping pairs —
+ * about 7.5s worst case, so the 6s budget used for the cmdlet queries is too
+ * tight here.
+ */
+const PROBE_TIMEOUT_MS = 15_000;
+
+/**
+ * Built per call, because it is the one script that carries a value.
+ *
+ * That value reaches a single-quoted PowerShell string, so it must already be a
+ * validated quad — anything else throws here, before a command exists. This keeps
+ * the rule above intact: nothing from outside reaches a script unvalidated, and
+ * the address cannot break out of the quotes because it is provably digits and
+ * dots by the time it is interpolated.
+ *
+ * `ping.exe` rather than `Test-Connection`: in Windows PowerShell 5.1 that cmdlet
+ * is WMI-backed, takes about a second per echo, needs the WMI service, and has no
+ * per-echo timeout. `ping.exe` is a plain child process with a stable exit code
+ * (0 = a reply, 1 = none) and an explicit `-w`.
+ *
+ * The neighbour is read *after* the ping on purpose: the ping is what populates
+ * the ARP entry, so reading it first would report a cold cache as an isolating
+ * router.
+ */
+export function buildPhoneProbeScript(phone: string): string {
+  if (!isValidIPv4(phone)) throw new Error('Invalid phone address');
+  return [
+    `$phone = '${phone}';`,
+    "$phoneReply = 'error';",
+    'ping -n 2 -w 600 $phone | Out-Null;',
+    "if ($LASTEXITCODE -eq 0) { $phoneReply = 'yes' } " +
+      "elseif ($LASTEXITCODE -eq 1) { $phoneReply = 'no' };",
+    '$neighbour = Get-NetNeighbor -IPAddress $phone -ErrorAction SilentlyContinue ' +
+      '| Select-Object -First 1;',
+    "$mac = ''; $state = '';",
+    'if ($neighbour) { $mac = $neighbour.LinkLayerAddress; $state = $neighbour.State };',
+    // Several default routes exist (Wi-Fi, Ethernet, VPN) and RouteMetric alone
+    // ties at 0, which would pick one arbitrarily.
+    '$route = Get-NetRoute -DestinationPrefix ' + "'0.0.0.0/0'" +
+      ' -ErrorAction SilentlyContinue | Sort-Object { $_.RouteMetric + ' +
+      '[int](Get-NetIPInterface -InterfaceIndex $_.InterfaceIndex ' +
+      '-AddressFamily IPv4 -ErrorAction SilentlyContinue).InterfaceMetric } ' +
+      '| Select-Object -First 1;',
+    "$gateway = '';",
+    'if ($route) { $gateway = $route.NextHop };',
+    "$gatewayReply = 'error';",
+    'if ($gateway) { ping -n 2 -w 600 $gateway | Out-Null; ' +
+      "if ($LASTEXITCODE -eq 0) { $gatewayReply = 'yes' } " +
+      "elseif ($LASTEXITCODE -eq 1) { $gatewayReply = 'no' } };",
+    // Always exits 0: every cmdlet is SilentlyContinue and nothing throws, because
+    // safeRun treats a non-zero exit as failure and would discard this result.
+    "'" + PROBE_MARKER + "|' + $phone + '|' + $phoneReply + '|' + $mac + '|' + $state + '|' " +
+      "+ $gateway + '|' + $gatewayReply",
+  ].join(' ');
+}
 
 export const powershellRunner: CommandRunner = {
   run(file, args, timeoutMs) {
@@ -176,6 +241,100 @@ export function foreignPeers(peers: Iterable<string>, localAddresses: string[]):
   return result;
 }
 
+export type PhoneReply = 'yes' | 'no' | 'error';
+
+/** What one probe of the phone's address measured. */
+export interface PhoneProbe {
+  phone: string;
+  phoneReply: PhoneReply;
+  phoneMac: string;
+  phoneState: string;
+  gateway: string;
+  gatewayReply: PhoneReply;
+}
+
+/** What the caller asked for and what came back. Presence means "an address was supplied". */
+export interface PhoneProbeRun {
+  address: string;
+  /** Null when the command failed or its output was unusable. */
+  probe: PhoneProbe | null;
+  failed?: string;
+}
+
+export type PhoneProbeVerdict =
+  /** The phone replied, so the network carries traffic between the two. */
+  | 'replies'
+  /** Something else answers to that address: the phone's address changed. */
+  | 'address-taken'
+  /** Same segment, the router answers, the phone does not. */
+  | 'isolated'
+  /** A tunnel owns the default route, so nothing here speaks for the LAN. */
+  | 'vpn-route'
+  /** This PC cannot reach its own gateway. */
+  | 'pc-offline'
+  /** The address belongs to this PC. */
+  | 'self'
+  | 'unknown';
+
+/** Finds the marker line and ignores everything else the shell printed. */
+export function parsePhoneProbe(output: string): PhoneProbe | null {
+  for (const line of lines(output)) {
+    const parts = line.split('|');
+    if (parts.length !== 7) continue;
+    if (parts[0].trim().toLowerCase() !== PROBE_MARKER) continue;
+    return {
+      phone: parts[1].trim(),
+      phoneReply: replyWord(parts[2]),
+      phoneMac: parts[3].trim(),
+      phoneState: parts[4].trim(),
+      gateway: parts[5].trim(),
+      gatewayReply: replyWord(parts[6]),
+    };
+  }
+  return null;
+}
+
+/**
+ * Rules are ordered, and each one is a test. The order is the argument: a reply
+ * settles it, an ARP entry that resolves settles it the other way, and only then
+ * does the gateway get a say.
+ */
+export function classifyPhoneProbe(
+  run: PhoneProbeRun,
+  localAddresses: string[] = [],
+): PhoneProbeVerdict {
+  const probe = run.probe;
+  if (!probe) return 'unknown';
+  if (localAddresses.includes(run.address)) return 'self';
+  if (probe.phoneReply === 'yes') return 'replies';
+  if (isConfirmedNeighbour(probe)) return 'address-taken';
+  // No default route at all: this PC has no network to speak of.
+  if (!probe.gateway) return 'pc-offline';
+  // A ping that could not run says nothing about the network.
+  if (probe.phoneReply !== 'no' || probe.gatewayReply === 'error') return 'unknown';
+  if (probe.gatewayReply === 'no') return 'pc-offline';
+  // A VPN can own the default route, and its endpoint answers. Only a gateway on
+  // this PC's own range is the LAN's router, and the prefix length is not known
+  // to either side, so the first three octets are the most that can be claimed.
+  const localGateway = localAddresses.some((address) => isSameSlash24(address, probe.gateway));
+  return localGateway ? 'isolated' : 'vpn-route';
+}
+
+const ZERO_MAC = '00-00-00-00-00-00';
+
+function isConfirmedNeighbour(probe: PhoneProbe): boolean {
+  if (!probe.phoneMac || probe.phoneMac === ZERO_MAC) return false;
+  const state = probe.phoneState.trim().toLowerCase();
+  // `Stale` is excluded on purpose: it is often the phone's own old entry after it
+  // moved, and "another device holds that address" would then be a confident lie.
+  return state === 'reachable' || state === 'permanent';
+}
+
+function replyWord(value: string): PhoneReply {
+  const text = value.trim().toLowerCase();
+  return text === 'yes' || text === 'no' ? text : 'error';
+}
+
 export interface NetworkCheckInput {
   /** 0 when the server is not listening. */
   port: number;
@@ -187,15 +346,24 @@ export interface NetworkCheckInput {
   inboundPeers: string[];
   lastInboundAt?: number;
   localAddresses: string[];
+  /** Present only when an address was supplied; absent means "not asked". */
+  phone?: PhoneProbeRun;
 }
 
 export function evaluate(input: NetworkCheckInput): NetworkCheckResult {
-  const items = [
-    profileItem(input),
-    firewallItem(input),
-    inboundItem(input),
-    isolationItem(),
-  ];
+  // Bound to a local so the narrowing survives the array literal.
+  const phone = input.phone;
+  const items: NetworkCheckItem[] = phone
+    ? // The probe measured the phone itself, so it leads: verdictBody() shows the
+      // first failing row, and "the packet is being dropped" would otherwise bury
+      // "the router answers but the phone does not".
+      [
+        phoneItem(phone, input.localAddresses),
+        profileItem(input),
+        firewallItem(input),
+        inboundItem(input),
+      ]
+    : [profileItem(input), firewallItem(input), inboundItem(input), isolationItem()];
   return {
     at: Date.now(),
     supported: true,
@@ -217,6 +385,12 @@ export interface RunNetworkCheckOptions {
   inboundPeers: string[];
   lastInboundAt?: number;
   localAddresses: string[];
+  /**
+   * Optional phone address to probe. An invalid value is treated as absent rather
+   * than thrown: this is a library entry point, and the IPC layer is the one that
+   * can tell a human what to type instead.
+   */
+  phoneAddress?: string;
   now?: number;
   runner?: CommandRunner;
   platform?: NodeJS.Platform;
@@ -226,6 +400,8 @@ export async function runNetworkCheck(options: RunNetworkCheckOptions): Promise<
   const now = options.now ?? Date.now();
   const port = safePort(options.port);
   const platform = options.platform ?? process.platform;
+  const phone =
+    options.phoneAddress && isValidIPv4(options.phoneAddress) ? options.phoneAddress : undefined;
 
   if (platform !== 'win32') {
     // Never spawn on a platform that has neither cmdlet; report it instead.
@@ -247,9 +423,10 @@ export async function runNetworkCheck(options: RunNetworkCheckOptions): Promise<
   }
 
   const runner = options.runner ?? powershellRunner;
-  const [profileRun, ruleRun] = await Promise.all([
+  const [profileRun, ruleRun, probeRun] = await Promise.all([
     safeRun(runner, PROFILE_SCRIPT),
     safeRun(runner, RULE_SCRIPT),
+    phone ? safeRun(runner, buildPhoneProbeScript(phone), PROBE_TIMEOUT_MS) : undefined,
   ]);
 
   const result = evaluate({
@@ -262,8 +439,16 @@ export async function runNetworkCheck(options: RunNetworkCheckOptions): Promise<
     inboundPeers: options.inboundPeers,
     lastInboundAt: options.lastInboundAt,
     localAddresses: options.localAddresses,
+    phone:
+      phone === undefined
+        ? undefined
+        : {
+            address: phone,
+            probe: probeRun?.ok ? parsePhoneProbe(probeRun.stdout) : null,
+            failed: probeRun && !probeRun.ok ? probeRun.error : undefined,
+          },
   });
-  return { ...result, at: now };
+  return { ...result, at: now, phoneAddress: phone };
 }
 
 /** 1..65535, or 0 meaning "there is no port to check". */
@@ -277,12 +462,16 @@ interface ScriptRun {
   error?: string;
 }
 
-async function safeRun(runner: CommandRunner, script: string): Promise<ScriptRun> {
+async function safeRun(
+  runner: CommandRunner,
+  script: string,
+  timeoutMs = TIMEOUT_MS,
+): Promise<ScriptRun> {
   try {
     const output = await runner.run(
       POWERSHELL,
       ['-NoProfile', '-NonInteractive', '-Command', script],
-      TIMEOUT_MS,
+      timeoutMs,
     );
     if (output.code !== 0) {
       return { ok: false, stdout: '', error: oneLine(output.stderr, output.code) };
@@ -463,6 +652,94 @@ function inboundItem(input: NetworkCheckInput): NetworkCheckItem {
       `No device other than this PC has connected to TCP ${input.port} since LinkPhone ` +
       'started. The packet is being dropped before it arrives: that is the network, not the app.',
   };
+}
+
+function phoneItem(run: PhoneProbeRun, localAddresses: string[]): NetworkCheckItem {
+  const probe = run.probe;
+  const address = run.address;
+  if (!probe) {
+    return {
+      id: 'phone',
+      status: 'unknown',
+      title: 'Windows did not answer the probe',
+      detail:
+        `${run.failed ?? 'The probe produced no result.'} Run ping against ${address} by hand — ` +
+        "the phone's pairing screen prints it.",
+    };
+  }
+  switch (classifyPhoneProbe(run, localAddresses)) {
+    case 'replies':
+      return {
+        id: 'phone',
+        status: 'ok',
+        title: 'The phone answered',
+        detail:
+          `${address} replied to a ping from this PC, so the network is delivering traffic ` +
+          'between the two devices. If pairing still fails, create a new code and scan it — the ' +
+          'network is not the cause.',
+      };
+    case 'address-taken':
+      return {
+        id: 'phone',
+        status: 'bad',
+        title: 'Another device holds that address',
+        detail:
+          `${address} did not reply, but its ARP entry resolves to ${probe.phoneMac} ` +
+          `(${probe.phoneState}), so something else is using that address. The phone's address ` +
+          'has changed: read the current one from its pairing screen and check again.',
+      };
+    case 'isolated':
+      return {
+        id: 'phone',
+        status: 'bad',
+        title: 'The router answers but the phone does not',
+        detail:
+          `This PC reached its router at ${probe.gateway}, but ${address} did not reply and has ` +
+          'no ARP entry. The router is not passing traffic between its own clients — guest Wi-Fi ' +
+          'and AP isolation do this, and so does a second router handing out the same address ' +
+          "range. Connect the PC to the phone's hotspot instead, or use a network that allows " +
+          'device-to-device traffic.',
+      };
+    case 'vpn-route':
+      return {
+        id: 'phone',
+        status: 'warn',
+        title: "A VPN owns this PC's route",
+        detail:
+          `${address} did not reply, and this PC's default gateway (${probe.gateway}) is not on ` +
+          'its own network — which is what a VPN tunnel looks like. Turn the VPN off completely, ' +
+          'then check again.',
+      };
+    case 'pc-offline':
+      return {
+        id: 'phone',
+        status: 'bad',
+        title: 'This PC has no working network',
+        detail: probe.gateway
+          ? `Neither ${address} nor the gateway at ${probe.gateway} answered, so this PC is not ` +
+            'reaching its own gateway. Reconnect it to Wi-Fi or Ethernet, then check again.'
+          : 'This PC has no default gateway, so it cannot reach anything outside its own subnet. ' +
+            'Connect it to Wi-Fi or Ethernet and check again.',
+      };
+    case 'self':
+      return {
+        id: 'phone',
+        status: 'warn',
+        title: "That is this PC's own address",
+        detail:
+          `${address} is one of this PC's own addresses. Enter the address the phone's pairing ` +
+          'screen shows under This phone.',
+      };
+    default:
+      return {
+        id: 'phone',
+        status: 'unknown',
+        title: 'Windows did not answer the probe',
+        detail:
+          `${address} did not reply and the result was inconclusive. Run ping against ${address} ` +
+          "by hand — the phone's pairing screen prints it.",
+      };
+  }
 }
 
 function isolationItem(): NetworkCheckItem {

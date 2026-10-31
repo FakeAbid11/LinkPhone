@@ -5,6 +5,7 @@ import {
   isPrivateIPv4,
   isVirtualInterface,
   orderAddresses,
+  shouldRenewOffer,
 } from '../src/main/core/network';
 
 describe('LAN address selection', () => {
@@ -100,5 +101,31 @@ describe('virtual adapter handling', () => {
     for (const name of ['Wi-Fi', 'Ethernet', 'Ethernet 2', 'Wi-Fi 2']) {
       expect(isVirtualInterface(name), name).toBe(false);
     }
+  });
+});
+
+describe('stale pairing offer', () => {
+  it('does not renew when no code is on screen', () => {
+    expect(shouldRenewOffer(undefined, ['192.168.0.111'])).toBe(false);
+  });
+
+  it('does not renew when the address list is momentarily empty', () => {
+    // Adapters vanish briefly during DHCP renegotiation; a renewal then would
+    // have nothing to build a code from.
+    expect(shouldRenewOffer('192.168.0.111', [])).toBe(false);
+  });
+
+  it('does not renew while the code address is still ours', () => {
+    expect(shouldRenewOffer('192.168.0.111', ['192.168.0.111'])).toBe(false);
+  });
+
+  it('does not renew when the address moved but is still present', () => {
+    // A VPN adapter can take first place without the code ever going stale, and
+    // invalidating a working code is worse than leaving it alone.
+    expect(shouldRenewOffer('192.168.0.111', ['10.8.0.2', '192.168.0.111'])).toBe(false);
+  });
+
+  it('renews when the code address is gone', () => {
+    expect(shouldRenewOffer('192.168.0.111', ['192.168.43.7'])).toBe(true);
   });
 });

@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron';
 import type { AppController } from './app';
+import { isValidIPv4 } from '../shared/ipv4';
 import type { MirrorCodec, MirrorTouchWire, Settings } from '../shared/types';
 
 function requireString(value: unknown, name: string, max = 1_000): string {
@@ -7,6 +8,23 @@ function requireString(value: unknown, name: string, max = 1_000): string {
     throw new Error(`Invalid ${name}`);
   }
   return value;
+}
+
+/**
+ * An optional dotted quad. Empty means "no probe"; anything else must already be
+ * an address, because it is about to reach a PowerShell string.
+ *
+ * Throws rather than dropping a bad value: a dropped address produces a result
+ * indistinguishable from "no address was given", so the user would believe the
+ * probe ran.
+ */
+function optionalAddress(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'string') throw new Error('Invalid phone address');
+  const text = value.trim();
+  if (!text) return undefined;
+  if (!isValidIPv4(text)) throw new Error('Invalid phone address');
+  return text;
 }
 
 /** A normalized 0..1 coordinate on the mirrored screen. */
@@ -33,7 +51,9 @@ export function registerIpc(controller: AppController): void {
     controller.removeDevice(requireString(id, 'device id', 128)),
   );
   ipcMain.handle('identity:reset', () => controller.resetIdentity());
-  ipcMain.handle('check:network', () => controller.checkNetwork());
+  ipcMain.handle('check:network', (_event, phoneAddress: unknown) =>
+    controller.checkNetwork(optionalAddress(phoneAddress)),
+  );
 
   ipcMain.handle('settings:update', (_event, patch: unknown) => {
     if (!patch || typeof patch !== 'object') throw new Error('Invalid settings');

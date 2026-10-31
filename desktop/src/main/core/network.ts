@@ -101,7 +101,17 @@ export function orderAddresses(
   });
 }
 
-export function getLanAddresses(): string[] {
+/**
+ * Every external IPv4 and the alias that owns it, in interface order.
+ *
+ * Split out because `getLanAddresses` also asks the OS for the default route,
+ * which opens and closes a UDP socket. That is fine once per broadcast and wrong
+ * for a timer, so the socket-free half is available on its own.
+ */
+function enumerateAddresses(): {
+  addresses: string[];
+  interfaceNames: Record<string, string>;
+} {
   const addresses: string[] = [];
   const interfaceNames: Record<string, string> = {};
   const interfaces = os.networkInterfaces();
@@ -116,7 +126,32 @@ export function getLanAddresses(): string[] {
       }
     }
   }
+  return { addresses, interfaceNames };
+}
+
+/** Unordered and socket-free: for callers that only need the set. */
+export function listLanAddresses(): string[] {
+  return enumerateAddresses().addresses;
+}
+
+export function getLanAddresses(): string[] {
+  const { addresses, interfaceNames } = enumerateAddresses();
   return orderAddresses(addresses, defaultRouteAddress(), interfaceNames);
+}
+
+/**
+ * True only when a code is on screen and the address it carries is no longer one
+ * of this PC's addresses.
+ *
+ * Set membership, not order: an adapter appearing or disappearing reshuffles
+ * `getLanAddresses()` while the code still works, and renewing then would break a
+ * pairing for no reason. An empty list is not evidence either — adapters vanish
+ * for a moment during DHCP renegotiation, and renewing would build no code at all.
+ */
+export function shouldRenewOffer(offerHost: string | undefined, addresses: string[]): boolean {
+  if (!offerHost) return false;
+  if (addresses.length === 0) return false;
+  return !addresses.includes(offerHost);
 }
 
 export function isPrivateIPv4(address: string): boolean {

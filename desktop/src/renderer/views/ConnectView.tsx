@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { isValidIPv4 } from '../../shared/ipv4';
 import type {
   AppSnapshot,
   HandoffUi,
@@ -10,9 +11,11 @@ import {
   Badge,
   Button,
   Card,
+  Field,
   Modal,
   Notice,
   PageHeader,
+  TextInput,
 } from '../components';
 import type { Ui } from '../ui';
 import {
@@ -28,6 +31,10 @@ import {
 export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+  // Restored from the last result, so the address survives a tab switch without
+  // ever being written to disk.
+  const [phone, setPhone] = useState(() => state.networkCheck?.phoneAddress ?? '');
+  const [phoneError, setPhoneError] = useState<string | null>(null);
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -55,9 +62,17 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
   // Deliberately not an effect: the check spawns PowerShell, so it runs when the
   // user asks and never on mount.
   const runCheck = async () => {
+    const address = phone.trim();
+    if (address && !isValidIPv4(address)) {
+      // Inline, before the IPC call: a toast would vanish and leave the field
+      // looking accepted.
+      setPhoneError('Enter an address like 192.168.0.119, or leave it empty.');
+      return;
+    }
+    setPhoneError(null);
     setChecking(true);
     try {
-      await ui.run(() => api.checkNetwork());
+      await ui.run(() => api.checkNetwork(address || undefined));
     } finally {
       setChecking(false);
     }
@@ -72,7 +87,12 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
       ? `${state.server.addresses[0]}:${state.server.port}`
       : '';
   const offerAddress = offer ? `${offer.host}:${offer.port}` : '';
-  const offerIsStale = Boolean(offer && currentAddress && offerAddress !== currentAddress);
+  // Membership, not order: a VPN adapter appearing demotes the LAN from
+  // addresses[0] while the code still works, and warning about that would send
+  // the user to re-scan a code that was never broken.
+  const offerIsStale = Boolean(
+    offer && state.server.addresses.length > 0 && !state.server.addresses.includes(offer.host),
+  );
 
   return (
     <>
@@ -256,8 +276,8 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
               {offerIsStale && (
                 <Notice tone="warn" title="This code points at a different address">
                   The code carries <code>{offerAddress}</code>, but the PC is now at{' '}
-                  <code>{currentAddress}</code>. A phone that scans it will not reach this PC —
-                  create a new code.
+                  <code>{currentAddress}</code>. A new code appears by itself within a few
+                  seconds, or create one now.
                 </Notice>
               )}
               <div className={`qr-frame ${expired ? 'is-expired' : ''}`}>
@@ -366,6 +386,27 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
             </Button>
           }
         >
+          <Field
+            id="phone-address"
+            label="Phone address (optional)"
+            hint="The phone's pairing screen prints it under This phone."
+            error={phoneError ?? undefined}
+          >
+            <TextInput
+              id="phone-address"
+              inputMode="numeric"
+              autoComplete="off"
+              spellCheck={false}
+              maxLength={15}
+              placeholder="192.168.0.119"
+              invalid={Boolean(phoneError)}
+              value={phone}
+              onChange={(event) => {
+                setPhone(event.target.value);
+                if (phoneError) setPhoneError(null);
+              }}
+            />
+          </Field>
           {check ? (
             <>
               <Notice tone={toneFor(check.verdict)} title={verdictTitle(check.verdict)}>
@@ -406,8 +447,9 @@ export function ConnectView({ state, ui }: { state: AppSnapshot; ui: Ui }) {
           </div>
           <p className="muted small">
             Run that command in an Administrator PowerShell window once. Guest Wi-Fi and
-            "AP isolation" block direct connections and cannot be fixed by the app — and the
-            check above cannot see them either, because no Windows API reports them.
+            "AP isolation" block direct connections and cannot be fixed by the app — add the
+            phone's address above and the check pings it, so an isolating router shows up here
+            instead of being guessed at.
           </p>
         </Card>
       </div>
@@ -601,7 +643,9 @@ function toneFor(status: NetworkCheckStatus): Tone {
 function verdictTitle(verdict: NetworkCheckStatus): string {
   if (verdict === 'ok') return 'This PC looks ready';
   if (verdict === 'warn') return 'One thing to check';
-  if (verdict === 'bad') return 'This PC is blocking the connection';
+  // Not "this PC is blocking": when the router isolates its own clients, or the
+  // phone's address has moved, the PC is not the one at fault.
+  if (verdict === 'bad') return 'Something is blocking the connection';
   return 'The check could not run';
 }
 
