@@ -1,0 +1,938 @@
+/**
+ * LinkPhone wire protocol v1 — shared by the Electron main process and the renderer.
+ * See docs/PROTOCOL.md for the full description.
+ */
+
+export const PROTO_VERSION = 1
+export const CAP_NOTIF_PROGRESS = 'notif.progress'
+export const CAP_NOTIF_ACTION_V2 = 'notif.action.v2'
+export const CAP_NOTIF_ACTION_RESULT = 'notif.action.result'
+export const SERVICE_TYPE = 'linkphone'
+export const DEFAULT_PORT = 8765
+export const MAX_FILE_CHUNK = 64 * 1024
+export const MAX_CONTACTS = 800
+export const MAX_CONTACT_NUMBERS = 5
+export const MAX_CALL_LOG = 200
+
+/** Binary frame plaintext kinds (first byte after decryption). */
+export const KIND_CONTROL = 0x10
+export const KIND_FILE = 0x20
+
+export type Direction = 'c2s' | 's2c'
+export type Platform = 'android' | 'ios' | 'desktop'
+
+export interface NotificationAction {
+  id: string
+  label: string
+  reply: boolean
+}
+
+export interface NotificationItem {
+  key: string
+  app: string
+  pkg: string
+  title: string
+  text: string
+  when: number
+  canReply: boolean
+  actions: NotificationAction[]
+  deviceId: string
+  dismissed?: boolean
+  progress?: number
+  progressMax?: number
+  indeterminate?: boolean
+  ongoing?: boolean
+  icon?: string
+}
+
+export interface MutedApp {
+  pkg: string
+  app: string
+}
+
+/**
+ * A mirrored notification is only unique per device: two paired phones can post the
+ * same Android notification key, so every lookup has to carry the device id too.
+ */
+export interface NotificationRef {
+  deviceId: string
+  key: string
+}
+
+export type TransferStatus =
+  | 'pending'
+  | 'active'
+  | 'done'
+  | 'failed'
+  | 'declined'
+  | 'canceled'
+  | 'interrupted'
+
+export interface SmsThread {
+  threadId: string
+  address: string
+  name?: string
+  snippet: string
+  date: number
+  count: number
+  subscriptionId?: number
+  simLabel?: string
+}
+
+export interface SmsMessage {
+  id: string
+  threadId: string
+  address: string
+  name?: string
+  body: string
+  date: number
+  outgoing: boolean
+  pending?: boolean
+  failed?: boolean
+  retried?: boolean
+  subscriptionId?: number
+  simLabel?: string
+}
+
+export interface SmsActiveThread {
+  threadId: string
+  address: string
+  name?: string
+  messages: SmsMessage[]
+}
+
+export type GalleryKind = 'image' | 'video'
+
+export interface GalleryAlbum {
+  id: string
+  name: string
+  count: number
+  coverPhotoId: string
+  kind: GalleryKind
+}
+
+export interface GalleryPhoto {
+  id: string
+  albumId: string
+  name: string
+  mime: string
+  size: number
+  dateTaken: number
+  width: number
+  height: number
+  kind: GalleryKind
+  durationMs?: number
+}
+
+export interface GalleryDownloadState {
+  transferId: string
+  status: 'downloading' | 'done' | 'failed'
+  received: number
+  size: number
+  path?: string
+  error?: string
+}
+
+export interface GalleryPreview {
+  photoId: string
+  name: string
+  dataUrl: string
+  loading: boolean
+  error?: string
+}
+
+export type DesktopUpdateStatus =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'downloading'
+  | 'ready'
+  | 'up-to-date'
+  | 'error'
+
+export interface DesktopUpdateState {
+  status: DesktopUpdateStatus
+  currentVersion: string
+  availableVersion?: string
+  progress?: number
+  message?: string
+  checkedAt?: number
+}
+
+export type PhoneCallPhase =
+  | 'new'
+  | 'connecting'
+  | 'dialing'
+  | 'ringing'
+  | 'active'
+  | 'held'
+  | 'disconnecting'
+  | 'disconnected'
+  | 'unknown'
+
+export interface PhoneCallInfo {
+  id: string
+  number: string
+  displayName: string
+  phase: PhoneCallPhase
+  incoming: boolean
+  startedAt: number
+  /** Desktop epoch ms stamped when the call was first seen active; drives the live timer. */
+  activeSince?: number
+  simLabel?: string
+  /** Fallback calls only: 'ringing' or 'active', so a waiting call can be told from the live one. */
+  slot?: 'ringing' | 'active'
+  /** The phone can answer/decline/end this card. */
+  canControl?: boolean
+  /** Control goes through the owning app's notification action (VoIP), not Telecom. */
+  viaNotification?: boolean
+}
+
+export type RouteKind = 'earpiece' | 'speaker' | 'bluetooth' | 'headset' | 'unknown'
+
+export interface PhoneContactNumber {
+  number: string
+  label: string
+}
+
+export interface PhoneContact {
+  id: string
+  name: string
+  numbers: PhoneContactNumber[]
+}
+
+export interface SimInfo {
+  id: string
+  label: string
+  carrier?: string
+  slot?: number
+  isDefault?: boolean
+}
+
+export interface CallAccountInfo {
+  id: string
+  label: string
+  isDefault?: boolean
+}
+
+export type CallLogType =
+  | 'incoming'
+  | 'outgoing'
+  | 'missed'
+  | 'rejected'
+  | 'blocked'
+  | 'voicemail'
+  | 'unknown'
+
+export interface CallLogEntry {
+  id: string
+  number: string
+  name?: string
+  type: CallLogType
+  date: number
+  duration: number
+  simLabel?: string
+}
+
+export interface TransferItem {
+  id: string
+  name: string
+  size: number
+  received: number
+  direction: 'in' | 'out'
+  status: TransferStatus
+  path?: string
+  error?: string
+  deviceId: string
+  startedAt: number
+  target?: 'downloads' | 'pictures' | 'videos'
+  /** Desktop-only source path, used to retry an interrupted outgoing transfer. */
+  sourcePath?: string
+  /** Last acknowledged byte offset, used to resume after a reconnect. */
+  resumeOffset?: number
+  mtimeMs?: number
+  photoId?: string
+  mediaKind?: GalleryKind
+}
+
+export interface StorageEntry {
+  id: string
+  name: string
+  size: number
+  mime: string
+  modified: number
+}
+
+export interface DeviceInfo {
+  deviceId: string
+  name: string
+  platform: Platform
+  paired: boolean
+  connected: boolean
+  address?: string
+  lastSeen?: number
+  batteryLevel?: number
+  charging?: boolean
+  ringing?: boolean
+}
+
+export interface AppState {
+  serverId: string
+  serverName: string
+  port: number
+  pairingCode: string
+  addresses: string[]
+  /** Link-local IPv6 addresses, tried when the router isolates IPv4 clients. */
+  addresses6: string[]
+  devices: DeviceInfo[]
+  notifications: NotificationItem[]
+  mutedNotifications: MutedApp[]
+  transfers: TransferItem[]
+  storageFiles: StorageEntry[]
+  storageLoading: boolean
+  storageError: string
+  storageCursor?: string
+  storageLimited: boolean
+  storageGranted: boolean
+  smsThreads: SmsThread[]
+  smsActive: SmsActiveThread | null
+  smsLoading: boolean
+  galleryAlbums: GalleryAlbum[]
+  galleryKinds: GalleryKind[]
+  galleryKind: GalleryKind
+  galleryGranted: boolean
+  galleryPartial: boolean
+  galleryDownloads: Record<string, GalleryDownloadState>
+  galleryPhotos: GalleryPhoto[]
+  galleryAlbumId: string | null
+  galleryAlbumName: string
+  galleryNextOffset: number
+  galleryHasMore: boolean
+  galleryLoading: boolean
+  galleryError: string
+  notificationsPausedUntil: number
+  desktopUpdate: DesktopUpdateState
+  phoneCalls: PhoneCallInfo[]
+  callDialerReady: boolean
+  callOutgoingReady: boolean
+  callControlReady: boolean
+  callPlaced: { number: string; at: number } | null
+  callSpeaker: boolean
+  callMuted: boolean
+  callRoute: RouteKind
+  callError: string
+  media: {
+    title: string
+    artist: string
+    playing: boolean
+    app: string
+    positionMs: number
+    durationMs: number
+    volume: number
+    volumeMax: number
+    artId: string
+  } | null
+  phoneContacts: PhoneContact[]
+  contactsGranted: boolean
+  contactsLoading: boolean
+  phoneSims: SimInfo[]
+  callAccounts: CallAccountInfo[]
+  simsGranted: boolean
+  simsLoading: boolean
+  callHistory: CallLogEntry[]
+  callLogGranted: boolean
+  callLogLoading: boolean
+  launchAtLogin: boolean
+  launchAtLoginSupported: boolean
+  ringDurationMs: number
+  clipboardEnabled: boolean
+  downloadsDir: string
+}
+
+/* ------------------------------------------------------------------ */
+/* Control messages                                                     */
+/* ------------------------------------------------------------------ */
+
+export interface HelloMsg {
+  t: 'hello'
+  proto: number
+  deviceId: string
+  deviceName: string
+  platform: Platform
+  /** Set when the user explicitly initiated pairing (QR or typed code). */
+  pair?: boolean
+  /** Optional feature caps, e.g. notif.action.v2 / notif.action.result. */
+  caps?: string[]
+}
+
+export interface HelloResultMsg {
+  t: 'hello.result'
+  proto: number
+  serverId: string
+  serverName: string
+  needPair: boolean
+  needAuth: boolean
+  /** Optional capability strings advertised by the PC. */
+  caps?: string[]
+  /** base64, 16 random bytes. Present when needPair. */
+  salt?: string
+}
+
+export interface PairRequestMsg {
+  t: 'pair.request'
+  deviceName: string
+  platform: Platform
+  /** base64 HMAC-SHA256(psk, "pair:" + deviceId) */
+  proof: string
+}
+
+export interface PairOkMsg {
+  t: 'pair.ok'
+  serverId: string
+  serverName: string
+}
+
+export interface PairRejectMsg {
+  t: 'pair.reject'
+  reason: string
+}
+
+export interface AuthChallengeMsg {
+  t: 'auth.challenge'
+  /** base64, 32 random bytes */
+  nonce: string
+}
+
+export interface AuthResponseMsg {
+  t: 'auth.response'
+  /** base64 HMAC-SHA256(psk, "auth:" + nonce) */
+  proof: string
+}
+
+export interface AuthOkMsg {
+  t: 'auth.ok'
+  serverId: string
+  serverName: string
+}
+
+export interface NotifPostMsg {
+  t: 'notif.post'
+  notif: Omit<NotificationItem, 'deviceId' | 'dismissed'>
+}
+
+export interface NotifDismissMsg {
+  t: 'notif.dismiss'
+  key: string
+}
+
+export interface NotifActionMsg {
+  t: 'notif.action'
+  key: string
+  /** content | reply | a<index> | legacy numeric index. */
+  actionId: string
+  replyText?: string
+  /** Echoed button label, used to detect a shifted non-reply action. */
+  label?: string
+}
+
+export interface NotifActionResultMsg {
+  t: 'notif.action.result'
+  key: string
+  ok: boolean
+  /** gone, unavailable, no-action, no-reply, action-changed, blank, too-long, blocked */
+  error?: string
+}
+
+export interface NotifCancelMsg {
+  t: 'notif.cancel'
+  keys: string[]
+}
+
+export interface ClipSetMsg {
+  t: 'clip.set'
+  text: string
+  ts: number
+  /** True for a response to a manual Pull; accepted even when automatic sync is off. */
+  manual?: boolean
+}
+
+export interface ClipEnabledMsg {
+  t: 'clip.enabled'
+  enabled: boolean
+}
+
+export interface ClipRequestMsg {
+  t: 'clip.request'
+}
+
+export interface ClipErrorMsg {
+  t: 'clip.error'
+  reason: string
+}
+
+export interface ClipboardStatus {
+  kind: 'received' | 'error'
+  reason?: string
+}
+
+export interface FileOfferMsg {
+  t: 'file.offer'
+  id: string
+  name: string
+  size: number
+  mime: string
+  target?: 'downloads' | 'pictures' | 'videos'
+  /** Present when the sender can resume; the receiver may reply with an offset. */
+  resumeFrom?: number
+  mtimeMs?: number
+  photoId?: string
+  mediaKind?: GalleryKind
+}
+
+export interface FileAcceptMsg {
+  t: 'file.accept'
+  id: string
+  /** Bytes already received by the receiver; absent means zero. */
+  offset?: number
+}
+
+export interface FileDeclineMsg {
+  t: 'file.decline'
+  id: string
+  reason?: string
+}
+
+export interface FileAckMsg {
+  t: 'file.ack'
+  id: string
+  offset: number
+}
+
+export interface FileDoneMsg {
+  t: 'file.done'
+  id: string
+}
+
+export interface FileCancelMsg {
+  t: 'file.cancel'
+  id: string
+  reason?: string
+}
+
+export interface StorageListRequestMsg {
+  t: 'storage.list.request'
+  reqId: string
+  cursor?: string
+}
+
+export interface StorageListMsg {
+  t: 'storage.list'
+  reqId: string
+  entries: StorageEntry[]
+  nextCursor?: string
+  scanLimited: boolean
+  granted: boolean
+}
+
+export interface StoragePullMsg {
+  t: 'storage.pull'
+  id: string
+  name?: string
+  mime?: string
+}
+
+export interface StorageErrorMsg {
+  t: 'storage.error'
+  op: string
+  id?: string
+  message: string
+}
+
+export interface PingMsg {
+  t: 'ping'
+  ts: number
+}
+
+export interface PongMsg {
+  t: 'pong'
+  ts: number
+}
+
+/* SMS ------------------------------------------------------------------ */
+
+/** desktop -> phone */
+export interface SmsThreadsRequestMsg {
+  t: 'sms.threads.request'
+}
+
+/** phone -> desktop */
+export interface SmsThreadsMsg {
+  t: 'sms.threads'
+  threads: SmsThread[]
+}
+
+/** desktop -> phone */
+export interface SmsThreadRequestMsg {
+  t: 'sms.thread.request'
+  threadId: string
+}
+
+/** phone -> desktop */
+export interface SmsThreadMsg {
+  t: 'sms.thread'
+  threadId: string
+  address: string
+  messages: SmsMessage[]
+}
+
+/** desktop -> phone */
+export interface SmsSendMsg {
+  t: 'sms.send'
+  tempId: string
+  address: string
+  body: string
+  subscriptionId?: number
+}
+
+/** phone -> desktop */
+export interface SmsSentMsg {
+  t: 'sms.sent'
+  tempId: string
+  ok: boolean
+  error?: string
+}
+
+/** phone -> desktop: a message arrived while connected */
+export interface SmsNewMsg {
+  t: 'sms.new'
+  message: SmsMessage
+}
+
+/** phone -> desktop: an SMS operation failed (permissions, SIM, ...) */
+export interface SmsErrorMsg {
+  t: 'sms.error'
+  op: string
+  error: string
+}
+
+/* Device state ---------------------------------------------------------- */
+
+export interface DeviceStatusMsg {
+  t: 'device.status'
+  batteryLevel: number
+  charging: boolean
+}
+
+/* Gallery --------------------------------------------------------------- */
+
+export interface GalleryAlbumsRequestMsg {
+  t: 'gallery.albums.request'
+  kind?: GalleryKind
+}
+
+export interface GalleryAlbumsMsg {
+  t: 'gallery.albums'
+  albums: GalleryAlbum[]
+  kinds?: GalleryKind[]
+  granted?: boolean
+  partial?: boolean
+}
+
+export interface GalleryPhotosRequestMsg {
+  t: 'gallery.photos.request'
+  albumId: string
+  offset: number
+  limit: number
+  kind?: GalleryKind
+}
+
+export interface GalleryPhotosMsg {
+  t: 'gallery.photos'
+  albumId: string
+  offset: number
+  photos: GalleryPhoto[]
+  hasMore: boolean
+  kind?: GalleryKind
+}
+
+export interface GalleryThumbsRequestMsg {
+  t: 'gallery.thumbnails.request'
+  photoIds: string[]
+  kind?: GalleryKind
+}
+
+export interface GalleryThumbData {
+  photoId: string
+  mime: string
+  data: string
+}
+
+export interface GalleryThumbsMsg {
+  t: 'gallery.thumbnails'
+  items: GalleryThumbData[]
+  kind?: GalleryKind
+}
+
+export interface GalleryPreviewRequestMsg {
+  t: 'gallery.preview.request'
+  photoId: string
+  kind?: GalleryKind
+}
+
+export interface GalleryPreviewMsg {
+  t: 'gallery.preview'
+  photoId: string
+  mime: string
+  data: string
+}
+
+export interface GalleryDownloadMsg {
+  t: 'gallery.download'
+  photoId: string
+  kind?: GalleryKind
+}
+
+export interface GalleryErrorMsg {
+  t: 'gallery.error'
+  op: string
+  error: string
+}
+
+/* Calls ----------------------------------------------------------------- */
+
+export interface CallStateMsg {
+  t: 'call.state'
+  calls: PhoneCallInfo[]
+  dialerReady: boolean
+  outgoingReady: boolean
+  controlReady: boolean
+  speaker: boolean
+  muted: boolean
+  /** Observed audio route; absent on older phones. */
+  route?: RouteKind
+}
+
+export interface CallPlaceMsg {
+  t: 'call.place'
+  number: string
+  accountId?: string
+}
+
+export interface CallPlacedMsg {
+  t: 'call.placed'
+  number: string
+}
+
+export interface PhoneRingMsg {
+  t: 'phone.ring'
+  durationMs?: number
+}
+
+export interface DeviceRenameMsg {
+  t: 'device.rename'
+  name: string
+}
+
+export interface DeviceRenameStateMsg {
+  t: 'device.rename.state'
+  name: string
+}
+
+export interface PhoneRingStopMsg {
+  t: 'phone.ring.stop'
+}
+
+export interface PhoneRingStateMsg {
+  t: 'phone.ring.state'
+  ringing: boolean
+}
+
+export interface MediaStateMsg {
+  t: 'media.state'
+  title: string
+  artist: string
+  playing: boolean
+  app: string
+  positionMs?: number
+  durationMs?: number
+  volume?: number
+  volumeMax?: number
+  artId?: string
+}
+
+export interface MediaActionMsg {
+  t: 'media.action'
+  action: 'play' | 'pause' | 'next' | 'previous' | 'seek' | 'volume'
+  positionMs?: number
+  level?: number
+}
+
+export interface MediaArtMsg {
+  t: 'media.art'
+  id: string
+  mime: string
+  data: string
+}
+
+export interface CallAnswerMsg {
+  t: 'call.answer'
+  callId: string
+}
+
+export interface CallRejectMsg {
+  t: 'call.reject'
+  callId: string
+}
+
+export interface CallDisconnectMsg {
+  t: 'call.disconnect'
+  callId: string
+}
+
+export interface CallSpeakerMsg {
+  t: 'call.speaker'
+  enabled: boolean
+}
+
+export interface CallMuteMsg {
+  t: 'call.mute'
+  enabled: boolean
+}
+
+export interface CallErrorMsg {
+  t: 'call.error'
+  error: string
+}
+
+/* SIMs ------------------------------------------------------------------ */
+
+/** desktop -> phone */
+export interface SimsRequestMsg {
+  t: 'sims.request'
+}
+
+/** phone -> desktop */
+export interface SimsSyncMsg {
+  t: 'sims.sync'
+  sms: SimInfo[]
+  call: CallAccountInfo[]
+  granted: boolean
+}
+
+/* Contacts and call history --------------------------------------------- */
+
+/** desktop -> phone */
+export interface ContactsRequestMsg {
+  t: 'contacts.request'
+}
+
+/** phone -> desktop */
+export interface ContactsSyncMsg {
+  t: 'contacts.sync'
+  contacts: PhoneContact[]
+  granted: boolean
+}
+
+/** desktop -> phone */
+export interface CallLogRequestMsg {
+  t: 'calllog.request'
+  limit?: number
+}
+
+/** phone -> desktop */
+export interface CallLogSyncMsg {
+  t: 'calllog.sync'
+  entries: CallLogEntry[]
+  granted: boolean
+}
+
+export type ControlMsg =
+  | HelloMsg
+  | HelloResultMsg
+  | PairRequestMsg
+  | PairOkMsg
+  | PairRejectMsg
+  | AuthChallengeMsg
+  | AuthResponseMsg
+  | AuthOkMsg
+  | NotifPostMsg
+  | NotifDismissMsg
+  | NotifActionMsg
+  | NotifActionResultMsg
+  | NotifCancelMsg
+  | PhoneRingMsg
+  | DeviceRenameMsg
+  | DeviceRenameStateMsg
+  | PhoneRingStopMsg
+  | PhoneRingStateMsg
+  | MediaStateMsg
+  | MediaActionMsg
+  | MediaArtMsg
+  | ClipSetMsg
+  | ClipEnabledMsg
+  | ClipRequestMsg
+  | ClipErrorMsg
+  | FileOfferMsg
+  | FileAcceptMsg
+  | FileDeclineMsg
+  | FileAckMsg
+  | FileDoneMsg
+  | FileCancelMsg
+  | StorageListRequestMsg
+  | StorageListMsg
+  | StoragePullMsg
+  | StorageErrorMsg
+  | PingMsg
+  | PongMsg
+  | SmsThreadsRequestMsg
+  | SmsThreadsMsg
+  | SmsThreadRequestMsg
+  | SmsThreadMsg
+  | SmsSendMsg
+  | SmsSentMsg
+  | SmsNewMsg
+  | SmsErrorMsg
+  | DeviceStatusMsg
+  | GalleryAlbumsRequestMsg
+  | GalleryAlbumsMsg
+  | GalleryPhotosRequestMsg
+  | GalleryPhotosMsg
+  | GalleryThumbsRequestMsg
+  | GalleryThumbsMsg
+  | GalleryPreviewRequestMsg
+  | GalleryPreviewMsg
+  | GalleryDownloadMsg
+  | GalleryErrorMsg
+  | CallStateMsg
+  | CallPlaceMsg
+  | CallAnswerMsg
+  | CallRejectMsg
+  | CallDisconnectMsg
+  | CallSpeakerMsg
+  | CallMuteMsg
+  | CallErrorMsg
+  | SimsRequestMsg
+  | SimsSyncMsg
+  | ContactsRequestMsg
+  | ContactsSyncMsg
+  | CallLogRequestMsg
+  | CallLogSyncMsg
+
+/** Loose view used when reading untrusted input off the wire. */
+export type RawMsg = { t?: unknown; [key: string]: unknown }
+
+export function isRawMsg(value: unknown): value is RawMsg {
+  return typeof value === 'object' && value !== null
+}
+
+export function str(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback
+}
+
+export function num(value: unknown, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+export function bool(value: unknown, fallback = false): boolean {
+  return typeof value === 'boolean' ? value : fallback
+}

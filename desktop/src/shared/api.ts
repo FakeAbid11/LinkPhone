@@ -1,0 +1,115 @@
+import type {
+  AppState,
+  ClipboardStatus,
+  GalleryPreview,
+  NotificationItem,
+  TransferItem
+} from './protocol'
+
+export interface ActionResult {
+  ok: boolean
+  error?: string
+}
+
+export interface LinkPhoneApi {
+  getState: () => Promise<AppState>
+  onState: (cb: (state: AppState) => void) => () => void
+  onGalleryThumbs: (cb: (items: Array<{ photoId: string; dataUrl: string }>) => void) => () => void
+  onGalleryPreview: (cb: (preview: GalleryPreview | null) => void) => () => void
+  onNavigate: (cb: (tab: 'files' | 'settings') => void) => () => void
+  uiReady: () => Promise<'files' | 'settings' | null>
+  newPairingCode: () => Promise<string>
+  refreshAddresses: () => Promise<void>
+  forgetDevice: (deviceId: string) => Promise<void>
+  renameDevice: (deviceId: string, name: string) => Promise<void>
+  sendFiles: () => Promise<number>
+  sendPhotosToPhone: () => Promise<number>
+  retryTransfer: (id: string) => Promise<void>
+  cancelTransfer: (id: string) => Promise<void>
+  requestStorageList: (cursor?: string) => Promise<void>
+  pullStorageFile: (id: string, name: string, mime: string) => Promise<void>
+  pathForFile: (file: unknown) => string
+  sendFilesFromPaths: (paths: string[]) => Promise<number>
+  sendClipboard: (text: string) => Promise<boolean>
+  requestClipboard: () => Promise<boolean>
+  onClipboardStatus: (cb: (status: ClipboardStatus) => void) => () => void
+  clearNotifications: () => Promise<void>
+  pauseNotifications: (until: number | null) => Promise<void>
+  getNotificationHistory: () => Promise<NotificationItem[]>
+  clearNotificationHistory: () => Promise<void>
+  dismissNotification: (deviceId: string, key: string) => Promise<void>
+  setNotificationMuted: (pkg: string, app: string, muted: boolean) => Promise<void>
+  clearNotificationApp: (pkg: string, app: string) => Promise<void>
+  sendNotificationReply: (
+    deviceId: string,
+    key: string,
+    actionId: string,
+    text: string,
+    label?: string
+  ) => Promise<ActionResult>
+  sendNotificationAction: (
+    deviceId: string,
+    key: string,
+    actionId: string,
+    label?: string
+  ) => Promise<ActionResult>
+  requestSmsThreads: () => Promise<void>
+  openSmsThread: (threadId: string, address: string) => Promise<void>
+  closeSmsThread: () => Promise<void>
+  sendSms: (
+    threadId: string,
+    address: string,
+    body: string,
+    subscriptionId?: number
+  ) => Promise<'queued' | 'no-peer' | 'invalid'>
+  retrySms: (id: string) => Promise<'queued' | 'no-peer' | 'invalid'>
+  startSmsConversation: (
+    address: string,
+    body: string,
+    subscriptionId?: number
+  ) => Promise<'queued' | 'invalid' | 'no-peer'>
+  requestGalleryAlbums: (kind?: 'image' | 'video') => Promise<void>
+  openGalleryAlbum: (kind: 'image' | 'video', albumId: string, name: string) => Promise<void>
+  closeGalleryAlbum: () => Promise<void>
+  loadMoreGallery: (kind: 'image' | 'video', albumId: string, offset: number) => Promise<void>
+  requestGalleryThumbnails: (kind: 'image' | 'video', photoIds: string[]) => Promise<void>
+  requestGalleryPreview: (
+    kind: 'image' | 'video',
+    photoId: string,
+    name: string
+  ) => Promise<void>
+  closeGalleryPreview: () => Promise<void>
+  downloadGalleryPhoto: (kind: 'image' | 'video', photoId: string) => Promise<void>
+  checkDesktopUpdate: () => Promise<void>
+  downloadDesktopUpdate: () => Promise<void>
+  installDesktopUpdate: () => void
+  placeCall: (number: string, accountId?: string) => Promise<void>
+  answerCall: (callId: string) => Promise<void>
+  rejectCall: (callId: string) => Promise<void>
+  disconnectCall: (callId: string) => Promise<void>
+  setCallSpeaker: (enabled: boolean) => Promise<void>
+  setCallMute: (enabled: boolean) => Promise<void>
+  dismissCallPlaced: () => Promise<void>
+  dismissCallError: () => Promise<void>
+  ringPhone: (deviceId: string) => Promise<void>
+  stopRingPhone: (deviceId: string) => Promise<void>
+  setRingDuration: (ms: number) => Promise<void>
+  sendMediaAction: (
+    action: 'play' | 'pause' | 'next' | 'previous' | 'seek' | 'volume',
+    value?: number
+  ) => Promise<void>
+  onMediaArt: (
+    cb: (art: { id: string; mime: string; data: string } | null) => void
+  ) => () => void
+  requestContacts: () => Promise<void>
+  requestCallHistory: () => Promise<void>
+  requestSims: () => Promise<void>
+  setClipboardEnabled: (enabled: boolean) => Promise<void>
+  setLaunchAtLogin: (enabled: boolean) => Promise<void>
+  openDownloads: () => Promise<void>
+  copyToClipboard: (text: string) => Promise<void>
+  openExternal: (url: string) => Promise<void>
+  onTransfer: (cb: (transfer: TransferItem) => void) => () => void
+  quit: () => void
+  hideToTray: () => void
+}

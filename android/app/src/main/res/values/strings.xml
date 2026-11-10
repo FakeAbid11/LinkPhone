@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LinkPhone</string>
+    <string name="notif_service_label">LinkPhone notifications</string>
+    <string name="service_channel">LinkPhone connection</string>
+    <string name="service_text">Connected to your PC</string>
+    <string name="clipboard_accessibility_label">LinkPhone clipboard sync</string>
+    <string name="clipboard_accessibility_description">Reads clipboard text while another app is in front so it can sync to your paired PC. LinkPhone never reads screen content.</string>
+</resources>

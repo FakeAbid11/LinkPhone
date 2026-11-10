@@ -1,0 +1,164 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Restore Android signing key
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/linkphone-release.jks"
+      - name: Build signed APK
+        working-directory: android
+        run: gradle assembleRelease --no-daemon
+        env:
+          LINKPHONE_KEYSTORE_PATH: ${{ runner.temp }}/linkphone-release.jks
+          LINKPHONE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          LINKPHONE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          LINKPHONE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      - name: Rename
+        run: cp android/app/build/outputs/apk/release/app-release.apk linkphone-android.apk
+      - uses: actions/upload-artifact@v5
+        with:
+          name: android-release
+          path: linkphone-android.apk
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Install
+        working-directory: desktop
+        run: npm ci --no-audit --no-fund
+      - name: Build installer
+        working-directory: desktop
+        run: npm run dist:win
+      - uses: actions/upload-artifact@v5
+        with:
+          name: windows-installer
+          path: |
+            desktop/release/*.exe
+            desktop/release/*.blockmap
+            desktop/release/latest.yml
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Install
+        working-directory: desktop
+        run: npm ci --no-audit --no-fund
+      - name: Build Linux packages
+        working-directory: desktop
+        run: npm run dist:linux
+      - uses: actions/upload-artifact@v5
+        with:
+          name: linux-packages
+          path: |
+            desktop/release/*.AppImage
+            desktop/release/*.deb
+
+  publish:
+    needs: [android, windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          path: artifacts
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: LinkPhone ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          body: |
+            Microsoft Phone Link, rebuilt from scratch: your Android phone on your PC over the
+            local network. No account, no cloud, no relay server.
+
+            ## Install
+
+            1. **Phone** — download `linkphone-android.apk` and install it (allow "install unknown
+               apps" when asked). A fresh install opens a three-step intro: what LinkPhone is, why
+               each permission is needed, and pairing.
+               **If an earlier LinkPhone build is installed, uninstall it first and pair again.**
+            2. **PC** — download and run `LinkPhone.Setup.0.1.0.exe`. SmartScreen will warn because
+               the installer is unsigned: *More info → Run anyway*. Allow it on **private**
+               networks when Windows Firewall asks.
+            3. Make sure both devices are on the same Wi-Fi (not a guest network).
+            4. On the PC, click **Scan QR code instead** in the sidebar.
+            5. On the phone: **Scan QR** and point the camera at the PC. Network scan + typed code is
+               still available as a fallback.
+            6. On the phone, open notification settings, then tap **Allow SMS access** and
+               **Allow photo access**.
+            7. For calls, tap **Set as default phone app**, accept Android's role prompt, then allow
+               phone permissions.
+
+            ## Features
+
+            * One-tap QR pairing, fully offline with CameraX + ZXing (no Google Play Services),
+              plus an 8-character pairing code fallback (PBKDF2 + AES-256-GCM, no account)
+            * mDNS discovery, with link-local IPv6 pairing when the router isolates IPv4 clients
+            * Auto-reconnect after reboot, app restart or a PC address change
+            * Notification mirroring with inline reply, quick actions and open-on-phone; group,
+              ongoing and MessagingStyle alerts, live progress, search, history and mute/clear
+            * SMS: existing conversations, live incoming texts, contact suggestions, drafts that
+              stay with their thread, and retry of failed sends
+            * Calls from the PC: dial, answer, decline, hang up, mute and phone speaker; SIM choice
+              on dual-SIM phones; VoIP calls (WhatsApp, Telegram, Messenger, Instagram)
+            * Recent call history with direction, time and duration, and searchable contacts with
+              click-to-call
+            * Photo albums, videos and phone downloads: thumbnails, previews, uploads, resumable
+              transfers and inline video playback
+            * File transfer both ways via drag and drop, Explorer Send-to or Android Share, with
+              history that survives restarts
+            * Clipboard text sync both ways, find-my-phone, media controls and live battery status
+            * Foreground service with boot start, an optional battery-optimization exemption and
+              optional Start with Windows hidden in the tray
+            * Built-in Windows updater with download progress and restart-to-install, and an Android
+              updater with SHA-256 and signing-certificate verification
+            * Strictly monochrome Material 3 themes on PC and Android with Material Symbols Rounded
+              icons, keyed to a single type and spacing scale
+
+            ## Not in this build
+
+            MMS, call audio on the PC, screen mirroring, app streaming and camera streaming.
+            Call audio deliberately remains on the phone.
+
+            The desktop app targets Windows 10/11; Linux AppImage and .deb packages are also built.
+            Android 10+ for the phone. iOS is out of scope (no SMS or notification APIs).
+
+            Updates can be initiated inside both apps; Android will always require its system
+            installation confirmation.
+          files: |
+            artifacts/android-release/linkphone-android.apk
+            artifacts/windows-installer/*.exe
+            artifacts/windows-installer/*.blockmap
+            artifacts/windows-installer/latest.yml
+            artifacts/linux-packages/*.AppImage
+            artifacts/linux-packages/*.deb

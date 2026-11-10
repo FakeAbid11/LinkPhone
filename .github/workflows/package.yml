@@ -1,0 +1,69 @@
+name: Package
+
+# Manual build of both installable artifacts (no release is created).
+on:
+  workflow_dispatch:
+
+jobs:
+  android-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Restore Android signing key
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/linkphone-release.jks"
+
+      - name: Build signed APK
+        working-directory: android
+        run: gradle assembleRelease --no-daemon
+        env:
+          LINKPHONE_KEYSTORE_PATH: ${{ runner.temp }}/linkphone-release.jks
+          LINKPHONE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          LINKPHONE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          LINKPHONE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v5
+        with:
+          name: linkphone-android-release
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install
+        working-directory: desktop
+        run: npm ci --no-audit --no-fund
+
+      - name: Build installer
+        working-directory: desktop
+        run: npm run dist:win
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v5
+        with:
+          name: linkphone-windows-installer
+          path: |
+            desktop/release/*.exe
+            desktop/release/*.blockmap
+            desktop/release/latest.yml
+          if-no-files-found: error

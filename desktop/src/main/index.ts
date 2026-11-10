@@ -1,0 +1,994 @@
+import fs from 'node:fs'
+import path from 'node:path'
+import { Readable } from 'node:stream'
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  dialog,
+  ipcMain,
+  Menu,
+  nativeImage,
+  Notification,
+  powerMonitor,
+  protocol,
+  shell,
+  Tray
+} from 'electron'
+import type { AppState, GalleryPreview, NotificationAction, NotificationItem, PhoneCallInfo } from '../shared/protocol'
+import { mimeForPath } from '../shared/mime'
+import { ClipboardWatcher } from './clipboard'
+import { newPairCode } from './crypto'
+import { advertise, localAddresses, localLinkLocalIPv6, type Advertisement } from './discovery'
+import { LinkServer } from './server'
+import { AppStore, RING_DURATIONS } from './state'
+import { DesktopUpdater } from './updater'
+
+/* Fallback 32x32 phone glyph if the packaged icon resource is missing. */
+const FALLBACK_ICON_B64 =
+  'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAEUSURBVFhH1ZchTgNBGEYrkUiO0SNUIis5AhJZWccROAYSWckROAISWfd9ZJNp0vwd+ObtAgkvGbPz9s0/63a1+k/YvpJ0b3v/1ZL0YPumvruY6WBJHx5E0lNtzMb2taRjC7/WW5cv8Hw2x7q2ZtE++3T4oe71mG7fBtjXvVm02w0HqR+hQepHaJD6ERqkfoQGqR+hQepHaJD6ERqkfoQGqR+hQepHaJD6ERqkfoQGqR+hQepHaJD6ERqkfoQGqR+hQepHaJD6ERqkfqQXtL1pz09r852/iF7w7NmJ3t6vDvD3X2D0b8f27qcHWLcBjpIey83r2kl6awNsa2s2kl5adAhJ79PPbO0sQtJt58YXS9Ld6OGfVmF8Qkmi9gEAAAAASUVORK5CYII='
+
+function iconPath(name: string): string {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, name)
+    : path.join(__dirname, '../../resources', name)
+}
+
+function appIcon(name: string): Electron.NativeImage {
+  const image = nativeImage.createFromPath(iconPath(name))
+  return image.isEmpty()
+    ? nativeImage.createFromBuffer(Buffer.from(FALLBACK_ICON_B64, 'base64'))
+    : image
+}
+
+const LOGIN_ITEM_NAME = 'LinkPhone'
+const HIDDEN_ARG = '--hidden'
+const SEND_ARG = '--send'
+const MAX_SEND_FILES = 100
+const LOGIN_ITEM_ARGS = [HIDDEN_ARG]
+
+function launchAtLoginSupported(): boolean {
+  return process.platform === 'win32' && app.isPackaged
+}
+
+function readLaunchAtLogin(): boolean {
+  if (!launchAtLoginSupported()) return false
+  try {
+    // executableWillLaunchAtLogin accounts for the Windows StartupApproved state
+    // and ignores the command-line args; launchItems is not a Windows check.
+    return app.getLoginItemSettings({
+      path: process.execPath,
+      args: LOGIN_ITEM_ARGS
+    }).executableWillLaunchAtLogin
+  } catch (error) {
+    console.error('[startup] could not read login item', error)
+    return false
+  }
+}
+
+function syncLaunchAtLogin(): void {
+  const supported = launchAtLoginSupported()
+  store.setLaunchAtLogin(supported ? readLaunchAtLogin() : false, supported)
+}
+
+function applyLaunchAtLogin(enabled: boolean): void {
+  if (!launchAtLoginSupported()) {
+    store.setLaunchAtLogin(false, false)
+    return
+  }
+  try {
+    app.setLoginItemSettings({
+      openAtLogin: enabled,
+      path: process.execPath,
+      args: LOGIN_ITEM_ARGS,
+      name: LOGIN_ITEM_NAME,
+      ...(enabled ? { enabled: true } : {})
+    })
+  } catch (error) {
+    console.error('[startup] could not update login item', error)
+  }
+  syncLaunchAtLogin()
+}
+
+let win: BrowserWindow | null = null
+let tray: Tray | null = null
+let store: AppStore
+let server: LinkServer
+let advertisement: Advertisement | null = null
+let watcher: ClipboardWatcher
+let updater: DesktopUpdater
+let quitting = false
+let booted = false
+let uiReady = false
+let pendingTab: 'files' | 'settings' | null = null
+let lastUpdateNoticeVersion = ''
+let sendQueue: string[] = []
+let sendDraining = false
+let sendTimer: NodeJS.Timeout | null = null
+let sendToast: Notification | null = null
+let sendToastCount = 0
+let sendIntentSeen = false
+
+function sendState(state: AppState): void {
+  if (win && !win.isDestroyed()) win.webContents.send('state:update', state)
+}
+
+function showWindow(): void {
+  if (!win) return
+  if (win.isMinimized()) win.restore()
+  win.show()
+  win.focus()
+}
+
+function existingFiles(input: unknown): string[] {
+  if (!Array.isArray(input)) return []
+  const files: string[] = []
+  const seen = new Set<string>()
+  for (const raw of input.slice(0, 500)) {
+    if (typeof raw !== 'string') continue
+    const value = raw.trim()
+    if (!value) continue
+    try {
+      const file = path.resolve(value)
+      if (!fs.statSync(file).isFile()) continue
+      const key = file.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      files.push(file)
+      if (files.length >= MAX_SEND_FILES) break
+    } catch {
+      /* skip missing or inaccessible files */
+    }
+  }
+  return files
+}
+
+function parseSendPaths(argv: string[]): string[] {
+  const index = argv.indexOf(SEND_ARG)
+  if (index < 0) return []
+  return existingFiles(
+    argv.slice(index + 1).filter((raw) => raw && !raw.startsWith('-'))
+  )
+}
+
+function navigateTo(tab: 'files' | 'settings'): void {
+  if (!booted || !win) return
+  pendingTab = tab
+  showWindow()
+  if (uiReady && !win.isDestroyed()) {
+    win.webContents.send('ui:navigate', tab)
+    pendingTab = null
+  }
+}
+
+function notifyUpdateAvailable(version: string): void {
+  if (!version || version === lastUpdateNoticeVersion) return
+  if (win?.isFocused()) return
+  if (!Notification.isSupported()) return
+  try {
+    const toast = new Notification({
+      title: 'LinkPhone update available',
+      body: `v${version} is available. Open Settings to download it.`,
+      icon: appIcon('icon.png'),
+      silent: true
+    })
+    toast.on('click', () => navigateTo('settings'))
+    toast.show()
+    lastUpdateNoticeVersion = version
+  } catch {
+    /* notifications unavailable */
+  }
+}
+
+function showQueueToast(): void {
+  if (!Notification.isSupported() || sendQueue.length === 0) return
+  if (sendToast && sendToastCount === sendQueue.length) return
+  sendToast?.close()
+  sendToast = null
+  sendToastCount = sendQueue.length
+  try {
+    const toast = new Notification({
+      title: 'Waiting for your phone',
+      body: `${sendQueue.length} file${sendQueue.length === 1 ? '' : 's'} queued — connect your phone to send.`,
+      silent: true
+    })
+    toast.on('click', () => navigateTo('files'))
+    toast.on('close', () => {
+      if (sendToast === toast) sendToast = null
+    })
+    toast.show()
+    sendToast = toast
+  } catch {
+    /* notifications unavailable */
+  }
+}
+
+function closeQueueToast(): void {
+  sendToast?.close()
+  sendToast = null
+  sendToastCount = 0
+}
+
+function scheduleSendDrain(): void {
+  if (sendTimer) clearTimeout(sendTimer)
+  sendTimer = setTimeout(() => {
+    sendTimer = null
+    void drainSendQueue()
+  }, 250)
+}
+
+async function drainSendQueue(): Promise<void> {
+  if (sendDraining || sendQueue.length === 0) return
+  if (!server || !server.hasConnectedPeer()) {
+    showQueueToast()
+    return
+  }
+  sendDraining = true
+  closeQueueToast()
+  const batch = sendQueue
+  sendQueue = []
+  try {
+    await server.sendFiles(batch)
+  } catch (error) {
+    console.error('[send] file transfer failed', error)
+  } finally {
+    sendDraining = false
+    if (sendQueue.length > 0 && server?.hasConnectedPeer()) scheduleSendDrain()
+  }
+}
+
+function handleSendIntent(paths: string[]): void {
+  sendIntentSeen = true
+  const known = new Set(sendQueue.map((file) => file.toLowerCase()))
+  for (const file of paths) {
+    const key = file.toLowerCase()
+    if (known.has(key)) continue
+    known.add(key)
+    sendQueue.push(file)
+    if (sendQueue.length >= MAX_SEND_FILES) break
+  }
+  if (!booted) return
+  navigateTo('files')
+  scheduleSendDrain()
+}
+
+function createWindow(): void {
+  const startHidden = process.argv.includes(HIDDEN_ARG)
+  win = new BrowserWindow({
+    width: 1080,
+    height: 720,
+    minWidth: 880,
+    minHeight: 560,
+    show: false,
+    backgroundColor: '#000000',
+    title: 'LinkPhone',
+    icon: appIcon('icon.png'),
+    webPreferences: {
+      preload: path.join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false
+    }
+  })
+
+  win.on('ready-to-show', () => {
+    if (!startHidden) win?.show()
+  })
+  win.on('focus', () => syncLaunchAtLogin())
+  win.webContents.on('did-start-loading', () => {
+    uiReady = false
+  })
+  win.on('close', (event) => {
+    if (quitting) return
+    event.preventDefault()
+    win?.hide()
+  })
+
+  const devUrl = process.env['ELECTRON_RENDERER_URL']
+  if (devUrl) void win.loadURL(devUrl)
+  else void win.loadFile(path.join(__dirname, '../renderer/index.html'))
+}
+
+function createTray(): void {
+  tray = new Tray(appIcon('tray.png'))
+  tray.setToolTip('LinkPhone')
+  tray.on('click', () => showWindow())
+  rebuildTrayMenu()
+}
+
+function rebuildTrayMenu(): void {
+  if (!tray) return
+  const menu = Menu.buildFromTemplate([
+    { label: 'Open LinkPhone', click: () => showWindow() },
+    { type: 'separator' },
+    {
+      label: `Pairing code: ${store.pairingCode}`,
+      click: () => {
+        clipboard.writeText(store.pairingCode)
+      }
+    },
+    {
+      label: 'New pairing code',
+      click: () => {
+        store.setPairingCode(newPairCode())
+        rebuildTrayMenu()
+      }
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        quitting = true
+        app.quit()
+      }
+    }
+  ])
+  tray.setContextMenu(menu)
+}
+
+function registerIpc(): void {
+  ipcMain.handle('state:get', () => store.snapshot())
+
+  ipcMain.handle('ui:ready', () => {
+    uiReady = true
+    const tab = pendingTab
+    pendingTab = null
+    return tab
+  })
+
+  ipcMain.handle('pair:new', () => {
+    store.setPairingCode(newPairCode())
+    rebuildTrayMenu()
+    return store.pairingCode
+  })
+
+  ipcMain.handle('addresses:refresh', () => {
+    store.setAddresses(localAddresses())
+    store.setAddresses6(localLinkLocalIPv6())
+  })
+
+  ipcMain.handle('device:forget', (_event, deviceId: unknown) => {
+    if (typeof deviceId === 'string') store.forget(deviceId)
+  })
+
+  ipcMain.handle('device:rename', (_event, deviceId: unknown, name: unknown) => {
+    if (typeof deviceId === 'string' && typeof name === 'string') {
+      server.renameDevice(deviceId, name)
+    }
+  })
+
+  ipcMain.handle('files:send', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Send to phone',
+      properties: ['openFile', 'multiSelections']
+    })
+    if (result.canceled || result.filePaths.length === 0) return 0
+    void server.sendFiles(result.filePaths)
+    return result.filePaths.length
+  })
+
+  ipcMain.handle('files:send-photos', async () => {
+    if (!server.hasConnectedPeer()) return 0
+    const result = await dialog.showOpenDialog({
+      title: 'Send photos to phone',
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        {
+          name: 'Photos and videos',
+          extensions: [
+            'jpg',
+            'jpeg',
+            'png',
+            'gif',
+            'webp',
+            'heic',
+            'heif',
+            'bmp',
+            'mp4',
+            'mov',
+            'mkv',
+            'webm',
+            'avi'
+          ]
+        }
+      ]
+    })
+    if (result.canceled || result.filePaths.length === 0) return 0
+    server.uploadMedia(result.filePaths)
+    return result.filePaths.length
+  })
+
+  ipcMain.handle('files:retry', (_event, id: unknown) => {
+    if (typeof id === 'string') server.retryTransfer(id)
+  })
+
+  ipcMain.handle('files:cancel', (_event, id: unknown) => {
+    if (typeof id === 'string') server.cancelTransfer(id)
+  })
+
+  ipcMain.handle('storage:list', (_event, cursor: unknown) => {
+    const requested = server.requestStorageList(
+      typeof cursor === 'string' ? cursor : undefined
+    )
+    if (!requested) return
+    setTimeout(() => {
+      if (store.isStorageLoading()) {
+        store.setStorageError(
+          'No answer from the phone. Update the LinkPhone app to browse its files.'
+        )
+      }
+    }, 6000)
+  })
+
+  ipcMain.handle('storage:pull', (_event, id: unknown, name: unknown, mime: unknown) => {
+    if (typeof id === 'string') {
+      server.pullStorageFile(
+        id,
+        typeof name === 'string' ? name : '',
+        typeof mime === 'string' ? mime : ''
+      )
+    }
+  })
+
+  ipcMain.handle('files:send-paths', (event, paths: unknown) => {
+    if (event.sender !== win?.webContents) return 0
+    if (!server.hasConnectedPeer()) return 0
+    const files = existingFiles(paths)
+    if (files.length > 0) handleSendIntent(files)
+    return files.length
+  })
+
+  ipcMain.handle('clipboard:set', (_event, text: unknown) => {
+    if (typeof text !== 'string') return false
+    // Suppress the watcher echo for a manual send.
+    watcher.applyRemote(text)
+    return server.sendClipboard(text)
+  })
+
+  ipcMain.handle('clipboard:copy', (_event, text: unknown) => {
+    if (typeof text === 'string') clipboard.writeText(text)
+  })
+
+  ipcMain.handle('clipboard:enable', (_event, enabled: unknown) => {
+    store.setClipboardEnabled(Boolean(enabled))
+    server.sendClipboardEnabled()
+    if (store.clipboardEnabled) watcher.flushPending()
+  })
+
+  ipcMain.handle('clipboard:request', () => server.requestClipboard())
+
+  ipcMain.handle('startup:set', (_event, enabled: unknown) => {
+    if (typeof enabled === 'boolean') applyLaunchAtLogin(enabled)
+  })
+
+  const dismissNotificationEverywhere = (deviceId: string, key: string): void => {
+    store.dismissNotification(deviceId, key)
+    server.sendNotificationCancel([{ deviceId, key }])
+  }
+
+  ipcMain.handle('notifications:clear', () => {
+    const refs = store.clearNotifications()
+    server.sendNotificationCancel(refs)
+  })
+
+  ipcMain.handle('notifications:pause', (_event, until: unknown) => {
+    if (typeof until !== 'number' || !Number.isFinite(until) || until <= 0) {
+      store.resumeNotifications()
+      return
+    }
+    store.pauseNotifications(until)
+  })
+  ipcMain.handle('notifications:history', () => store.getNotificationHistory())
+  ipcMain.handle('notifications:history-clear', () => store.clearNotificationHistory())
+
+  ipcMain.handle('notification:dismiss', (_event, deviceId: unknown, key: unknown) => {
+    if (typeof deviceId === 'string' && typeof key === 'string') {
+      dismissNotificationEverywhere(deviceId, key)
+    }
+  })
+
+  ipcMain.handle(
+    'notification:reply',
+    (_event, deviceId: unknown, key: unknown, actionId: unknown, text: unknown, label: unknown) => {
+      if (
+        typeof deviceId !== 'string' ||
+        typeof key !== 'string' ||
+        typeof actionId !== 'string' ||
+        typeof text !== 'string'
+      ) {
+        return { ok: false, error: 'invalid' }
+      }
+      const body = text.trim()
+      if (body.length === 0 || body.length > 2000) return { ok: false, error: 'invalid' }
+      if (!/^(content|reply|a\d{1,2}|\d{1,2})$/.test(actionId)) {
+        return { ok: false, error: 'invalid' }
+      }
+      return server.sendNotificationAction(
+        deviceId,
+        key,
+        actionId,
+        body,
+        typeof label === 'string' ? label : undefined
+      )
+    }
+  )
+
+  ipcMain.handle(
+    'notification:action',
+    (_event, deviceId: unknown, key: unknown, actionId: unknown, label: unknown) => {
+      if (typeof deviceId !== 'string' || typeof key !== 'string' || typeof actionId !== 'string') {
+        return { ok: false, error: 'invalid' }
+      }
+      if (!/^(content|reply|a\d{1,2}|\d{1,2})$/.test(actionId)) {
+        return { ok: false, error: 'invalid' }
+      }
+      return server.sendNotificationAction(
+        deviceId,
+        key,
+        actionId,
+        undefined,
+        typeof label === 'string' ? label : undefined
+      )
+    }
+  )
+
+  ipcMain.handle('notification:set-muted', (_event, pkg: unknown, app: unknown, muted: unknown) => {
+    if (typeof pkg !== 'string' || typeof app !== 'string' || typeof muted !== 'boolean') return
+    store.setNotificationMuted(pkg, app, muted)
+  })
+
+  ipcMain.handle('notifications:clear-app', (_event, pkg: unknown, app: unknown) => {
+    if (typeof pkg !== 'string' || typeof app !== 'string') return
+    const refs = store.clearNotificationsForApp(pkg, app)
+    server.sendNotificationCancel(refs)
+  })
+
+  ipcMain.handle('files:open-downloads', () => shell.openPath(store.downloadsDir))
+
+  ipcMain.handle('sms:threads', () => server.requestSmsThreads())
+
+  ipcMain.handle('sms:thread', (_event, threadId: unknown, address: unknown) => {
+    if (typeof threadId !== 'string') return
+    server.requestSmsThread(threadId, typeof address === 'string' ? address : '')
+  })
+
+  ipcMain.handle('sms:close', () => store.openSmsThread(null))
+
+  ipcMain.handle('sms:send', (_event, threadId: unknown, address: unknown, body: unknown, subscriptionId: unknown) => {
+    if (typeof threadId !== 'string' || typeof address !== 'string' || typeof body !== 'string') {
+      return 'invalid'
+    }
+    const subId = typeof subscriptionId === 'number' && Number.isFinite(subscriptionId)
+      ? Math.floor(subscriptionId)
+      : undefined
+    return server.sendSms(threadId, address, body, subId)
+  })
+
+  ipcMain.handle('sms:retry', (_event, id: unknown) => {
+    if (typeof id !== 'string') return 'invalid'
+    return server.retrySms(id)
+  })
+
+  const galleryKind = (value: unknown): 'image' | 'video' =>
+    value === 'video' ? 'video' : 'image'
+
+  ipcMain.handle('gallery:albums', (_event, kind: unknown) =>
+    server.requestGalleryAlbums(galleryKind(kind))
+  )
+
+  ipcMain.handle('gallery:album', (_event, kind: unknown, albumId: unknown, name: unknown) => {
+    if (typeof albumId !== 'string' || typeof name !== 'string') return
+    server.openGalleryAlbum(galleryKind(kind), albumId, name)
+  })
+
+  ipcMain.handle('gallery:close-album', () => server.closeGalleryAlbum())
+
+  ipcMain.handle('gallery:more', (_event, kind: unknown, albumId: unknown, offset: unknown) => {
+    if (typeof albumId !== 'string' || typeof offset !== 'number') return
+    server.loadMoreGallery(galleryKind(kind), albumId, offset)
+  })
+
+  ipcMain.handle('gallery:thumbnails', (_event, kind: unknown, photoIds: unknown) => {
+    if (!Array.isArray(photoIds)) return
+    server.requestGalleryThumbnails(
+      galleryKind(kind),
+      photoIds.filter((id): id is string => typeof id === 'string')
+    )
+  })
+
+  ipcMain.handle('gallery:preview', (_event, kind: unknown, photoId: unknown, name: unknown) => {
+    if (typeof photoId !== 'string' || typeof name !== 'string') return
+    server.requestGalleryPreview(galleryKind(kind), photoId, name)
+  })
+
+  ipcMain.handle('gallery:close-preview', () => server.closeGalleryPreview())
+
+  ipcMain.handle('gallery:download', (_event, kind: unknown, photoId: unknown) => {
+    if (typeof photoId === 'string') server.downloadGalleryPhoto(galleryKind(kind), photoId)
+  })
+
+  ipcMain.handle('update:check', () => updater.check(true))
+  ipcMain.handle('update:download', () => updater.download())
+  ipcMain.on('update:install', () => updater.install())
+
+  ipcMain.handle('call:place', (_event, number: unknown, accountId: unknown) => {
+    if (typeof number === 'string') {
+      server.placeCall(number, typeof accountId === 'string' ? accountId : undefined)
+    }
+  })
+  ipcMain.handle('call:answer', (_event, callId: unknown) => {
+    if (typeof callId === 'string') server.answerCall(callId)
+  })
+  ipcMain.handle('call:reject', (_event, callId: unknown) => {
+    if (typeof callId === 'string') server.rejectCall(callId)
+  })
+  ipcMain.handle('call:disconnect', (_event, callId: unknown) => {
+    if (typeof callId === 'string') server.disconnectCall(callId)
+  })
+  ipcMain.handle('call:speaker', (_event, enabled: unknown) => {
+    server.setCallSpeaker(Boolean(enabled))
+  })
+  ipcMain.handle('call:mute', (_event, enabled: unknown) => {
+    server.setCallMute(Boolean(enabled))
+  })
+  ipcMain.handle('call:placed-dismiss', () => store.dismissCallPlaced())
+  ipcMain.handle('call:error-dismiss', () => store.dismissCallError())
+  ipcMain.handle('phone:ring', (_event, deviceId: unknown) => {
+    if (typeof deviceId === 'string') server.ringPhone(deviceId)
+  })
+  ipcMain.handle('ring:duration', (_event, value: unknown) => {
+    if (typeof value === 'number' && RING_DURATIONS.includes(value)) {
+      store.setRingDurationMs(value)
+    }
+  })
+  ipcMain.handle('phone:ring-stop', (_event, deviceId: unknown) => {
+    if (typeof deviceId === 'string') server.stopRing(deviceId)
+  })
+  ipcMain.handle('media:action', (_event, action: unknown, value: unknown) => {
+    if (
+      action === 'play' ||
+      action === 'pause' ||
+      action === 'next' ||
+      action === 'previous' ||
+      action === 'seek' ||
+      action === 'volume'
+    ) {
+      server.sendMediaAction(
+        action,
+        typeof value === 'number' && Number.isFinite(value) ? value : undefined
+      )
+    }
+  })
+
+  ipcMain.handle('contacts:request', () => server.requestContacts())
+  ipcMain.handle('calllog:request', () => server.requestCallHistory())
+  ipcMain.handle('sims:request', () => server.requestSims())
+  ipcMain.handle(
+    'sms:start',
+    (_event, address: unknown, body: unknown, subscriptionId: unknown) => {
+      if (typeof address !== 'string' || typeof body !== 'string') return 'invalid'
+      return server.startSmsConversation(
+        address,
+        body,
+        typeof subscriptionId === 'number' ? subscriptionId : undefined
+      )
+    }
+  )
+
+  ipcMain.handle('shell:open', (_event, url: unknown) => {
+    if (typeof url === 'string' && /^https?:\/\//i.test(url)) return shell.openExternal(url)
+    return undefined
+  })
+
+  ipcMain.on('app:quit', () => {
+    quitting = true
+    app.quit()
+  })
+
+  ipcMain.on('app:hide', () => win?.hide())
+}
+
+async function bootstrap(): Promise<void> {
+  app.setAppUserModelId('dev.linkphone.desktop')
+  app.setName('LinkPhone')
+
+  // No File/Edit/View menu on Windows/Linux; macOS keeps its required app menu.
+  if (process.platform !== 'darwin') {
+    Menu.setApplicationMenu(null)
+  }
+
+  store = new AppStore(app.getPath('userData'), app.getVersion())
+  store.setPairingCode(newPairCode())
+  syncLaunchAtLogin()
+
+  server = new LinkServer(store)
+  updater = new DesktopUpdater(store, app.isPackaged, notifyUpdateAvailable)
+  powerMonitor.on('resume', () => {
+    void updater.check(false)
+  })
+  watcher = new ClipboardWatcher(
+    (text) => server.sendClipboard(text),
+    () => store.clipboardEnabled
+  )
+
+  await server.start()
+  registerMediaProtocol(store)
+  server.on('peer-ready', () => {
+    void drainSendQueue()
+    watcher.flushPending()
+  })
+  store.setAddresses(localAddresses())
+  store.setAddresses6(localLinkLocalIPv6())
+
+  try {
+    advertisement = advertise({
+      serverId: store.serverId,
+      serverName: store.serverName,
+      port: server.port
+    })
+  } catch {
+    advertisement = null
+  }
+
+  server.on('clipboardIn', (text: string) => {
+    watcher.applyRemote(text)
+    win?.webContents.send('clipboard:status', { kind: 'received' })
+  })
+  server.on('clipboardError', (reason: string) => {
+    win?.webContents.send('clipboard:status', { kind: 'error', reason })
+  })
+
+  server.on(
+    'media-art',
+    (art: { id: string; mime: string; data: string } | null) => {
+      win?.webContents.send('media:art', art)
+    }
+  )
+
+  server.on('notification', (item: NotificationItem) => {
+    if (store.isNotificationsPaused()) return
+    if (!Notification.isSupported()) return
+    try {
+      const nonReplyActions = (item.actions || []).filter(
+        (a: NotificationAction) => !a.reply && a.id !== 'content' && a.label
+      )
+      const actions = nonReplyActions.slice(0, 2).map((a: NotificationAction) => ({
+        type: 'button' as const,
+        text: a.label
+      }))
+
+      const replyAction = (item.actions || []).find((a: NotificationAction) => a.reply)
+      const canInlineReply = Boolean(item.canReply && replyAction)
+
+      let notifIcon: Electron.NativeImage | undefined
+      if (item.icon) {
+        try {
+          const img = nativeImage.createFromDataURL(item.icon)
+          if (!img.isEmpty()) notifIcon = img
+        } catch {
+          // fallback to app icon
+        }
+      }
+      if (!notifIcon) {
+        notifIcon = appIcon('icon.png')
+      }
+
+      const n = new Notification({
+        title: item.title ? `${item.app} · ${item.title}` : item.app,
+        body: item.text,
+        silent: false,
+        icon: notifIcon,
+        hasReply: canInlineReply,
+        replyPlaceholder: 'Reply from PC…',
+        actions: actions.length > 0 ? actions : undefined
+      })
+      n.on('click', () => {
+        showWindow()
+        store.dismissNotification(item.deviceId, item.key)
+        server.sendNotificationCancel([{ deviceId: item.deviceId, key: item.key }])
+      })
+      n.on('action', (_event, index) => {
+        const action = nonReplyActions[index]
+        if (action) {
+          void server.sendNotificationAction(
+            item.deviceId,
+            item.key,
+            action.id,
+            undefined,
+            action.label
+          )
+        }
+      })
+      n.on('reply', (_event, replyText) => {
+        if (typeof replyText === 'string' && replyText.trim() && replyAction) {
+          void server.sendNotificationAction(
+            item.deviceId,
+            item.key,
+            replyAction.id,
+            replyText.trim(),
+            replyAction.label
+          )
+        }
+      })
+      n.show()
+    } catch {
+      /* notifications unavailable */
+    }
+  })
+
+  server.on('incomingCall', (call: PhoneCallInfo) => {
+    if (!Notification.isSupported()) return
+    try {
+      const toast = new Notification({
+        title: 'Incoming phone call',
+        body: call.displayName || call.number || 'Unknown caller',
+        silent: false,
+        actions: [
+          { type: 'button' as const, text: 'Answer' },
+          { type: 'button' as const, text: 'Decline' }
+        ]
+      })
+      toast.on('click', () => showWindow())
+      toast.on('action', (_event, index) => {
+        if (index === 0) {
+          server.answerCall(call.id)
+        } else if (index === 1) {
+          server.rejectCall(call.id)
+        }
+      })
+      toast.show()
+    } catch {
+      /* notifications unavailable */
+    }
+  })
+
+  store.on('change', (state: AppState) => sendState(state))
+  store.on('gallery-thumbs', (items: Array<{ photoId: string; dataUrl: string }>) => {
+    win?.webContents.send('gallery:thumbs', items)
+  })
+  store.on('gallery-preview', (preview: GalleryPreview | null) => {
+    win?.webContents.send('gallery:preview', preview)
+  })
+  store.on(
+    'batteryLow',
+    (event: { deviceId: string; name: string; batteryLevel: number }) => {
+      if (!Notification.isSupported()) return
+      try {
+        const toast = new Notification({
+          title: 'Phone battery low',
+          body: `${event.name || 'Your phone'} is at ${event.batteryLevel}%. Plug it in.`,
+          silent: false
+        })
+        toast.on('click', () => showWindow())
+        toast.show()
+      } catch {
+        /* notifications unavailable */
+      }
+    }
+  )
+  watcher.start()
+
+  createWindow()
+  createTray()
+  registerIpc()
+  booted = true
+  if (sendIntentSeen || process.argv.includes(SEND_ARG)) {
+    handleSendIntent(parseSendPaths(process.argv))
+  } else if (sendQueue.length > 0) {
+    navigateTo('files')
+    scheduleSendDrain()
+  }
+  updater.start()
+
+  app.on('activate', () => showWindow())
+}
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'linkphone-media',
+    privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true }
+  }
+])
+
+function registerMediaProtocol(store: AppStore): void {
+  protocol.handle('linkphone-media', (request) => {
+    try {
+      const url = new URL(request.url)
+      if (url.host !== 'media') return new Response('Not found', { status: 404 })
+      const id = decodeURIComponent(url.pathname.replace(/^\/+/, ''))
+      const item = store.getTransfer(id)
+      if (!item || item.direction !== 'in' || item.status !== 'done' || !item.path) {
+        return new Response('Not found', { status: 404 })
+      }
+      const root = `${path.resolve(store.downloadsDir)}${path.sep}`
+      const real = fs.realpathSync(item.path)
+      if (!real.startsWith(root)) return new Response('Forbidden', { status: 403 })
+      const stat = fs.statSync(real)
+      if (!stat.isFile()) return new Response('Not found', { status: 404 })
+
+      const type = mimeForPath(real)
+      const headers: Record<string, string> = {
+        'Content-Type': type,
+        'Accept-Ranges': 'bytes',
+        'Cache-Control': 'no-store'
+      }
+      const range = request.headers.get('Range')
+      if (!range) {
+        return new Response(Readable.toWeb(fs.createReadStream(real)) as ReadableStream, {
+          status: 200,
+          headers: { ...headers, 'Content-Length': String(stat.size) }
+        })
+      }
+
+      const match = /^bytes=(\d*)-(\d*)$/.exec(range.trim())
+      if (!match) {
+        return new Response('Bad range', {
+          status: 416,
+          headers: { 'Content-Range': `bytes */${stat.size}` }
+        })
+      }
+      let start = match[1] ? Number(match[1]) : 0
+      let end = match[2] ? Number(match[2]) : stat.size - 1
+      if (!match[1] && match[2]) {
+        const suffix = Number(match[2])
+        start = Math.max(0, stat.size - suffix)
+        end = stat.size - 1
+      }
+      if (
+        !Number.isFinite(start) ||
+        !Number.isFinite(end) ||
+        start < 0 ||
+        end < start ||
+        start >= stat.size
+      ) {
+        return new Response('Bad range', {
+          status: 416,
+          headers: { 'Content-Range': `bytes */${stat.size}` }
+        })
+      }
+      end = Math.min(end, stat.size - 1)
+      return new Response(
+        Readable.toWeb(fs.createReadStream(real, { start, end })) as ReadableStream,
+        {
+          status: 206,
+          headers: {
+            ...headers,
+            'Content-Length': String(end - start + 1),
+            'Content-Range': `bytes ${start}-${end}/${stat.size}`
+          }
+        }
+      )
+    } catch {
+      return new Response('Not found', { status: 404 })
+    }
+  })
+}
+
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) {
+  app.quit()
+} else {
+  app.on('second-instance', (_event, argv) => {
+    if (argv.includes(SEND_ARG)) {
+      handleSendIntent(parseSendPaths(argv))
+    } else if (!argv.includes(HIDDEN_ARG)) {
+      showWindow()
+    }
+  })
+
+  void app.whenReady().then(bootstrap)
+
+  app.on('window-all-closed', () => {
+    // Stay resident in the tray on Windows/Linux.
+    if (process.platform === 'darwin') return
+  })
+
+  app.on('before-quit', () => {
+    quitting = true
+    store.flushChanges()
+    watcher?.stop()
+    updater?.stop()
+    advertisement?.stop()
+    server?.stop()
+  })
+}

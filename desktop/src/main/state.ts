@@ -1,0 +1,1541 @@
+import { EventEmitter } from 'node:events'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import crypto from 'node:crypto'
+import type {
+  AppState,
+  CallAccountInfo,
+  CallLogEntry,
+  DesktopUpdateState,
+  DeviceInfo,
+  GalleryAlbum,
+  GalleryPhoto,
+  GalleryPreview,
+  MutedApp,
+  NotificationItem,
+  NotificationRef,
+  PhoneCallInfo,
+  PhoneContact,
+  Platform,
+  RouteKind,
+  SmsActiveThread,
+  SmsMessage,
+  SmsThread,
+  SimInfo,
+  StorageEntry,
+  TransferItem
+} from '../shared/protocol'
+
+import { sanitizeDeviceName } from '../shared/device-name'
+
+export interface PairedDevice {
+  deviceId: string
+  name: string
+  platform: Platform
+  /** base64 AES-256 key */
+  key: string
+  pairedAt: number
+}
+
+interface Persisted {
+  serverId: string
+  serverName: string
+  paired: PairedDevice[]
+  clipboardEnabled: boolean
+  ringDurationMs: number
+  mutedNotifications: MutedApp[]
+  notificationsPausedUntil?: number
+}
+
+const MAX_NOTIFICATIONS = 200
+const MAX_TRANSFERS = 100
+const MAX_MUTED_APPS = 100
+export const RING_DURATIONS = [5_000, 10_000, 15_000, 30_000]
+
+function sanitizeRingDuration(value: unknown): number {
+  return typeof value === 'number' && RING_DURATIONS.includes(value) ? value : 15_000
+}
+
+/** Digits only (last 10), so two formats of one number collapse to the same call identity. */
+function callDigits(value: string): string {
+  const digits = value.replace(/\D/g, '')
+  return digits.length > 10 ? digits.slice(-10) : digits
+}
+
+function muteKey(pkg: string, app: string): string {
+  const trimmed = pkg.trim()
+  return trimmed || `app:${app.trim().toLowerCase()}`
+}
+
+/** Live notifications, hidden keys and pending cancels are all scoped per device. */
+export function notifId(deviceId: string, key: string): string {
+  return `${deviceId}\u0000${key}`
+}
+
+function sanitizeMuted(value: unknown): MutedApp[] {
+  if (!Array.isArray(value)) return []
+  const out: MutedApp[] = []
+  const seen = new Set<string>()
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') continue
+    const raw = entry as Record<string, unknown>
+    const pkg = typeof raw.pkg === 'string' ? raw.pkg.trim().slice(0, 128) : ''
+    const app = typeof raw.app === 'string' ? raw.app.trim().slice(0, 64) : ''
+    if (!pkg && !app) continue
+    const key = muteKey(pkg, app)
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({ pkg, app: app || pkg })
+    if (out.length >= MAX_MUTED_APPS) break
+  }
+  return out
+}
+
+export class AppStore extends EventEmitter {
+  private readonly file: string
+  private persisted: Persisted
+  readonly downloadsDir: string
+  private notifications: NotificationItem[] = []
+  private hiddenNotificationKeys = new Map<string, number>()
+  private pendingCancelKeys = new Set<string>()
+  private notificationHistory: NotificationItem[] = []
+  private readonly historyFile: string
+  private historySaveTimer: NodeJS.Timeout | null = null
+  private readonly smsLocalFile: string
+  private smsLocalThreads: SmsThread[] = []
+  private smsLocalMessages: Record<string, SmsMessage[]> = {}
+  private smsSaveTimer: NodeJS.Timeout | null = null
+  private transfers: TransferItem[] = []
+  private readonly transfersFile: string
+  private transfersSaveTimer: NodeJS.Timeout | null = null
+  private storageFiles: StorageEntry[] = []
+  private storageLoading = false
+  private storageError = ''
+  private storageCursor: string | undefined
+  private storageLimited = false
+  private storageGranted = true
+  private smsThreads: SmsThread[] = []
+  private smsActive: SmsActiveThread | null = null
+  private smsLoading = false
+  private galleryAlbums: GalleryAlbum[] = []
+  private galleryKinds: AppState['galleryKinds'] = ['image']
+  private galleryKind: AppState['galleryKind'] = 'image'
+  private galleryGranted = true
+  private galleryPartial = false
+  private galleryDownloads: AppState['galleryDownloads'] = {}
+  private galleryPhotos: GalleryPhoto[] = []
+  private galleryAlbumId: string | null = null
+  private galleryAlbumName = ''
+  private galleryNextOffset = 0
+  private galleryHasMore = false
+  private galleryLoading = false
+  private galleryThumbs: Record<string, string> = {}
+  private galleryPreview: GalleryPreview | null = null
+  private galleryError = ''
+  private desktopUpdate: DesktopUpdateState
+  private phoneCalls: PhoneCallInfo[] = []
+  private callDialerReady = false
+  private callOutgoingReady = false
+  private callControlReady = false
+  private callPlaced: { number: string; at: number } | null = null
+  private lastDialed: { number: string; at: number } | null = null
+  private callActiveSince = new Map<string, number>()
+  private callSpeaker = false
+  private callMuted = false
+  private callRoute: RouteKind = 'unknown'
+  private callError = ''
+  private media: AppState['media'] = null
+  private phoneContacts: PhoneContact[] = []
+  private contactsGranted = false
+  private contactsLoading = false
+  private phoneSims: SimInfo[] = []
+  private callAccounts: CallAccountInfo[] = []
+  private simsGranted = false
+  private simsLoading = false
+  private callHistory: CallLogEntry[] = []
+  private callLogGranted = false
+  private callLogLoading = false
+  private live = new Map<string, DeviceInfo>()
+  private ringTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  private addresses: string[] = []
+  private addresses6: string[] = []
+  private launchAtLogin = false
+  private launchAtLoginSupported = false
+  port = 0
+  pairingCode = ''
+  private changeTimer: NodeJS.Timeout | null = null
+  private pauseTimer: NodeJS.Timeout | null = null
+  private lowBatteryLatched = new Set<string>()
+  private notificationsPausedUntil = 0
+
+  constructor(dir: string, currentVersion = '') {
+    super()
+    this.file = path.join(dir, 'config.json')
+    this.historyFile = path.join(dir, 'notification-history.json')
+    this.smsLocalFile = path.join(dir, 'sms-local.json')
+    this.transfersFile = path.join(dir, 'transfers.json')
+    this.downloadsDir = path.join(os.homedir(), 'Downloads', 'LinkPhone')
+    fs.mkdirSync(this.downloadsDir, { recursive: true })
+    this.persisted = this.load(dir)
+    this.notificationHistory = this.loadNotificationHistory()
+    this.transfers = this.loadTransfers()
+    const smsLocal = this.loadSmsLocal()
+    this.smsLocalThreads = smsLocal.threads
+    this.smsLocalMessages = smsLocal.messages
+    this.smsThreads = [...smsLocal.threads]
+    this.desktopUpdate = { status: 'idle', currentVersion }
+    this.notificationsPausedUntil = this.persisted.notificationsPausedUntil ?? 0
+    this.schedulePauseExpiry()
+  }
+
+  private loadNotificationHistory(): NotificationItem[] {    try {
+      const raw = fs.readFileSync(this.historyFile, 'utf8')
+      const parsed = JSON.parse(raw) as unknown
+      if (!Array.isArray(parsed)) return []
+      const out: NotificationItem[] = []
+      for (const entry of parsed) {
+        if (!entry || typeof entry !== 'object') continue
+        const item = entry as Record<string, unknown>
+        if (typeof item.key !== 'string' || typeof item.app !== 'string') continue
+        out.push({
+          key: item.key.slice(0, 256),
+          app: item.app.slice(0, 64),
+          pkg: typeof item.pkg === 'string' ? item.pkg.slice(0, 128) : '',
+          title: typeof item.title === 'string' ? item.title.slice(0, 500) : '',
+          text: typeof item.text === 'string' ? item.text.slice(0, 4000) : '',
+          when: typeof item.when === 'number' ? item.when : Date.now(),
+          canReply: false,
+          actions: [],
+          deviceId: typeof item.deviceId === 'string' ? item.deviceId : '',
+          ongoing: item.ongoing === true
+        })
+        if (out.length >= 500) break
+      }
+      return out
+    } catch {
+      return []
+    }
+  }
+
+  private scheduleHistorySave(): void {
+    if (this.historySaveTimer) return
+    this.historySaveTimer = setTimeout(() => {
+      this.historySaveTimer = null
+      try {
+        fs.mkdirSync(path.dirname(this.historyFile), { recursive: true })
+        fs.writeFileSync(this.historyFile, JSON.stringify(this.notificationHistory, null, 2), 'utf8')
+      } catch {
+        /* ignore write failures, history stays in memory */
+      }
+    }, 1000)
+    this.historySaveTimer.unref()
+  }
+
+  private recordNotificationHistory(item: NotificationItem): void {
+    const existing = this.notificationHistory.find(
+      (entry) => entry.deviceId === item.deviceId && entry.key === item.key
+    )
+    const next: NotificationItem = {
+      ...item,
+      when: existing?.when ?? item.when,
+      actions: [],
+      canReply: false
+    }
+    this.notificationHistory = [
+      next,
+      ...this.notificationHistory.filter(
+        (entry) => !(entry.deviceId === item.deviceId && entry.key === item.key)
+      )
+    ].slice(0, 500)
+    this.scheduleHistorySave()
+  }
+
+  getNotificationHistory(): NotificationItem[] {
+    return this.notificationHistory.map((item) => ({ ...item }))
+  }
+
+  clearNotificationHistory(): void {
+    this.notificationHistory = []
+    this.scheduleHistorySave()
+  }
+
+  private loadSmsLocal(): { threads: SmsThread[]; messages: Record<string, SmsMessage[]> } {
+    try {
+      const raw = fs.readFileSync(this.smsLocalFile, 'utf8')
+      const parsed = JSON.parse(raw) as {
+        threads?: unknown
+        messages?: unknown
+      }
+      const threads: SmsThread[] = []
+      if (Array.isArray(parsed.threads)) {
+        for (const entry of parsed.threads.slice(0, 50)) {
+          if (!entry || typeof entry !== 'object') continue
+          const thread = entry as Record<string, unknown>
+          if (typeof thread.threadId !== 'string' || typeof thread.address !== 'string') continue
+          threads.push({
+            threadId: thread.threadId,
+            address: thread.address,
+            name: typeof thread.name === 'string' ? thread.name : undefined,
+            snippet: typeof thread.snippet === 'string' ? thread.snippet.slice(0, 160) : '',
+            date: typeof thread.date === 'number' ? thread.date : Date.now(),
+            count: typeof thread.count === 'number' ? thread.count : 1
+          })
+        }
+      }
+      const messages: Record<string, SmsMessage[]> = {}
+      if (parsed.messages && typeof parsed.messages === 'object') {
+        for (const [key, value] of Object.entries(parsed.messages as Record<string, unknown>)) {
+          if (!Array.isArray(value)) continue
+          messages[key] = value
+            .filter(
+              (item): item is SmsMessage =>
+                !!item &&
+                typeof item === 'object' &&
+                typeof (item as SmsMessage).id === 'string' &&
+                typeof (item as SmsMessage).body === 'string'
+            )
+            .map((item) => ({
+              ...item,
+              pending: false,
+              failed: Boolean(item.failed || item.pending)
+            }))
+            .slice(-200)
+        }
+      }
+      return { threads, messages }
+    } catch {
+      return { threads: [], messages: {} }
+    }
+  }
+
+  private scheduleSmsSave(): void {
+    if (this.smsSaveTimer) return
+    this.smsSaveTimer = setTimeout(() => {
+      this.smsSaveTimer = null
+      try {
+        fs.mkdirSync(path.dirname(this.smsLocalFile), { recursive: true })
+        fs.writeFileSync(
+          this.smsLocalFile,
+          JSON.stringify({ threads: this.smsLocalThreads, messages: this.smsLocalMessages }, null, 2),
+          'utf8'
+        )
+      } catch {
+        /* ignore write failures, SMS cache stays in memory */
+      }
+    }, 1000)
+    this.smsSaveTimer.unref()
+  }
+
+  private recordLocalSms(message: SmsMessage): void {
+    const key = `addr:${message.address.trim()}`
+    const existing = this.smsLocalMessages[key] ?? []
+    this.smsLocalMessages[key] = existing.some((item) => item.id === message.id)
+      ? existing.map((item) => (item.id === message.id ? message : item))
+      : [...existing, message].slice(-200)
+    if (message.threadId.startsWith('addr:')) {
+      const thread: SmsThread = {
+        threadId: message.threadId,
+        address: message.address,
+        name: message.name,
+        snippet: message.body.slice(0, 160),
+        date: message.date,
+        count: this.smsLocalMessages[key].length,
+        subscriptionId: message.subscriptionId,
+        simLabel: message.simLabel
+      }
+      this.smsLocalThreads = [
+        thread,
+        ...this.smsLocalThreads.filter((item) => item.threadId !== thread.threadId)
+      ].slice(0, 50)
+    }
+    this.scheduleSmsSave()
+  }
+
+  localSmsMessages(address: string): SmsMessage[] {
+    return [...(this.smsLocalMessages[`addr:${address.trim()}`] ?? [])]
+  }
+
+  private load(dir: string): Persisted {
+    try {
+      const raw = fs.readFileSync(this.file, 'utf8')
+      const parsed = JSON.parse(raw) as Partial<Persisted>
+      return {
+        serverId: parsed.serverId ?? crypto.randomUUID(),
+        serverName: parsed.serverName ?? os.hostname(),
+        paired: Array.isArray(parsed.paired) ? parsed.paired : [],
+        clipboardEnabled: parsed.clipboardEnabled ?? true,
+        ringDurationMs: sanitizeRingDuration(parsed.ringDurationMs),
+        mutedNotifications: sanitizeMuted(parsed.mutedNotifications),
+        notificationsPausedUntil:
+          typeof parsed.notificationsPausedUntil === 'number'
+            ? Math.max(0, parsed.notificationsPausedUntil)
+            : 0
+      }
+    } catch {
+      const fresh: Persisted = {
+        serverId: crypto.randomUUID(),
+        serverName: os.hostname() || 'This PC',
+        paired: [],
+        clipboardEnabled: true,
+        ringDurationMs: 15_000,
+        mutedNotifications: [],
+        notificationsPausedUntil: 0
+      }
+      try {
+        fs.mkdirSync(dir, { recursive: true })
+        fs.writeFileSync(this.file, JSON.stringify(fresh, null, 2), 'utf8')
+      } catch {
+        /* first run on a read-only profile - kept in memory */
+      }
+      return fresh
+    }
+  }
+
+  private save(): void {
+    try {
+      fs.mkdirSync(path.dirname(this.file), { recursive: true })
+      fs.writeFileSync(this.file, JSON.stringify(this.persisted, null, 2), 'utf8')
+    } catch {
+      /* ignore write failures, state stays in memory */
+    }
+  }
+
+  get serverId(): string {
+    return this.persisted.serverId
+  }
+
+  get serverName(): string {
+    return this.persisted.serverName
+  }
+
+  get clipboardEnabled(): boolean {
+    return this.persisted.clipboardEnabled
+  }
+
+  setClipboardEnabled(enabled: boolean): void {
+    this.persisted.clipboardEnabled = enabled
+    this.save()
+    this.changed()
+  }
+
+  get ringDurationMs(): number {
+    return this.persisted.ringDurationMs
+  }
+
+  setRingDurationMs(value: number): void {
+    const next = sanitizeRingDuration(value)
+    if (next === this.persisted.ringDurationMs) return
+    this.persisted.ringDurationMs = next
+    this.save()
+    this.changed()
+  }
+
+  setLaunchAtLogin(enabled: boolean, supported: boolean): void {
+    if (this.launchAtLogin === enabled && this.launchAtLoginSupported === supported) return
+    this.launchAtLogin = enabled
+    this.launchAtLoginSupported = supported
+    this.changed()
+  }
+
+  findPaired(deviceId: string): PairedDevice | undefined {
+    return this.persisted.paired.find((d) => d.deviceId === deviceId)
+  }
+
+  addPaired(device: PairedDevice): void {
+    this.persisted.paired = this.persisted.paired.filter((d) => d.deviceId !== device.deviceId)
+    this.persisted.paired.push(device)
+    this.save()
+    this.changed()
+  }
+
+  forget(deviceId: string): void {
+    this.persisted.paired = this.persisted.paired.filter((d) => d.deviceId !== deviceId)
+    this.live.delete(deviceId)
+    this.lowBatteryLatched.delete(deviceId)
+    this.clearRingTimer(deviceId)
+    this.save()
+    this.changed()
+  }
+
+  setAddresses(addresses: string[]): void {
+    this.addresses = addresses
+    this.changed()
+  }
+
+  setAddresses6(addresses: string[]): void {
+    this.addresses6 = addresses
+    this.changed()
+  }
+
+  setPort(port: number): void {
+    this.port = port
+    this.changed()
+  }
+
+  setPairingCode(code: string): void {
+    this.pairingCode = code
+    this.changed()
+  }
+
+  pauseNotifications(until: number): void {
+    const value = Math.max(0, Math.floor(until))
+    this.notificationsPausedUntil = value
+    this.persisted.notificationsPausedUntil = value
+    this.save()
+    this.schedulePauseExpiry()
+    this.changed()
+  }
+
+  resumeNotifications(): void {
+    this.pauseNotifications(0)
+  }
+
+  isNotificationsPaused(): boolean {
+    return this.notificationsPausedUntil > Date.now()
+  }
+
+  private schedulePauseExpiry(): void {
+    if (this.pauseTimer) {
+      clearTimeout(this.pauseTimer)
+      this.pauseTimer = null
+    }
+    const remaining = this.notificationsPausedUntil - Date.now()
+    if (remaining <= 0) return
+    const timer = setTimeout(() => {
+      this.pauseTimer = null
+      this.changed()
+    }, remaining + 250)
+    timer.unref?.()
+    this.pauseTimer = timer
+  }
+
+  markConnected(device: DeviceInfo): void {
+    const current = this.live.get(device.deviceId)
+    this.live.set(device.deviceId, {
+      ...current,
+      ...device,
+      connected: true,
+      lastSeen: Date.now()
+    })
+    this.changed()
+  }
+
+  setPairedName(deviceId: string, name: string): void {
+    const clean = sanitizeDeviceName(name)
+    if (!clean) return
+    const paired = this.persisted.paired.find((device) => device.deviceId === deviceId)
+    const live = this.live.get(deviceId)
+    if (live && live.name !== clean) {
+      this.live.set(deviceId, { ...live, name: clean })
+    }
+    if (paired && paired.name !== clean) {
+      paired.name = clean
+      this.save()
+      this.changed()
+    }
+  }
+
+  updateDeviceStatus(deviceId: string, batteryLevel: number, charging: boolean): void {
+    const current = this.live.get(deviceId)
+    if (!current) return
+    const level = Math.max(0, Math.min(100, Math.round(batteryLevel)))
+    this.live.set(deviceId, {
+      ...current,
+      batteryLevel: level,
+      charging
+    })
+    if (charging || level >= 20) {
+      this.lowBatteryLatched.delete(deviceId)
+    } else if (level <= 15 && current.connected && !this.lowBatteryLatched.has(deviceId)) {
+      this.lowBatteryLatched.add(deviceId)
+      this.emit('batteryLow', {
+        deviceId,
+        name: current.name,
+        batteryLevel: level
+      })
+    }
+    this.changed()
+  }
+
+  setRinging(deviceId: string, ringing: boolean): void {
+    const current = this.live.get(deviceId)
+    if (!current || current.ringing === ringing) return
+    this.clearRingTimer(deviceId)
+    if (ringing) {
+      const timer = setTimeout(() => this.setRinging(deviceId, false), 31_000)
+      timer.unref?.()
+      this.ringTimers.set(deviceId, timer)
+    }
+    this.live.set(deviceId, { ...current, ringing })
+    this.changed()
+  }
+
+  private clearRingTimer(deviceId: string): void {
+    const timer = this.ringTimers.get(deviceId)
+    if (!timer) return
+    clearTimeout(timer)
+    this.ringTimers.delete(deviceId)
+  }
+
+  markDisconnected(deviceId: string): void {
+    this.clearRingTimer(deviceId)
+    this.lowBatteryLatched.delete(deviceId)
+    this.storageFiles = []
+    this.storageLoading = false
+    this.storageError = ''
+    this.storageCursor = undefined
+    this.storageLimited = false
+    this.storageGranted = true
+    this.galleryAlbums = []
+    this.galleryPhotos = []
+    this.galleryThumbs = {}
+    this.galleryPreview = null
+    this.galleryError = ''
+    this.galleryGranted = true
+    this.galleryPartial = false
+    const current = this.live.get(deviceId)
+    if (current) {
+      this.live.set(deviceId, {
+        ...current,
+        connected: false,
+        ringing: false,
+        lastSeen: Date.now()
+      })
+    }
+    this.changed()
+  }
+
+  addNotification(item: NotificationItem): boolean {
+    const id = notifId(item.deviceId, item.key)
+    const hiddenAt = this.hiddenNotificationKeys.get(id)
+    if (hiddenAt !== undefined) {
+      // Keep ongoing/progress items hidden, but let a genuinely newer post that reuses the key
+      // (a new message in the same chat) surface again.
+      if (item.ongoing === true || item.when <= hiddenAt) {
+        console.warn('[notif] suppressed hidden key', item.pkg, item.key)
+        return false
+      }
+      this.hiddenNotificationKeys.delete(id)
+    }
+    this.recordNotificationHistory(item)
+    const index = this.notifications.findIndex(
+      (n) => n.deviceId === item.deviceId && n.key === item.key
+    )
+    if (index >= 0) {
+      this.notifications = this.notifications.map((n, i) =>
+        i === index ? { ...item, when: n.when } : n
+      )
+      this.changed()
+      return false
+    }
+    this.notifications = [item, ...this.notifications].slice(0, MAX_NOTIFICATIONS)
+    this.changed()
+    return true
+  }
+
+  private hideNotification(deviceId: string, key: string): void {
+    this.hiddenNotificationKeys.set(notifId(deviceId, key), Date.now())
+    if (this.hiddenNotificationKeys.size > 500) {
+      const oldest = this.hiddenNotificationKeys.keys().next().value
+      if (oldest !== undefined) this.hiddenNotificationKeys.delete(oldest)
+    }
+  }
+
+  private notePendingCancel(refs: NotificationRef[]): void {
+    for (const ref of refs) {
+      this.pendingCancelKeys.add(notifId(ref.deviceId, ref.key))
+      if (this.pendingCancelKeys.size > 500) {
+        const oldest = this.pendingCancelKeys.values().next().value
+        if (oldest !== undefined) this.pendingCancelKeys.delete(oldest)
+      }
+    }
+  }
+
+  dismissNotification(deviceId: string, key: string): void {
+    this.notePendingCancel([{ deviceId, key }])
+    this.hideNotification(deviceId, key)
+    this.notifications = this.notifications.filter(
+      (n) => !(n.deviceId === deviceId && n.key === key)
+    )
+    this.changed()
+  }
+
+  phoneNotificationDismissed(deviceId: string, key: string): void {
+    const id = notifId(deviceId, key)
+    const cancelledByPc = this.pendingCancelKeys.delete(id)
+    if (!cancelledByPc) this.hiddenNotificationKeys.delete(id)
+    this.notifications = this.notifications.filter(
+      (n) => !(n.deviceId === deviceId && n.key === key)
+    )
+    this.changed()
+  }
+
+  clearNotifications(): NotificationRef[] {
+    const refs = this.notifications.map((item) => ({
+      deviceId: item.deviceId,
+      key: item.key
+    }))
+    this.notePendingCancel(refs)
+    for (const ref of refs) this.hideNotification(ref.deviceId, ref.key)
+    this.notifications = []
+    this.changed()
+    return refs
+  }
+
+  isNotificationMuted(pkg: string, app: string): boolean {
+    const key = muteKey(pkg, app)
+    return this.persisted.mutedNotifications.some(
+      (entry) => muteKey(entry.pkg, entry.app) === key
+    )
+  }
+
+  setNotificationMuted(pkg: string, app: string, muted: boolean): void {
+    const key = muteKey(pkg, app)
+    const list = this.persisted.mutedNotifications
+    const exists = list.some((entry) => muteKey(entry.pkg, entry.app) === key)
+    let dirty = false
+    if (muted) {
+      if (!exists) {
+        const label = app.trim().slice(0, 64) || pkg.trim().slice(0, 128)
+        this.persisted.mutedNotifications = [
+          ...list,
+          { pkg: pkg.trim().slice(0, 128), app: label }
+        ].slice(0, 100)
+        dirty = true
+      }
+      if (this.removeNotificationsForApp(pkg, app)) dirty = true
+    } else {
+      if (!exists) return
+      this.persisted.mutedNotifications = list.filter(
+        (entry) => muteKey(entry.pkg, entry.app) !== key
+      )
+      dirty = true
+    }
+    if (!dirty) return
+    this.save()
+    this.changed()
+  }
+
+  clearNotificationsForApp(pkg: string, app: string): NotificationRef[] {
+    const key = muteKey(pkg, app)
+    const refs = this.notifications
+      .filter((item) => muteKey(item.pkg, item.app) === key)
+      .map((item) => ({ deviceId: item.deviceId, key: item.key }))
+    this.notePendingCancel(refs)
+    if (this.removeNotificationsForApp(pkg, app)) this.changed()
+    return refs
+  }
+
+  private removeNotificationsForApp(pkg: string, app: string): boolean {
+    const key = muteKey(pkg, app)
+    const ids = new Set<string>()
+    for (const item of this.notifications) {
+      if (muteKey(item.pkg, item.app) === key) ids.add(notifId(item.deviceId, item.key))
+    }
+    if (ids.size === 0) return false
+    for (const item of this.notifications) {
+      if (ids.has(notifId(item.deviceId, item.key))) {
+        this.hideNotification(item.deviceId, item.key)
+      }
+    }
+    this.notifications = this.notifications.filter(
+      (item) => !ids.has(notifId(item.deviceId, item.key))
+    )
+    return true
+  }
+
+  upsertTransfer(item: TransferItem): void {
+    const idx = this.transfers.findIndex((t) => t.id === item.id)
+    if (idx >= 0) this.transfers[idx] = item
+    else this.transfers = [item, ...this.transfers].slice(0, MAX_TRANSFERS)
+    this.saveTransfers()
+    this.changed()
+  }
+
+  patchTransfer(id: string, patch: Partial<TransferItem>): void {
+    const idx = this.transfers.findIndex((t) => t.id === id)
+    if (idx < 0) return
+    this.transfers[idx] = { ...this.transfers[idx], ...patch }
+    this.saveTransfers()
+    this.changed()
+  }
+
+  getTransfer(id: string): TransferItem | undefined {
+    return this.transfers.find((item) => item.id === id)
+  }
+
+  interruptTransfersForDevice(deviceId: string): void {
+    let touched = false
+    this.transfers = this.transfers.map((item) => {
+      if (
+        item.deviceId !== deviceId ||
+        item.direction !== 'out' ||
+        (item.status !== 'active' && item.status !== 'pending')
+      ) {
+        return item
+      }
+      touched = true
+      return {
+        ...item,
+        status: 'interrupted',
+        error: 'connection lost',
+        resumeOffset: item.received
+      }
+    })
+    if (touched) {
+      this.saveTransfers()
+      this.changed()
+    }
+  }
+
+  setStorageLoading(loading: boolean): void {
+    this.storageLoading = loading
+    if (loading) this.storageError = ''
+    this.changed()
+  }
+
+  setStorageFiles(
+    entries: StorageEntry[],
+    limited: boolean,
+    granted: boolean,
+    nextCursor?: string
+  ): void {
+    this.storageFiles = entries
+    this.storageLimited = limited
+    this.storageGranted = granted
+    this.storageCursor = nextCursor
+    this.storageLoading = false
+    this.storageError = ''
+    this.changed()
+  }
+
+  setStorageError(error: string): void {
+    this.storageError = error
+    this.storageLoading = false
+    this.changed()
+  }
+
+  isStorageLoading(): boolean {
+    return this.storageLoading
+  }
+
+  resetStorage(): void {
+    this.storageFiles = []
+    this.storageLoading = false
+    this.storageError = ''
+    this.storageCursor = undefined
+    this.storageLimited = false
+    this.storageGranted = true
+    this.changed()
+  }
+
+  private loadTransfers(): TransferItem[] {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(this.transfersFile, 'utf8')) as unknown
+      const items =
+        parsed && typeof parsed === 'object' && Array.isArray((parsed as { items?: unknown }).items)
+          ? ((parsed as { items: unknown[] }).items)
+          : []
+      const out: TransferItem[] = []
+      for (const raw of items.slice(0, MAX_TRANSFERS)) {
+        if (!raw || typeof raw !== 'object') continue
+        const item = raw as Partial<TransferItem>
+        if (typeof item.id !== 'string' || !item.id) continue
+        const status: TransferItem['status'] =
+          item.status === 'done'
+            ? 'done'
+            : item.status === 'failed'
+              ? 'failed'
+              : item.status === 'declined'
+                ? 'declined'
+                : item.status === 'canceled'
+                  ? 'canceled'
+                  : 'interrupted'
+        out.push({
+          id: item.id,
+          name: typeof item.name === 'string' ? item.name.slice(0, 240) : 'file',
+          size: Math.max(0, Number(item.size) || 0),
+          received: Math.max(0, Number(item.received) || 0),
+          direction: item.direction === 'out' ? 'out' : 'in',
+          status,
+          path: typeof item.path === 'string' ? item.path : undefined,
+          error:
+            status === 'interrupted'
+              ? 'LinkPhone closed'
+              : typeof item.error === 'string'
+                ? item.error
+                : undefined,
+          deviceId: typeof item.deviceId === 'string' ? item.deviceId : '',
+          startedAt: Number(item.startedAt) || Date.now(),
+          target:
+            item.target === 'videos'
+              ? 'videos'
+              : item.target === 'pictures'
+                ? 'pictures'
+                : item.target === 'downloads'
+                  ? 'downloads'
+                  : undefined,
+          sourcePath: typeof item.sourcePath === 'string' ? item.sourcePath : undefined,
+          resumeOffset: Number(item.resumeOffset) || undefined,
+          mtimeMs: Number(item.mtimeMs) || undefined,
+          photoId: typeof item.photoId === 'string' ? item.photoId : undefined,
+          mediaKind:
+            item.mediaKind === 'video'
+              ? 'video'
+              : item.mediaKind === 'image'
+                ? 'image'
+                : undefined
+        })
+      }
+      return out
+    } catch {
+      return []
+    }
+  }
+
+  private saveTransfers(): void {
+    if (this.transfersSaveTimer) clearTimeout(this.transfersSaveTimer)
+    this.transfersSaveTimer = setTimeout(() => {
+      this.transfersSaveTimer = null
+      try {
+        fs.writeFileSync(
+          this.transfersFile,
+          JSON.stringify({ version: 1, items: this.transfers })
+        )
+      } catch {
+        /* ignore */
+      }
+    }, 1000)
+  }
+
+  /* ---------------- SMS ---------------- */
+
+  setSmsLoading(loading: boolean): void {
+    this.smsLoading = loading
+    this.changed()
+  }
+
+  setSmsThreads(threads: SmsThread[]): void {
+    const phoneAddresses = new Set(threads.map((thread) => thread.address.trim()))
+    const localOnly = this.smsLocalThreads.filter(
+      (thread) => !phoneAddresses.has(thread.address.trim())
+    )
+    this.smsThreads = [...threads, ...localOnly]
+      .sort((left, right) => right.date - left.date)
+      .slice(0, 80)
+    this.smsLoading = false
+    this.changed()
+  }
+
+  smsThreadName(threadId: string): string | undefined {
+    return this.smsThreads.find((thread) => thread.threadId === threadId)?.name
+  }
+
+  openSmsThread(active: SmsActiveThread | null): void {
+    if (active) {
+      const local = this.localSmsMessages(active.address)
+      if (local.length > 0) {
+        const ids = new Set(active.messages.map((message) => message.id))
+        const provider = active.messages
+        const fresh = local.filter((message) => {
+          if (ids.has(message.id)) return false
+          return !provider.some(
+            (entry) =>
+              entry.address === message.address &&
+              entry.body === message.body &&
+              Math.abs(entry.date - message.date) < 15_000
+          )
+        })
+        active = {
+          ...active,
+          messages: [...active.messages, ...fresh].sort((left, right) => left.date - right.date)
+        }
+      }
+      if (!active.name) {
+        const name = this.smsThreadName(active.threadId)
+        if (name) active = { ...active, name }
+      }
+    }
+    this.smsActive = active
+    if (!active) this.smsLoading = false
+    this.changed()
+  }
+
+  appendSmsMessage(message: SmsMessage): void {
+    this.recordLocalSms(message)
+    if (this.smsActive && this.smsActive.threadId === message.threadId) {
+      const exists = this.smsActive.messages.some((m) => m.id === message.id)
+      this.smsActive = {
+        ...this.smsActive,
+        name: this.smsActive.name || message.name,
+        messages: exists
+          ? this.smsActive.messages
+          : [...this.smsActive.messages, message].sort((a, b) => a.date - b.date)
+      }
+    }
+
+    const thread = this.smsThreads.find((t) => t.threadId === message.threadId)
+    if (thread) {
+      const next: SmsThread = {
+        ...thread,
+        snippet: message.body.slice(0, 160),
+        date: Math.max(thread.date, message.date),
+        count: thread.count,
+        address: thread.address || message.address,
+        name: thread.name || message.name
+      }
+      this.smsThreads = [next, ...this.smsThreads.filter((t) => t.threadId !== thread.threadId)]
+    } else {
+      this.smsThreads = [
+        {
+          threadId: message.threadId,
+          address: message.address,
+          name: message.name,
+          snippet: message.body.slice(0, 160),
+          date: message.date,
+          count: 1
+        },
+        ...this.smsThreads
+      ]
+    }
+    this.changed()
+  }
+
+  markSmsResult(tempId: string, ok: boolean): void {
+    let mutated = false
+    for (const list of Object.values(this.smsLocalMessages)) {
+      const found = list.find((message) => message.id === tempId)
+      if (found) {
+        if (found.pending) {
+          this.recordLocalSms({ ...found, pending: false, failed: !ok })
+          mutated = true
+        }
+        break
+      }
+    }
+    if (this.smsActive) {
+      const target = this.smsActive.messages.find((message) => message.id === tempId)
+      if (target?.pending) {
+        this.smsActive = {
+          ...this.smsActive,
+          messages: this.smsActive.messages.map((message) =>
+            message.id === tempId ? { ...message, pending: false, failed: !ok } : message
+          )
+        }
+        const updated = this.smsActive.messages.find((message) => message.id === tempId)
+        if (updated) this.recordLocalSms(updated)
+        mutated = true
+      }
+    }
+    if (mutated) this.changed()
+  }
+
+  markSmsRetried(id: string): void {
+    let mutated = false
+    for (const list of Object.values(this.smsLocalMessages)) {
+      const found = list.find((message) => message.id === id)
+      if (found) {
+        this.recordLocalSms({ ...found, pending: false, failed: true, retried: true })
+        mutated = true
+        break
+      }
+    }
+    if (this.smsActive) {
+      const target = this.smsActive.messages.find((message) => message.id === id)
+      if (target) {
+        this.smsActive = {
+          ...this.smsActive,
+          messages: this.smsActive.messages.map((message) =>
+            message.id === id
+              ? { ...message, pending: false, failed: true, retried: true }
+              : message
+          )
+        }
+        mutated = true
+      }
+    }
+    if (mutated) this.changed()
+  }
+
+  findSmsMessage(id: string): SmsMessage | undefined {
+    if (this.smsActive) {
+      const active = this.smsActive.messages.find((message) => message.id === id)
+      if (active) return active
+    }
+    for (const list of Object.values(this.smsLocalMessages)) {
+      const found = list.find((message) => message.id === id)
+      if (found) return found
+    }
+    return undefined
+  }
+
+  /* ---------------- Gallery ---------------- */
+
+  requestGalleryAlbums(kind?: AppState['galleryKind']): void {
+    if (kind && kind !== this.galleryKind) {
+      this.galleryKind = kind
+      this.galleryAlbums = []
+      this.galleryPhotos = []
+      this.galleryThumbs = {}
+      this.galleryPreview = null
+      this.galleryError = ''
+      this.galleryGranted = true
+      this.galleryPartial = false
+    } else if (kind) {
+      this.galleryKind = kind
+    }
+    this.galleryLoading = true
+    this.galleryError = ''
+    this.galleryPreview = null
+    this.changed()
+  }
+
+  setGalleryKinds(kinds: AppState['galleryKinds']): void {
+    this.galleryKinds = kinds.length > 0 ? kinds : ['image']
+    if (!this.galleryKinds.includes(this.galleryKind)) {
+      this.galleryKind = this.galleryKinds[0]
+      this.galleryPhotos = []
+      this.galleryThumbs = {}
+      this.galleryPreview = null
+    }
+    this.changed()
+  }
+
+  isGalleryKind(kind: string): boolean {
+    return kind === this.galleryKind
+  }
+
+  setGalleryAccess(granted: boolean, partial: boolean): void {
+    this.galleryGranted = granted
+    this.galleryPartial = partial
+    this.changed()
+  }
+
+  setGalleryDownload(key: string, state: AppState['galleryDownloads'][string]): void {
+    this.galleryDownloads = { ...this.galleryDownloads, [key]: state }
+    this.changed()
+  }
+
+  ensureIncomingTransfer(item: TransferItem): void {
+    if (this.transfers.some((transfer) => transfer.id === item.id)) {
+      this.patchTransfer(item.id, item)
+      return
+    }
+    this.transfers = [item, ...this.transfers].slice(0, MAX_TRANSFERS)
+    this.saveTransfers()
+    this.changed()
+  }
+
+  setGalleryAlbums(albums: GalleryAlbum[]): void {
+    this.galleryAlbums = albums
+    this.galleryPhotos = []
+    this.galleryAlbumId = null
+    this.galleryAlbumName = ''
+    this.galleryNextOffset = 0
+    this.galleryHasMore = false
+    this.galleryLoading = false
+    this.galleryError = ''
+    this.galleryPreview = null
+    this.changed()
+  }
+
+  openGalleryAlbum(albumId: string, name: string): void {
+    this.galleryAlbumId = albumId
+    this.galleryAlbumName = name
+    this.galleryPhotos = []
+    this.galleryNextOffset = 0
+    this.galleryHasMore = false
+    this.galleryLoading = true
+    this.galleryError = ''
+    this.galleryPreview = null
+    this.changed()
+  }
+
+  closeGalleryAlbum(): void {
+    this.galleryAlbumId = null
+    this.galleryAlbumName = ''
+    this.galleryPhotos = []
+    this.galleryNextOffset = 0
+    this.galleryHasMore = false
+    this.galleryLoading = false
+    this.galleryPreview = null
+    this.changed()
+  }
+
+  setGalleryLoading(loading: boolean): void {
+    this.galleryLoading = loading
+    this.changed()
+  }
+
+  appendGalleryPhotos(
+    albumId: string,
+    kind: AppState['galleryKind'],
+    offset: number,
+    photos: GalleryPhoto[],
+    hasMore: boolean
+  ): void {
+    if (kind !== this.galleryKind) return
+    if (this.galleryAlbumId !== albumId) return
+    if (offset === 0) {
+      this.galleryPhotos = photos
+    } else {
+      const known = new Set(this.galleryPhotos.map((photo) => photo.id))
+      this.galleryPhotos = [...this.galleryPhotos, ...photos.filter((photo) => !known.has(photo.id))]
+    }
+    this.galleryNextOffset = offset + photos.length
+    this.galleryHasMore = hasMore
+    this.galleryLoading = false
+    this.galleryError = ''
+    this.changed()
+  }
+
+  addGalleryThumbs(items: Array<{ photoId: string; dataUrl: string }>): void {
+    for (const item of items) this.galleryThumbs[item.photoId] = item.dataUrl
+    const keys = Object.keys(this.galleryThumbs)
+    if (keys.length > 500) {
+      for (const key of keys.slice(0, keys.length - 500)) delete this.galleryThumbs[key]
+    }
+    this.emit('gallery-thumbs', items)
+  }
+
+  openGalleryPreview(photoId: string, name: string): void {
+    this.galleryPreview = { photoId, name, dataUrl: '', loading: true }
+    this.galleryError = ''
+    this.emit('gallery-preview', this.galleryPreview)
+    this.changed()
+  }
+
+  setGalleryPreview(photoId: string, dataUrl: string): void {
+    if (!this.galleryPreview || this.galleryPreview.photoId !== photoId) return
+    this.galleryPreview = { ...this.galleryPreview, dataUrl, loading: false, error: undefined }
+    this.emit('gallery-preview', this.galleryPreview)
+  }
+
+  closeGalleryPreview(): void {
+    this.galleryPreview = null
+    this.emit('gallery-preview', null)
+  }
+
+  setGalleryError(error: string): void {
+    this.galleryLoading = false
+    this.galleryError = error
+    if (this.galleryPreview?.loading) {
+      this.galleryPreview = { ...this.galleryPreview, loading: false, error }
+      this.emit('gallery-preview', this.galleryPreview)
+    }
+    this.changed()
+  }
+
+  setDesktopUpdate(patch: Partial<DesktopUpdateState>): void {
+    this.desktopUpdate = { ...this.desktopUpdate, ...patch }
+    this.changed()
+  }
+
+  setCallState(input: {
+    calls: PhoneCallInfo[]
+    dialerReady: boolean
+    outgoingReady: boolean
+    controlReady: boolean
+    speaker: boolean
+    muted: boolean
+    route?: RouteKind
+  }): void {
+    const now = Date.now()
+    const previousCalls = this.phoneCalls
+    const previousById = new Map(previousCalls.map((call) => [call.id, call]))
+    const stamps = new Map<string, number>()
+    // Defence in depth: an older APK could still report the same call twice under different ids.
+    const unique: PhoneCallInfo[] = []
+    const identities = new Set<string>()
+    for (const call of input.calls) {
+      const identity = `${call.slot ?? ''}|${callDigits(call.number)}|${call.displayName}|${
+        call.incoming ? 'in' : 'out'
+      }|${call.phase}`
+      if (identities.has(identity)) continue
+      identities.add(identity)
+      unique.push(call)
+    }
+    // An incoming call means the last dialed number is irrelevant from now on.
+    if (unique.some((call) => call.incoming)) this.lastDialed = null
+
+    const calls = unique.map((call) => {
+      const key = AppStore.callKey(call)
+      const activeSince = this.liveCallStamp(call, key, previousCalls, unique.length, stamps, now)
+      if (activeSince !== undefined) stamps.set(key, activeSince)
+
+      const earlier = previousById.get(call.id)
+      let number = call.number
+      if (!number && earlier?.number) number = earlier.number
+      // The fallback call report can arrive without a number, and its id can change mid-call.
+      if (!number && !call.incoming && this.lastDialed && now - this.lastDialed.at < 90_000) {
+        number = this.lastDialed.number
+      }
+      const displayName = call.displayName || earlier?.displayName || ''
+
+      return { ...call, number, displayName, activeSince }
+    })
+
+    this.callActiveSince = stamps
+    this.phoneCalls = calls
+    this.callDialerReady = input.dialerReady
+    this.callOutgoingReady = input.outgoingReady
+    this.callControlReady = input.controlReady
+    this.callRoute = input.route ?? (input.speaker ? 'speaker' : 'unknown')
+    if (calls.length > 0 || previousCalls.length > 0) this.callPlaced = null
+    this.callSpeaker = input.speaker
+    this.callMuted = input.muted
+    // Keep a failed control visible; only an empty call list clears it.
+    if (calls.length === 0) this.callError = ''
+    this.changed()
+  }
+
+  /**
+   * The phone's timestamps come from its own clock and start at dial time, so the live timer is
+   * stamped here instead: once when the call is first seen active or held, then carried.
+   */
+  private liveCallStamp(
+    call: PhoneCallInfo,
+    key: string,
+    previousCalls: PhoneCallInfo[],
+    nextCount: number,
+    stamps: Map<string, number>,
+    now: number
+  ): number | undefined {
+    const existing = stamps.get(key) ?? this.callActiveSince.get(key)
+    if (call.phase !== 'active' && call.phase !== 'held') {
+      return call.phase === 'disconnecting' || call.phase === 'disconnected'
+        ? existing
+        : undefined
+    }
+    if (existing !== undefined) return existing
+    // The synthetic id changes between the dialer notification and telephony; one call in and
+    // one call out keeps the original timestamp.
+    if (previousCalls.length === 1 && nextCount === 1) {
+      const previous = previousCalls[0]
+      if ((previous.phase === 'active' || previous.phase === 'held') &&
+        (!call.slot || !previous.slot || call.slot === previous.slot)
+      ) {
+        const carried = this.callActiveSince.get(AppStore.callKey(previous))
+        if (carried !== undefined) return carried
+      }
+    }
+    return now
+  }
+
+  private static callKey(call: PhoneCallInfo): string {
+    if (call.slot) return `${call.slot}:${call.id || call.number}`
+    return call.id || `${call.number}:${call.incoming ? 'in' : 'out'}`
+  }
+  setCallError(error: string): void {
+    this.callError = error
+    this.changed()
+  }
+
+  dismissCallError(): void {
+    if (!this.callError) return
+    this.callError = ''
+    this.changed()
+  }
+
+  setMedia(media: AppState['media']): void {
+    const next = media && media.title.length > 0 ? media : null
+    if (JSON.stringify(next) === JSON.stringify(this.media)) return
+    this.media = next
+    this.changed()
+  }
+
+  setCallPlaced(number: string | null): void {
+    this.callPlaced = number ? { number, at: Date.now() } : null
+    if (number) this.lastDialed = { number, at: Date.now() }
+    this.changed()
+  }
+
+  dismissCallPlaced(): void {
+    if (!this.callPlaced) return
+    this.callPlaced = null
+    this.changed()
+  }
+
+  /* ---------------- Contacts and call history ---------------- */
+
+  setContactsLoading(loading: boolean): void {
+    if (this.contactsLoading === loading) return
+    this.contactsLoading = loading
+    this.changed()
+  }
+
+  setPhoneContacts(contacts: PhoneContact[], granted: boolean): void {
+    this.phoneContacts = contacts
+    this.contactsGranted = granted
+    this.contactsLoading = false
+    this.changed()
+  }
+
+  setCallLogLoading(loading: boolean): void {
+    if (this.callLogLoading === loading) return
+    this.callLogLoading = loading
+    this.changed()
+  }
+
+  setCallHistory(entries: CallLogEntry[], granted: boolean): void {
+    this.callHistory = entries
+    this.callLogGranted = granted
+    this.callLogLoading = false
+    this.changed()
+  }
+
+  setSimsLoading(loading: boolean): void {
+    if (this.simsLoading === loading) return
+    this.simsLoading = loading
+    this.changed()
+  }
+
+  setSims(sms: SimInfo[], call: CallAccountInfo[], granted: boolean): void {
+    this.phoneSims = sms
+    this.callAccounts = call
+    this.simsGranted = granted
+    this.simsLoading = false
+    this.changed()
+  }
+
+  simLabelFor(subscriptionId: number): string | undefined {
+    return this.phoneSims.find((sim) => sim.id === String(subscriptionId))?.label
+  }
+
+  resetSims(): void {
+    if (
+      this.phoneSims.length === 0 &&
+      this.callAccounts.length === 0 &&
+      !this.simsGranted &&
+      !this.simsLoading
+    ) {
+      return
+    }
+    this.phoneSims = []
+    this.callAccounts = []
+    this.simsGranted = false
+    this.simsLoading = false
+    this.changed()
+  }
+
+  resetContacts(): void {
+    if (
+      this.phoneContacts.length === 0 &&
+      this.callHistory.length === 0 &&
+      !this.contactsLoading &&
+      !this.callLogLoading &&
+      !this.contactsGranted &&
+      !this.callLogGranted
+    ) {
+      return
+    }
+    this.phoneContacts = []
+    this.callHistory = []
+    this.contactsGranted = false
+    this.callLogGranted = false
+    this.contactsLoading = false
+    this.callLogLoading = false
+    this.changed()
+  }
+
+  snapshot(): AppState {
+    const devices: DeviceInfo[] = this.persisted.paired.map((d) => {
+      const live = this.live.get(d.deviceId)
+      return {
+        deviceId: d.deviceId,
+        name: d.name,
+        platform: d.platform,
+        paired: true,
+        connected: live?.connected ?? false,
+        address: live?.address,
+        lastSeen: live?.lastSeen,
+        batteryLevel: live?.batteryLevel,
+        charging: live?.charging,
+        ringing: live?.ringing ?? false
+      }
+    })
+    for (const [id, live] of this.live) {
+      if (!devices.some((d) => d.deviceId === id)) {
+        devices.push({ ...live, paired: false })
+      }
+    }
+    return {
+      serverId: this.persisted.serverId,
+      serverName: this.persisted.serverName,
+      port: this.port,
+      pairingCode: this.pairingCode,
+      addresses: this.addresses,
+      addresses6: this.addresses6,
+      devices,
+      notifications: this.notifications,
+      mutedNotifications: this.persisted.mutedNotifications,
+      transfers: this.transfers,
+      storageFiles: this.storageFiles,
+      storageLoading: this.storageLoading,
+      storageError: this.storageError,
+      storageCursor: this.storageCursor,
+      storageLimited: this.storageLimited,
+      storageGranted: this.storageGranted,
+      smsThreads: this.smsThreads,
+      smsActive: this.smsActive,
+      smsLoading: this.smsLoading,
+      galleryAlbums: this.galleryAlbums,
+      galleryKinds: this.galleryKinds,
+      galleryKind: this.galleryKind,
+      galleryGranted: this.galleryGranted,
+      galleryPartial: this.galleryPartial,
+      galleryDownloads: this.galleryDownloads,
+      galleryPhotos: this.galleryPhotos,
+      galleryAlbumId: this.galleryAlbumId,
+      galleryAlbumName: this.galleryAlbumName,
+      galleryNextOffset: this.galleryNextOffset,
+      galleryHasMore: this.galleryHasMore,
+      galleryLoading: this.galleryLoading,
+      galleryError: this.galleryError,
+      notificationsPausedUntil: this.notificationsPausedUntil,
+      desktopUpdate: this.desktopUpdate,
+      phoneCalls: this.phoneCalls,
+      callDialerReady: this.callDialerReady,
+      callOutgoingReady: this.callOutgoingReady,
+      callControlReady: this.callControlReady,
+      callPlaced: this.callPlaced,
+      callSpeaker: this.callSpeaker,
+      callMuted: this.callMuted,
+      callRoute: this.callRoute,
+      callError: this.callError,
+      media: this.media,
+      phoneContacts: this.phoneContacts,
+      contactsGranted: this.contactsGranted,
+      contactsLoading: this.contactsLoading,
+      phoneSims: this.phoneSims,
+      callAccounts: this.callAccounts,
+      simsGranted: this.simsGranted,
+      simsLoading: this.simsLoading,
+      callHistory: this.callHistory,
+      callLogGranted: this.callLogGranted,
+      callLogLoading: this.callLogLoading,
+      launchAtLogin: this.launchAtLogin,
+      launchAtLoginSupported: this.launchAtLoginSupported,
+      ringDurationMs: this.persisted.ringDurationMs,
+      clipboardEnabled: this.persisted.clipboardEnabled,
+      downloadsDir: this.downloadsDir
+    }
+  }
+
+  private changed(): void {
+    if (this.changeTimer) return
+    this.changeTimer = setTimeout(() => {
+      this.changeTimer = null
+      this.emit('change', this.snapshot())
+    }, 120)
+  }
+
+  flushChanges(): void {
+    if (this.changeTimer) {
+      clearTimeout(this.changeTimer)
+      this.changeTimer = null
+    }
+    this.emit('change', this.snapshot())
+  }
+}
