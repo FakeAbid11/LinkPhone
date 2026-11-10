@@ -31,6 +31,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 enum class PhoneCallPhase {
     NEW, CONNECTING, DIALING, RINGING, ACTIVE, HELD, DISCONNECTING, DISCONNECTED, UNKNOWN
@@ -69,6 +71,25 @@ object CallHub {
     val state: StateFlow<PhoneCallSnapshot> = _state.asStateFlow()
 
     private var appContext: Context? = null
+
+    /**
+     * Runs a Telecom action on the main thread and waits briefly for its result,
+     * so callers off the main thread report the real outcome instead of assuming success.
+     */
+    private fun <T> onMainResult(timeoutMs: Long = 2000, block: () -> T): Result<T> {
+        if (Looper.myLooper() == Looper.getMainLooper()) return runCatching(block)
+        val latch = CountDownLatch(1)
+        var outcome: Result<T>? = null
+        val posted = main.post {
+            outcome = runCatching(block)
+            latch.countDown()
+        }
+        if (!posted || !latch.await(timeoutMs, TimeUnit.MILLISECONDS)) {
+            return Result.failure(IllegalStateException("The phone did not confirm the action"))
+        }
+        return outcome
+            ?: Result.failure(IllegalStateException("The phone did not confirm the action"))
+    }
 
     /**
      * Fallback call state while the InCallService is not bound (no dialer role). Entries are keyed
@@ -538,7 +559,7 @@ object CallHub {
         val service = PhoneCallService.instance
         if (service != null) {
             if (!service.hasCall(callId)) error("Call is no longer available")
-            main.post { runCatching { service.answer(callId) } }
+            onMainResult { service.answer(callId) }.getOrThrow()
             return@runCatching
         }
         val ringingKey = ringingKeyFor(callId) ?: error("That call is no longer ringing")
@@ -591,7 +612,7 @@ object CallHub {
         val service = PhoneCallService.instance
         if (service != null) {
             if (!service.hasCall(callId)) error("Call is no longer available")
-            main.post { runCatching { service.reject(callId) } }
+            onMainResult { service.reject(callId) }.getOrThrow()
             return@runCatching
         }
         val ringingKey = ringingKeyFor(callId) ?: error("That call is no longer ringing")
@@ -621,7 +642,7 @@ object CallHub {
         val service = PhoneCallService.instance
         if (service != null) {
             if (!service.hasCall(callId)) error("Call is no longer available")
-            main.post { runCatching { service.disconnect(callId) } }
+            onMainResult { service.disconnect(callId) }.getOrThrow()
             return@runCatching
         }
         val target = activeEntryFor(callId) ?: error("There is no call to end")
@@ -700,7 +721,7 @@ object CallHub {
     fun setSpeaker(context: Context, enabled: Boolean): Result<Unit> = runCatching {
         val service = PhoneCallService.instance
         if (service != null) {
-            main.post { runCatching { service.setSpeaker(enabled) } }
+            onMainResult { service.setSpeaker(enabled) }.getOrThrow()
             return@runCatching
         }
         if (!hasAnswerPermission(context)) error("Allow call access on your phone")
@@ -741,7 +762,7 @@ object CallHub {
     fun setMute(context: Context, enabled: Boolean): Result<Unit> = runCatching {
         val service = PhoneCallService.instance
         if (service != null) {
-            main.post { runCatching { service.setMute(enabled) } }
+            onMainResult { service.setMute(enabled) }.getOrThrow()
             return@runCatching
         }
         if (!hasAnswerPermission(context)) error("Allow call access on your phone")
@@ -858,15 +879,18 @@ class PhoneCallService : InCallService() {
     fun hasCall(callId: String): Boolean = calls.containsKey(callId)
 
     fun answer(callId: String) {
-        calls[callId]?.answer(VideoProfile.STATE_AUDIO_ONLY)
+        val call = calls[callId] ?: error("Call is no longer available")
+        call.answer(VideoProfile.STATE_AUDIO_ONLY)
     }
 
     fun reject(callId: String) {
-        calls[callId]?.reject(false, null)
+        val call = calls[callId] ?: error("Call is no longer available")
+        call.reject(false, null)
     }
 
     fun disconnect(callId: String) {
-        calls[callId]?.disconnect()
+        val call = calls[callId] ?: error("Call is no longer available")
+        call.disconnect()
     }
 
     @Suppress("DEPRECATION")

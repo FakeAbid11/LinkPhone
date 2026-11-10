@@ -8,6 +8,7 @@ import {
   CAP_NOTIF_ACTION_RESULT,
   CAP_NOTIF_ACTION_V2,
   CAP_NOTIF_PROGRESS,
+  CAP_SERVER_PROOF,
   DEFAULT_PORT,
   KIND_CONTROL,
   KIND_FILE,
@@ -194,6 +195,7 @@ export class LinkServer extends EventEmitter {
   >()
   private ringingCallIds = new Set<string>()
   private pairAttempts = new Map<string, number[]>()
+  private readonly smsTimeouts = new Map<string, NodeJS.Timeout>()
   private readonly receiver: FileReceiver
   private heartbeat: NodeJS.Timeout | null = null
   port = 0
@@ -280,6 +282,8 @@ export class LinkServer extends EventEmitter {
   stop(): void {
     if (this.heartbeat) clearInterval(this.heartbeat)
     this.heartbeat = null
+    for (const timer of this.smsTimeouts.values()) clearTimeout(timer)
+    this.smsTimeouts.clear()
     for (const peer of this.peers) {
       try {
         peer.ws.close(1001, 'shutting down')
@@ -396,10 +400,20 @@ export class LinkServer extends EventEmitter {
   }
 
   private onHello(peer: Peer, msg: RawMsg): void {
+    // Hello is a connection-opening message. Accepting it later would let an
+    // authenticated peer claim another paired device's identity without
+    // re-authenticating, so anything after the first frame closes the socket.
+    if (peer.phase !== 'fresh') {
+      peer.ws.close(1008, 'unexpected hello')
+      return
+    }
     if (num(msg.proto) !== PROTO_VERSION) {
       peer.ws.close(1002, 'protocol mismatch')
       return
     }
+    peer.key = null
+    peer.sendSeq = 0
+    peer.recvSeq = 0
     peer.deviceId = str(msg.deviceId).slice(0, 64)
     peer.deviceName = str(msg.deviceName, 'Android phone').slice(0, 64)
     peer.platform = (str(msg.platform, 'android') as Platform) ?? 'android'
@@ -427,7 +441,7 @@ export class LinkServer extends EventEmitter {
         serverName: this.store.serverName,
         needPair: false,
         needAuth: true,
-        caps: [CAP_NOTIF_PROGRESS, CAP_NOTIF_ACTION_V2, CAP_NOTIF_ACTION_RESULT]
+        caps: [CAP_NOTIF_PROGRESS, CAP_NOTIF_ACTION_V2, CAP_NOTIF_ACTION_RESULT, CAP_SERVER_PROOF]
       })
       this.send(peer, { t: 'auth.challenge', nonce: peer.nonceB64 })
       return
@@ -442,7 +456,7 @@ export class LinkServer extends EventEmitter {
       serverName: this.store.serverName,
       needPair: true,
       needAuth: false,
-      caps: [CAP_NOTIF_PROGRESS, CAP_NOTIF_ACTION_V2, CAP_NOTIF_ACTION_RESULT],
+      caps: [CAP_NOTIF_PROGRESS, CAP_NOTIF_ACTION_V2, CAP_NOTIF_ACTION_RESULT, CAP_SERVER_PROOF],
       salt: peer.salt.toString('base64')
     })
   }
@@ -505,7 +519,12 @@ export class LinkServer extends EventEmitter {
       pairedAt: Date.now()
     })
     this.markReady(peer)
-    this.send(peer, { t: 'pair.ok', serverId: this.store.serverId, serverName: this.store.serverName })
+    this.send(peer, {
+      t: 'pair.ok',
+      serverId: this.store.serverId,
+      serverName: this.store.serverName,
+      proof: hmac(key, `srv.pair:${this.store.serverId}:${peer.deviceId}`).toString('base64')
+    })
   }
 
   private allowPairAttempt(address: string): boolean {
@@ -556,7 +575,12 @@ export class LinkServer extends EventEmitter {
     peer.phase = 'ready'
     if (str(msg.deviceName)) peer.deviceName = str(msg.deviceName).slice(0, 64)
     this.markReady(peer)
-    this.send(peer, { t: 'auth.ok', serverId: this.store.serverId, serverName: this.store.serverName })
+    this.send(peer, {
+      t: 'auth.ok',
+      serverId: this.store.serverId,
+      serverName: this.store.serverName,
+      proof: hmac(key, `srv.auth:${peer.nonceB64}:${this.store.serverId}`).toString('base64')
+    })
   }
 
   private markReady(peer: Peer): void {
@@ -582,7 +606,7 @@ export class LinkServer extends EventEmitter {
   /* ---------------------------------------------------------------- */
 
   private onBinary(peer: Peer, data: Buffer): void {
-    if (!peer.key) {
+    if (peer.phase !== 'ready' || !peer.key) {
       peer.ws.close(1008, 'not authenticated')
       return
     }
@@ -616,6 +640,10 @@ export class LinkServer extends EventEmitter {
   }
 
   private onControl(peer: Peer, msg: RawMsg): void {
+    if (peer.phase !== 'ready') {
+      peer.ws.close(1008, 'not authenticated')
+      return
+    }
     switch (str(msg.t)) {
       case 'ping':
         this.send(peer, { t: 'pong', ts: num(msg.ts) })
@@ -827,9 +855,14 @@ export class LinkServer extends EventEmitter {
         return
       }
 
-      case 'sms.sent':
-        this.store.markSmsResult(str(msg.tempId), bool(msg.ok))
+      case 'sms.sent': {
+        const tempId = str(msg.tempId)
+        const timer = this.smsTimeouts.get(tempId)
+        if (timer) clearTimeout(timer)
+        this.smsTimeouts.delete(tempId)
+        this.store.markSmsResult(tempId, bool(msg.ok))
         return
+      }
 
       case 'sms.error':
         console.warn('[server] phone reported sms error:', str(msg.error))
@@ -1378,7 +1411,19 @@ export class LinkServer extends EventEmitter {
       simLabel
     })
     this.send(peer, { t: 'sms.send', tempId, address, body, subscriptionId })
+    this.armSmsTimeout(tempId)
     return 'queued'
+  }
+
+  private armSmsTimeout(tempId: string): void {
+    const previous = this.smsTimeouts.get(tempId)
+    if (previous) clearTimeout(previous)
+    const timer = setTimeout(() => {
+      this.smsTimeouts.delete(tempId)
+      this.store.markSmsResult(tempId, false)
+    }, 20_000)
+    timer.unref()
+    this.smsTimeouts.set(tempId, timer)
   }
 
   retrySms(messageId: string): 'queued' | 'no-peer' | 'invalid' {

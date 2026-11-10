@@ -14,6 +14,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Resolves phone numbers to contact names. The whole phone book is loaded once
@@ -35,6 +37,11 @@ class ContactsRepository private constructor(private val context: Context) {
     @Volatile private var loaded = false
     @Volatile private var loadedAt = 0L
 
+    private val generation = AtomicInteger()
+    private val refreshScheduled = AtomicBoolean(false)
+    private val loadLock = Any()
+    private val publishLock = Any()
+
     private val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
         override fun onChange(selfChange: Boolean) {
             invalidate()
@@ -53,44 +60,75 @@ class ContactsRepository private constructor(private val context: Context) {
 
     fun nameFor(number: String): String? {
         val key = normalize(number) ?: return null
-        ensureLoaded()
+        sync()
         return cache[key]
     }
 
     /** Full contact list for the PC hub, loaded with the same TTL as the name map. */
-    @Synchronized
     fun list(): List<ContactEntry> {
-        ensureLoaded()
+        sync()
         return listCache
     }
 
     /** Load in the background so the first call or SMS thread does not block the UI. */
     fun preload() {
-        CoroutineScope(Dispatchers.IO).launch { ensureLoaded() }
+        scheduleRefresh()
     }
 
-    @Synchronized
     fun invalidate() {
+        generation.incrementAndGet()
         loaded = false
         loadedAt = 0L
-        cache.clear()
-        listCache = emptyList()
+        scheduleRefresh()
     }
 
-    @Synchronized
-    private fun ensureLoaded() {
-        val now = SystemClock.elapsedRealtime()
-        if (loaded && now - loadedAt < TTL_MS) return
+    /** The main thread never queries the provider; background callers may wait for a refresh. */
+    private fun sync() {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            if (isStale()) scheduleRefresh()
+            return
+        }
+        refreshNow()
+    }
+
+    private fun isStale(): Boolean =
+        !loaded || SystemClock.elapsedRealtime() - loadedAt >= TTL_MS
+
+    private fun scheduleRefresh() {
+        if (!isStale()) return
+        if (!refreshScheduled.compareAndSet(false, true)) return
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                refreshNow()
+            } finally {
+                refreshScheduled.set(false)
+            }
+        }
+    }
+
+    private fun refreshNow() {
+        if (!isStale()) return
+        synchronized(loadLock) {
+            if (!isStale()) return
+            refresh()
+        }
+    }
+
+    /** Scans outside the publish lock, then swaps the snapshot in if nothing invalidated it. */
+    private fun refresh() {
+        val startGeneration = generation.get()
         if (!hasPermission()) {
-            loaded = false
-            loadedAt = 0L
-            cache.clear()
-            listCache = emptyList()
+            synchronized(publishLock) {
+                if (startGeneration != generation.get()) return
+                cache.clear()
+                listCache = emptyList()
+                loaded = false
+                loadedAt = 0L
+            }
             return
         }
 
-        cache.clear()
-        listCache = emptyList()
+        val names = HashMap<String, String>()
         val result = runCatching {
             val contacts = LinkedHashMap<Long, ContactBuilder>()
             val cursor = resolver.query(
@@ -128,7 +166,7 @@ class ContactsRepository private constructor(private val context: Context) {
                     val number = cursor.getString(numberIndex)?.trim().orEmpty()
                     val key = normalize(number) ?: continue
                     if (name.isEmpty()) continue
-                    cache.putIfAbsent(key, name)
+                    names.putIfAbsent(key, name)
 
                     val id = if (idIndex >= 0) cursor.getLong(idIndex) else 0L
                     if (id <= 0L) continue
@@ -145,16 +183,22 @@ class ContactsRepository private constructor(private val context: Context) {
                     entry.numbers.add(NumberLabel(number, label.take(24)))
                 }
             }
-            listCache = contacts.values
+            contacts.values
                 .filter { it.numbers.isNotEmpty() }
                 .map { ContactEntry(it.id.toString(), it.name, it.numbers.toList()) }
                 .sortedBy { it.name.lowercase() }
                 .take(MAX_CONTACTS)
         }
         result.onFailure { Log.w(TAG, "cannot read contacts", it) }
-        if (result.isSuccess) {
+        val entries = result.getOrNull() ?: return
+
+        synchronized(publishLock) {
+            if (startGeneration != generation.get()) return
+            cache.clear()
+            cache.putAll(names)
+            listCache = entries
             loaded = true
-            loadedAt = now
+            loadedAt = SystemClock.elapsedRealtime()
         }
     }
 

@@ -147,6 +147,10 @@
         </receiver>
 
         <receiver
+            android:name=".SmsSentReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".CallActionReceiver"
             android:exported="false" />
 

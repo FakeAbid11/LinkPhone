@@ -70,6 +70,10 @@ function replyErrorText(error?: string): string {
   }
 }
 
+function notifId(item: NotificationItem): string {
+  return `${item.deviceId}\u0000${item.key}`
+}
+
 function ago(when: number): string {
   const seconds = Math.max(0, Math.round((Date.now() - when) / 1000))
   if (seconds < 60) return 'now'
@@ -263,54 +267,58 @@ export function NotificationsPanel({
   }, [filtered])
 
   const submitReply = async (item: NotificationItem): Promise<void> => {
+    const id = notifId(item)
     const action = item.actions.find((candidate) => candidate.reply)
     const body = draft.trim()
     if (!action || body.length === 0 || replyStatus?.kind === 'sending') return
-    setReplyStatus({ key: item.key, kind: 'sending' })
+    setReplyStatus({ key: id, kind: 'sending' })
     const result = await onReply(item.deviceId, item.key, action.id, body, action.label)
     if (result.ok) {
-      setReplyStatus({ key: item.key, kind: 'sent' })
+      setReplyStatus({ key: id, kind: 'sent' })
       setDraft('')
       setReplying(null)
       window.setTimeout(() => {
         setReplyStatus((current) =>
-          current?.key === item.key && current.kind === 'sent' ? null : current
+          current?.key === id && current.kind === 'sent' ? null : current
         )
       }, 2500)
       return
     }
     setReplyStatus({
-      key: item.key,
+      key: id,
       kind: 'error',
       message: replyErrorText(result.error)
     })
   }
 
-  const renderCard = (item: NotificationItem): JSX.Element => (
-    <NotificationCard
-      key={`${item.deviceId}\u0000${item.key}`}
-      item={item}
-      replying={replying === item.key}
-      draft={replying === item.key ? draft : ''}
-      onDraft={setDraft}
-      onStartReply={() => {
-        setReplying(item.key)
-        setDraft('')
-        setReplyStatus(null)
-      }}
-      onCancelReply={() => setReplying(null)}
-      onSubmitReply={() => void submitReply(item)}
-      status={replyStatus?.key === item.key ? replyStatus : null}
-      sending={replyStatus?.key === item.key && replyStatus.kind === 'sending'}
-      onDismiss={() => {
-        if (replying === item.key) setReplying(null)
-        onDismiss(item.deviceId, item.key)
-      }}
-      onAction={(actionId, label) =>
-        void onAction(item.deviceId, item.key, actionId, label)
-      }
-    />
-  )
+  const renderCard = (item: NotificationItem): JSX.Element => {
+    const id = notifId(item)
+    return (
+      <NotificationCard
+        key={id}
+        item={item}
+        replying={replying === id}
+        draft={replying === id ? draft : ''}
+        onDraft={setDraft}
+        onStartReply={() => {
+          setReplying(id)
+          setDraft('')
+          setReplyStatus(null)
+        }}
+        onCancelReply={() => setReplying(null)}
+        onSubmitReply={() => void submitReply(item)}
+        status={replyStatus?.key === id ? replyStatus : null}
+        sending={replyStatus?.key === id && replyStatus.kind === 'sending'}
+        onDismiss={() => {
+          if (replying === id) setReplying(null)
+          onDismiss(item.deviceId, item.key)
+        }}
+        onAction={(actionId, label) =>
+          void onAction(item.deviceId, item.key, actionId, label)
+        }
+      />
+    )
+  }
 
   return (
     <div className="notif-center">

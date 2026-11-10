@@ -96,8 +96,13 @@ server → hello.result              { needPair, needAuth, salt?, serverId, serv
 
 ```
 client → pair.request   { proof = HMAC(psk, "pair:" + deviceId) }   (plaintext)
-server → pair.ok                                                    (encrypted, seq 1)
+server → pair.ok        { serverId, serverName, proof }              (encrypted, seq 1)
 ```
+
+`pair.ok.proof = HMAC(psk, "srv.pair:" + serverId + ":" + deviceId)`. The phone verifies it before
+marking the connection ready, so a host that captured the plaintext pairing handshake but does not
+know the pairing code cannot impersonate the PC. A phone that was already paired also refuses a
+`hello.result` whose `serverId` differs from the saved one.
 
 On a proof mismatch the server answers with a plaintext `{ "t": "pair.reject" }` and closes with
 code 4001 — a text frame at that point is unambiguous, because an authenticated peer only ever
@@ -114,8 +119,13 @@ An old client that omits `pair` keeps the original behaviour.
 ```
 server → auth.challenge  { nonce = 32 random bytes, base64 }
 client → auth.response   { proof = HMAC(psk, "auth:" + nonce) }      (plaintext)
-server → auth.ok                                                     (encrypted, seq 1)
+server → auth.ok         { serverId, serverName, proof }             (encrypted, seq 1)
 ```
+
+`auth.ok.proof = HMAC(psk, "srv.auth:" + nonce + ":" + serverId)`, bound to the fresh nonce so it
+cannot be replayed. The phone verifies it before marking the connection ready and never sends a
+data frame while it has no key; a PC without the proof (0.1.0 and older) is refused with an update
+message rather than falling back to plaintext.
 
 If the device is no longer paired on the server, or the proof does not match, the server sends a
 plaintext `{ "t": "auth.reject", "reason": "not-paired" | "bad-proof" }` before closing with 4003
@@ -256,7 +266,9 @@ never window content. Android 12+ may show a clipboard-access notice once per ba
 The phone reads the `Telephony.Sms` provider after runtime `READ_SMS` permission and sends through
 `SmsManager` after `SEND_SMS`. `RECEIVE_SMS` drives live `sms.new` events. LinkPhone does not claim
 the default-SMS-app role and does not write provider rows. MMS remains unsupported. A successful
-`sms.sent` means Android accepted the send request; it is not a carrier delivery receipt.
+`sms.sent` means Android's per-part sent intents reported that the message was handed to the
+network; it is not a carrier delivery receipt. The PC treats a missing confirmation after 20 seconds
+as a failure.
 
 To start a conversation for an address with no provider thread, the PC uses
 `threadId = "addr:<number>"`. The phone resolves that id with
