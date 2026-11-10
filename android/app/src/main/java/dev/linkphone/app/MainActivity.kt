@@ -662,7 +662,7 @@ private fun Screen(modifier: Modifier = Modifier) {
             PermissionCard(
                 glyph = Symbols.sms,
                 title = "Messages",
-                body = "Allow LinkPhone to read and send SMS so your texts show up on the PC. It stays a normal app — it never becomes your default SMS app.",
+                body = "Allow LinkPhone to read and send SMS so your texts show up on the PC. It stays a normal app — it never becomes your default SMS app. Android will also ask you to approve every text sent from the PC; that prompt is the system's protection for apps that are not the default SMS app.",
                 actionLabel = "Allow messages",
                 onAction = {
                     smsPermission.launch(

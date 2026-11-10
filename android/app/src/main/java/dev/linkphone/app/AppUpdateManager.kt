@@ -48,13 +48,17 @@ class AppUpdateManager(context: Context) {
 
     @Volatile private var release: UpdateRelease? = null
     @Volatile private var downloaded: File? = null
-    @Volatile private var lastCheckedAt = 0L
+    @Volatile private var lastAttemptAt = 0L
+    @Volatile private var retryAt = 0L
+    private var failureCount = 0
 
     fun check(force: Boolean = true) {
         if (_state.value.phase == AppUpdatePhase.CHECKING ||
             _state.value.phase == AppUpdatePhase.DOWNLOADING
         ) return
-        if (!force && System.currentTimeMillis() - lastCheckedAt < AUTO_CHECK_INTERVAL_MS) return
+        val now = System.currentTimeMillis()
+        if (!force && (now - lastAttemptAt < AUTO_CHECK_INTERVAL_MS || now < retryAt)) return
+        lastAttemptAt = now
         _state.value = _state.value.copy(
             phase = AppUpdatePhase.CHECKING,
             message = "",
@@ -63,7 +67,8 @@ class AppUpdateManager(context: Context) {
         scope.launch {
             runCatching { UpdateChecker.fetchLatest() }
                 .onSuccess { latest ->
-                    lastCheckedAt = System.currentTimeMillis()
+                    failureCount = 0
+                    retryAt = 0L
                     release = latest
                     if (UpdateChecker.isNewer(latest.version, BuildConfig.VERSION_NAME)) {
                         _state.value = AppUpdateState(
@@ -78,7 +83,13 @@ class AppUpdateManager(context: Context) {
                         )
                     }
                 }
-                .onFailure { fail(it) }
+                .onFailure { error ->
+                    failureCount += 1
+                    val backoff = (BASE_RETRY_MS shl (failureCount - 1).coerceAtMost(7))
+                        .coerceAtMost(AUTO_CHECK_INTERVAL_MS)
+                    retryAt = System.currentTimeMillis() + backoff
+                    fail(error)
+                }
         }
     }
 
@@ -235,8 +246,35 @@ class AppUpdateManager(context: Context) {
         _state.value = _state.value.copy(
             phase = AppUpdatePhase.ERROR,
             progress = 0,
-            message = (error.message ?: "Update failed").take(240)
+            message = friendly(error)
         )
+    }
+
+    /** Turns raw HTTP/IO failures into one actionable sentence, like the desktop updater. */
+    private fun friendly(error: Throwable): String {
+        val status = (error as? UpdateHttpException)?.code
+            ?: Regex("\\b(\\d{3})\\b").find(error.message.orEmpty())
+                ?.groupValues?.get(1)?.toIntOrNull()
+        val text = when {
+            status == 401 || status == 403 ->
+                "GitHub refused the update check. Try again later, or install the APK from the Releases page."
+            status == 429 ->
+                "GitHub is limiting update checks from this network. Try again later."
+            status == 404 -> "No release found on GitHub."
+            status != null && status in 500..599 ->
+                "GitHub is having trouble right now. Try again later."
+            status != null -> "GitHub rejected the update check (HTTP $status)."
+            error is java.io.IOException ->
+                "Could not reach GitHub. Check your internet connection."
+            else -> error.message ?: "Update check failed."
+        }
+        return text
+            .replace(Regex("<[^>]*>"), " ")
+            .replace(Regex("https?://\\S+"), "GitHub Releases")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .take(200)
+            .ifBlank { "Update check failed." }
     }
 
     private fun signerHash(bytes: ByteArray): String =
@@ -246,6 +284,7 @@ class AppUpdateManager(context: Context) {
 
     companion object {
         private const val AUTO_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L
+        private const val BASE_RETRY_MS = 5 * 60 * 1000L
         private const val MAX_APK_BYTES = 200L * 1024 * 1024
     }
 }
