@@ -895,16 +895,13 @@ class PhoneCallService : InCallService() {
 
     @Suppress("DEPRECATION")
     fun setSpeaker(enabled: Boolean) {
-        val routed = setAudioRoute(
-            if (enabled) CallAudioState.ROUTE_SPEAKER else CallAudioState.ROUTE_EARPIECE
-        )
-        if (!routed) error("The phone rejected the audio route")
+        setAudioRoute(if (enabled) CallAudioState.ROUTE_SPEAKER else CallAudioState.ROUTE_EARPIECE)
         publish()
     }
 
     fun setMute(enabled: Boolean) {
         if (calls.values.none { it.state == Call.STATE_ACTIVE || it.state == Call.STATE_HOLDING }) return
-        if (!setMuted(enabled)) error("The phone rejected the microphone change")
+        setMuted(enabled)
         publish()
     }
 
