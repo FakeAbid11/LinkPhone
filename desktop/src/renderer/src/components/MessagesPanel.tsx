@@ -98,6 +98,13 @@ export function MessagesPanel({
   const [query, setQuery] = useState('')
   const [threadQuery, setThreadQuery] = useState('')
   const [composing, setComposing] = useState(false)
+  const [showApprovalHint, setShowApprovalHint] = useState(() => {
+    try {
+      return localStorage.getItem('linkphone.smsApprovalHint') !== '1'
+    } catch {
+      return true
+    }
+  })
   const [to, setTo] = useState('')
   const [newBody, setNewBody] = useState('')
   const [newSimId, setNewSimId] = useState('')
@@ -498,6 +505,29 @@ export function MessagesPanel({
           </button>
         </div>
       </div>
+
+      {showApprovalHint && (
+        <div className="sms-approval-hint" role="note">
+          <span>
+            Android asks the phone to approve each text sent from here. That prompt is the system
+            confirmation for apps that are not the default SMS app — tap Send on the phone.
+          </span>
+          <button
+            type="button"
+            className="link-btn"
+            onClick={() => {
+              setShowApprovalHint(false)
+              try {
+                localStorage.setItem('linkphone.smsApprovalHint', '1')
+              } catch {
+                /* ignore storage failures */
+              }
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {composing ? (
         <div className="sms-new">

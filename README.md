@@ -32,9 +32,9 @@ service or a relay server.
 
 **No account. No cloud. No relay.**
 
-> **v0.1.1** hardens pairing: the phone only connects to a PC that proves it holds the pairing
-> key, and refuses any other host instead of falling back to plaintext. Update both apps; existing
-> pairings keep working.
+> **v0.1.2** fixes the update check on shared carrier networks: it reads the public GitHub Releases
+> page instead of the rate-limited API, so "GitHub update check failed (403)" no longer appears.
+> If you are on 0.1.0 or 0.1.1, install this APK manually once.
 
 ## Features
 
@@ -77,7 +77,7 @@ discovery. See [docs/PROTOCOL.md](docs/PROTOCOL.md) for the handshake, frames an
 2. **Phone:** install `linkphone-android.apk` (allow “install unknown apps”). A fresh install opens
    a three-step intro: what LinkPhone is, why each permission is needed, and pairing. You can skip
    it and set everything up later on the main screen.
-3. **PC:** run `LinkPhone.Setup.0.1.1.exe`. The installer is unsigned, so SmartScreen requires
+3. **PC:** run `LinkPhone.Setup.0.1.2.exe`. The installer is unsigned, so SmartScreen requires
    **More info → Run anyway**. It also adds **Send to → LinkPhone** to Explorer; Windows 11 may keep
    it under **Show more options**.
 4. **Pair:** on the PC, expand **Scan QR code instead** in the sidebar. On the phone, tap **Scan QR**
@@ -98,6 +98,11 @@ then pair again. Updates from 0.1.x onward install in place.
 0.1.1 requires both apps on 0.1.1 or newer: a 0.1.1 phone refuses a 0.1.0 PC with an on-screen
 message instead of connecting. Update the PC first, then the phone.
 
+If the App update card shows "GitHub update check failed (403)", download the APK from the
+[Releases page](https://github.com/FakeAbid11/linkphone/releases) and install it manually once.
+0.1.2 and later read the public Releases page, so the check no longer depends on GitHub's
+rate-limited API.
+
 The Windows installer and Android APK are unsigned at the platform level: SmartScreen needs
 **More info → Run anyway**, and Android always shows its own installer confirmation. Android may
 first ask permission for LinkPhone to install updates.
@@ -109,7 +114,9 @@ first ask permission for LinkPhone to install updates.
 
 - **Notification access** lets the PC show and reply to phone notifications. It is optional.
 - **SMS** reads existing conversations and sends replies; LinkPhone does not become the default SMS
-  app and does not create new threads.
+  app and does not create new threads. Android 10+ asks you to approve every text sent from the PC:
+  that dialog is the system's per-message confirmation for apps that are not the default SMS app,
+  not a LinkPhone permission request, and LinkPhone does not bypass it.
 - **Photos** uses Android's photo picker permissions; Android 14+ can expose all photos or a
   selected set.
 - **Contacts** (`READ_CONTACTS`) resolves names and powers the searchable contact list.
@@ -216,9 +223,12 @@ The first install is manual. After that:
   App update card checks when the app opens. A notification appears when a newer version is
   available; choose **Download**, then **Install**. Android always shows its system installer
   confirmation. OEM battery managers may delay the background check; opening the app always checks.
+  The check reads the public Releases page, not the rate-limited API, and a failed check backs off
+  before retrying.
 - Neither platform downloads or installs anything without you choosing it.
-- Android downloads are verified against GitHub's SHA-256 digest and the certificate that signed
-  the installed LinkPhone app before the installer opens.
+- Android downloads are verified against the published SHA-256 checksum
+  (`linkphone-android.apk.sha256`) and the certificate that signed the installed LinkPhone app
+  before the installer opens.
 
 </details>
 
