@@ -32,8 +32,9 @@ service or a relay server.
 
 **No account. No cloud. No relay.**
 
-> **v0.1.0** is the first release: the full Android 10+ phone client and Windows desktop app,
-> paired over your own Wi-Fi with no account, cloud or relay server.
+> **v0.1.1** hardens pairing: the phone only connects to a PC that proves it holds the pairing
+> key, and refuses any other host instead of falling back to plaintext. Update both apps; existing
+> pairings keep working.
 
 ## Features
 
@@ -76,7 +77,7 @@ discovery. See [docs/PROTOCOL.md](docs/PROTOCOL.md) for the handshake, frames an
 2. **Phone:** install `linkphone-android.apk` (allow “install unknown apps”). A fresh install opens
    a three-step intro: what LinkPhone is, why each permission is needed, and pairing. You can skip
    it and set everything up later on the main screen.
-3. **PC:** run `LinkPhone.Setup.0.1.0.exe`. The installer is unsigned, so SmartScreen requires
+3. **PC:** run `LinkPhone.Setup.0.1.1.exe`. The installer is unsigned, so SmartScreen requires
    **More info → Run anyway**. It also adds **Send to → LinkPhone** to Explorer; Windows 11 may keep
    it under **Show more options**.
 4. **Pair:** on the PC, expand **Scan QR code instead** in the sidebar. On the phone, tap **Scan QR**
@@ -93,6 +94,9 @@ discovery. See [docs/PROTOCOL.md](docs/PROTOCOL.md) for the handshake, frames an
 
 If an earlier LinkPhone build is installed on the phone, uninstall it before installing this APK,
 then pair again. Updates from 0.1.x onward install in place.
+
+0.1.1 requires both apps on 0.1.1 or newer: a 0.1.1 phone refuses a 0.1.0 PC with an on-screen
+message instead of connecting. Update the PC first, then the phone.
 
 The Windows installer and Android APK are unsigned at the platform level: SmartScreen needs
 **More info → Run anyway**, and Android always shows its own installer confirmation. Android may

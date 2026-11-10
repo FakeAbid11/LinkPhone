@@ -14,6 +14,9 @@ interface Sink {
   aborted: boolean
 }
 
+const MAX_LIVE_SINKS = 100
+const MAX_PARTIAL_ENTRIES = 500
+
 function safeName(name: string): string {
   const base = path.basename(name.replace(/\\/g, '/'))
     .replace(/[\u0000-\u001f<>:"/\\|?*]/g, '_')
@@ -50,7 +53,11 @@ export class FileReceiver {
 
   offer(msg: FileOfferMsg, deviceId: string): void {
     if (!msg.id || typeof msg.id !== 'string') return
-    if (this.sinks.size >= 100) {
+    this.prunePartials()
+    // Interrupted sinks keep no fd but their map entry is what makes resume
+    // possible, so only live fds count against the concurrency cap.
+    const live = [...this.sinks.values()].filter((sink) => !sink.aborted && sink.fd !== null).length
+    if (live >= MAX_LIVE_SINKS) {
       this.onDecline(msg.id, 'busy', deviceId)
       return
     }
@@ -212,6 +219,18 @@ export class FileReceiver {
       fs.unlinkSync(sink.finalPath)
     } catch {
       /* ignore */
+    }
+  }
+
+  /** Drop stale resume metadata without deleting the .part files a retry may still use. */
+  private prunePartials(): void {
+    if (this.sinks.size <= MAX_PARTIAL_ENTRIES) return
+    for (const sink of [...this.sinks.values()]) {
+      if (this.sinks.size <= MAX_PARTIAL_ENTRIES) return
+      if (sink.fd === null && !sink.aborted) {
+        this.sinks.delete(sink.id)
+        this.lastReport.delete(sink.id)
+      }
     }
   }
 

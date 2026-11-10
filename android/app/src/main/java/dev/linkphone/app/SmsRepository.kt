@@ -1,7 +1,9 @@
 package dev.linkphone.app
 
 import android.Manifest
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Telephony
@@ -134,13 +136,35 @@ class SmsRepository(private val context: Context) {
         return threadId
     }
 
-    fun send(address: String, body: String, subscriptionId: Int? = null): Result<Unit> = runCatching {
+    fun send(
+        address: String,
+        body: String,
+        tempId: String,
+        subscriptionId: Int? = null
+    ): Result<Unit> = runCatching {
         val manager = smsManager(subscriptionId) ?: error("SMS is not available on this device")
         val parts = manager.divideMessage(body)
+        val sent = ArrayList<PendingIntent>(parts.size)
+        for (index in parts.indices) {
+            val intent = Intent(context, SmsSentReceiver::class.java).apply {
+                action = SmsSentReceiver.ACTION
+                putExtra(SmsSentReceiver.EXTRA_TEMP_ID, tempId)
+                putExtra(SmsSentReceiver.EXTRA_PART, index)
+                putExtra(SmsSentReceiver.EXTRA_PARTS, parts.size)
+            }
+            sent.add(
+                PendingIntent.getBroadcast(
+                    context,
+                    tempId.hashCode() * 31 + index,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            )
+        }
         if (parts.size > 1) {
-            manager.sendMultipartTextMessage(address, null, parts, null, null)
+            manager.sendMultipartTextMessage(address, null, parts, sent, null)
         } else {
-            manager.sendTextMessage(address, null, body, null, null)
+            manager.sendTextMessage(address, null, parts[0], sent[0], null)
         }
     }
 

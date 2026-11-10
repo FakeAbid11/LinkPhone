@@ -107,7 +107,7 @@ jobs:
                apps" when asked). A fresh install opens a three-step intro: what LinkPhone is, why
                each permission is needed, and pairing.
                **If an earlier LinkPhone build is installed, uninstall it first and pair again.**
-            2. **PC** — download and run `LinkPhone.Setup.0.1.0.exe`. SmartScreen will warn because
+            2. **PC** — download and run `LinkPhone.Setup.0.1.1.exe`. SmartScreen will warn because
                the installer is unsigned: *More info → Run anyway*. Allow it on **private**
                networks when Windows Firewall asks.
             3. Make sure both devices are on the same Wi-Fi (not a guest network).
@@ -118,6 +118,21 @@ jobs:
                **Allow photo access**.
             7. For calls, tap **Set as default phone app**, accept Android's role prompt, then allow
                phone permissions.
+
+            ## What's new in 0.1.1
+
+            * The phone now requires the PC to prove it holds the pairing key and rejects a PC that
+              is not the one it paired with; the plaintext fallback is gone
+            * A 0.1.1 phone needs the 0.1.1 PC — update both. Existing pairings survive
+            * Interrupted transfers no longer leak file handles on either side, and the PC keeps
+              accepting new transfers after many interruptions
+            * Contacts no longer block the phone's main thread
+            * SMS reports the real send result, or a timeout, instead of always "sent"
+            * Call actions report a failure instead of assuming success
+            * Notification replies stay attached to the right phone when two are paired
+            * Missing icons (play, pause, stop, rename) render again
+            * Electron shell: sandboxed renderer, blocked navigation and window open, and every
+              IPC handler validates its sender
 
             ## Features
 

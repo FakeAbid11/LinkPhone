@@ -12,6 +12,7 @@ import android.provider.OpenableColumns
 import android.util.Base64
 import android.util.Log
 import androidx.core.content.ContextCompat
+import java.security.MessageDigest
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -48,6 +49,7 @@ import java.util.concurrent.TimeUnit
 private const val CAP_NOTIF_PROGRESS = "notif.progress"
 private const val CAP_NOTIF_ACTION_V2 = "notif.action.v2"
 private const val CAP_NOTIF_ACTION_RESULT = "notif.action.result"
+private const val CAP_SERVER_PROOF = "server.proof"
 private const val MAX_REPLY_CHARS = 2000
 private const val RECONNECT_MIN_MS = 2500L
 private const val RECONNECT_MAX_MS = 15_000L
@@ -148,6 +150,7 @@ class LinkClient(context: Context, private val store: PairStore) {
 
     private var pendingCode: String? = null
     private var pendingServerId: String = ""
+    private var pendingNonce: String = ""
     private var pendingAddresses: List<String> = emptyList()
     private var serverName: String = ""
     private var host = ""
@@ -325,11 +328,7 @@ class LinkClient(context: Context, private val store: PairStore) {
         supportsActionV2 = false
         supportsActionResult = false
         PhoneRinger.stop()
-        incoming.values.forEach { sink ->
-            runCatching { sink.stream.close() }
-            runCatching { resolver.delete(sink.uri, null, null) }
-        }
-        incoming.clear()
+        abortAllIncoming()
         // -2 is "interrupted" rather than -1 ("declined") so an intentional disconnect does
         // not leave outgoing transfers looking like failures.
         outgoing.values.forEach { it.attempt?.complete(-2L) }
@@ -390,6 +389,7 @@ class LinkClient(context: Context, private val store: PairStore) {
         supportsActionV2 = false
         supportsActionResult = false
         PhoneRinger.stop()
+        abortAllIncoming()
         val interrupted = _transfers.value.map { transfer ->
             if (transfer.status == "active" || transfer.status == "pending") {
                 transfer.copy(status = "interrupted")
@@ -489,8 +489,8 @@ class LinkClient(context: Context, private val store: PairStore) {
         when (msg.optString("t")) {
             "hello.result" -> onHelloResult(msg)
             "auth.challenge" -> onAuthChallenge(msg)
-            "pair.ok" -> onPaired()
-            "auth.ok" -> markConnected()
+            "pair.ok" -> onPaired(msg)
+            "auth.ok" -> onAuthOk(msg)
             "auth.reject" -> onAuthRejected(msg)
             "pair.reject" -> {
                 val reason = msg.optString("reason")
@@ -525,6 +525,21 @@ class LinkClient(context: Context, private val store: PairStore) {
         supportsActionResult = hasCap(CAP_NOTIF_ACTION_RESULT)
 
         if (!msg.optBoolean("needPair")) {
+            if (store.keyB64 != null) {
+                if (!hasCap(CAP_SERVER_PROOF)) {
+                    failHandshake(
+                        "This PC is running an older LinkPhone. Update LinkPhone on your PC and try again."
+                    )
+                    return
+                }
+                val savedId = store.serverId
+                if (!savedId.isNullOrBlank() && savedId != pendingServerId) {
+                    failHandshake(
+                        "This PC is not the one you paired with. Scan the QR code on your PC to pair again."
+                    )
+                    return
+                }
+            }
             _status.value = LinkStatus(LinkState.CONNECTING, serverName, "Authenticating")
             return
         }
@@ -575,6 +590,7 @@ class LinkClient(context: Context, private val store: PairStore) {
         key = stored
         sendSeq = 0
         recvSeq = 0
+        pendingNonce = nonce
         sendPlain(
             JSONObject().apply {
                 put("t", "auth.response")
@@ -602,8 +618,9 @@ class LinkClient(context: Context, private val store: PairStore) {
         runCatching { ws?.close(1000, "auth rejected") }
     }
 
-    private fun onPaired() {
+    private fun onPaired(msg: JSONObject) {
         val current = key ?: return
+        if (!verifyServerProof(msg, current, "srv.pair:$pendingServerId:${store.deviceId}")) return
         store.savePair(
             pendingServerId,
             serverName,
@@ -613,7 +630,40 @@ class LinkClient(context: Context, private val store: PairStore) {
             pendingAddresses
         )
         pendingCode = null
+        pendingNonce = ""
         markConnected()
+    }
+
+    private fun onAuthOk(msg: JSONObject) {
+        val current = key ?: return
+        if (!verifyServerProof(msg, current, "srv.auth:$pendingNonce:$pendingServerId")) return
+        pendingNonce = ""
+        markConnected()
+    }
+
+    private fun verifyServerProof(msg: JSONObject, secret: ByteArray, label: String): Boolean {
+        val encoded = msg.optString("proof")
+        if (encoded.isBlank()) {
+            failHandshake(
+                "This PC is running an older LinkPhone. Update LinkPhone on your PC and try again."
+            )
+            return false
+        }
+        val actual = runCatching { Base64.decode(encoded, Base64.NO_WRAP) }.getOrNull()
+        if (actual == null || !MessageDigest.isEqual(actual, Crypto.hmac(secret, label))) {
+            failHandshake(
+                "The PC could not prove the pairing. Update LinkPhone on your PC and try again."
+            )
+            return false
+        }
+        return true
+    }
+
+    private fun failHandshake(message: String) {
+        wantConnection = false
+        key = null
+        _status.value = LinkStatus(LinkState.ERROR, serverName, message)
+        runCatching { ws?.close(4001, "server proof failed") }
     }
 
     private fun markConnected() {
@@ -651,7 +701,8 @@ class LinkClient(context: Context, private val store: PairStore) {
         val socket = ws ?: return false
         val currentKey = key
         if (currentKey == null) {
-            return socket.send(msg.toString())
+            Log.w("LinkPhone", "dropping ${msg.optString("t")} before authentication")
+            return false
         }
         val body = msg.toString().toByteArray(Charsets.UTF_8)
         val plain = ByteArray(body.size + 1)
@@ -683,8 +734,8 @@ class LinkClient(context: Context, private val store: PairStore) {
 
     private fun handleControl(msg: JSONObject) {
         when (msg.optString("t")) {
-            "pair.ok" -> onPaired()
-            "auth.ok" -> markConnected()
+            "pair.ok" -> onPaired(msg)
+            "auth.ok" -> onAuthOk(msg)
             "ping" -> send(JSONObject().apply { put("t", "pong"); put("ts", msg.optLong("ts")) })
             "clip.set" -> {
                 val text = msg.optString("text")
@@ -807,6 +858,15 @@ class LinkClient(context: Context, private val store: PairStore) {
         var lastAck = 0L
     }
 
+    /** Drop every half-written incoming file; nothing is published on failure. */
+    private fun abortAllIncoming() {
+        incoming.values.forEach { sink ->
+            runCatching { sink.stream.close() }
+            runCatching { resolver.delete(sink.uri, null, null) }
+        }
+        incoming.clear()
+    }
+
     private class Outgoing(
         val id: String,
         val uri: Uri,
@@ -845,6 +905,7 @@ class LinkClient(context: Context, private val store: PairStore) {
             }
             abortIncoming(id, "restarted")
         }
+        var created: Uri? = null
         try {
             val pictures = target == "pictures" && mime.startsWith("image/")
             val videos = target == "videos" && mime.startsWith("video/")
@@ -866,12 +927,15 @@ class LinkClient(context: Context, private val store: PairStore) {
             }
             val uri = resolver.insert(collection, values)
                 ?: throw IllegalStateException("no media store entry")
+            created = uri
             val stream = resolver.openOutputStream(uri)
                 ?: throw IllegalStateException("no output stream")
             incoming[id] = Incoming(id, uri, stream, name, size)
+            created = null
             upsertTransfer(TransferUi(id, name, size, 0, "in", "active", target))
             send(JSONObject().apply { put("t", "file.accept"); put("id", id); put("offset", 0) })
         } catch (e: Exception) {
+            created?.let { runCatching { resolver.delete(it, null, null) } }
             Log.w("LinkPhone", "cannot accept file", e)
             send(
                 JSONObject().apply {
@@ -1640,12 +1704,14 @@ class LinkClient(context: Context, private val store: PairStore) {
                 return
             }
         }
-        val result = sms.send(address, body, subscriptionId)
-        if (result.isFailure) Log.w("LinkPhone", "sms send failed", result.exceptionOrNull())
-        sendSmsResult(tempId, result.isSuccess, result.exceptionOrNull()?.message)
+        val result = sms.send(address, body, tempId, subscriptionId)
+        if (result.isFailure) {
+            Log.w("LinkPhone", "sms send failed", result.exceptionOrNull())
+            sendSmsResult(tempId, false, result.exceptionOrNull()?.message)
+        }
     }
 
-    private fun sendSmsResult(tempId: String, ok: Boolean, error: String?) {
+    internal fun sendSmsResult(tempId: String, ok: Boolean, error: String?) {
         send(
             JSONObject().apply {
                 put("t", "sms.sent")

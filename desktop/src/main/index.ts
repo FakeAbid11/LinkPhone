@@ -267,9 +267,20 @@ function createWindow(): void {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: true,
+      webviewTag: false,
+      safeDialogs: true
     }
   })
+
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  win.webContents.on('will-attach-webview', (event) => event.preventDefault())
+  win.webContents.on('will-navigate', (event, url) => {
+    if (url !== win?.webContents.getURL()) event.preventDefault()
+  })
+  const session = win.webContents.session
+  session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
+  session.setPermissionCheckHandler(() => false)
 
   win.on('ready-to-show', () => {
     if (!startHidden) win?.show()
@@ -327,37 +338,60 @@ function rebuildTrayMenu(): void {
 }
 
 function registerIpc(): void {
-  ipcMain.handle('state:get', () => store.snapshot())
+  // Every handler is reachable only from our own window's main frame. A
+  // navigated or injected page would otherwise inherit the whole preload API.
+  const trusted = (event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): boolean =>
+    win !== null && event.sender === win.webContents
 
-  ipcMain.handle('ui:ready', () => {
+  const handle = (
+    channel: string,
+    listener: (event: Electron.IpcMainInvokeEvent, ...args: any[]) => unknown
+  ): void => {
+    ipcMain.handle(channel, (event, ...args) =>
+      trusted(event) ? listener(event, ...args) : undefined
+    )
+  }
+
+  const on = (
+    channel: string,
+    listener: (event: Electron.IpcMainEvent, ...args: any[]) => void
+  ): void => {
+    ipcMain.on(channel, (event, ...args) => {
+      if (trusted(event)) listener(event, ...args)
+    })
+  }
+
+  handle('state:get', () => store.snapshot())
+
+  handle('ui:ready', () => {
     uiReady = true
     const tab = pendingTab
     pendingTab = null
     return tab
   })
 
-  ipcMain.handle('pair:new', () => {
+  handle('pair:new', () => {
     store.setPairingCode(newPairCode())
     rebuildTrayMenu()
     return store.pairingCode
   })
 
-  ipcMain.handle('addresses:refresh', () => {
+  handle('addresses:refresh', () => {
     store.setAddresses(localAddresses())
     store.setAddresses6(localLinkLocalIPv6())
   })
 
-  ipcMain.handle('device:forget', (_event, deviceId: unknown) => {
+  handle('device:forget', (_event, deviceId: unknown) => {
     if (typeof deviceId === 'string') store.forget(deviceId)
   })
 
-  ipcMain.handle('device:rename', (_event, deviceId: unknown, name: unknown) => {
+  handle('device:rename', (_event, deviceId: unknown, name: unknown) => {
     if (typeof deviceId === 'string' && typeof name === 'string') {
       server.renameDevice(deviceId, name)
     }
   })
 
-  ipcMain.handle('files:send', async () => {
+  handle('files:send', async () => {
     const result = await dialog.showOpenDialog({
       title: 'Send to phone',
       properties: ['openFile', 'multiSelections']
@@ -367,7 +401,7 @@ function registerIpc(): void {
     return result.filePaths.length
   })
 
-  ipcMain.handle('files:send-photos', async () => {
+  handle('files:send-photos', async () => {
     if (!server.hasConnectedPeer()) return 0
     const result = await dialog.showOpenDialog({
       title: 'Send photos to phone',
@@ -398,15 +432,15 @@ function registerIpc(): void {
     return result.filePaths.length
   })
 
-  ipcMain.handle('files:retry', (_event, id: unknown) => {
+  handle('files:retry', (_event, id: unknown) => {
     if (typeof id === 'string') server.retryTransfer(id)
   })
 
-  ipcMain.handle('files:cancel', (_event, id: unknown) => {
+  handle('files:cancel', (_event, id: unknown) => {
     if (typeof id === 'string') server.cancelTransfer(id)
   })
 
-  ipcMain.handle('storage:list', (_event, cursor: unknown) => {
+  handle('storage:list', (_event, cursor: unknown) => {
     const requested = server.requestStorageList(
       typeof cursor === 'string' ? cursor : undefined
     )
@@ -420,7 +454,7 @@ function registerIpc(): void {
     }, 6000)
   })
 
-  ipcMain.handle('storage:pull', (_event, id: unknown, name: unknown, mime: unknown) => {
+  handle('storage:pull', (_event, id: unknown, name: unknown, mime: unknown) => {
     if (typeof id === 'string') {
       server.pullStorageFile(
         id,
@@ -430,7 +464,7 @@ function registerIpc(): void {
     }
   })
 
-  ipcMain.handle('files:send-paths', (event, paths: unknown) => {
+  handle('files:send-paths', (event, paths: unknown) => {
     if (event.sender !== win?.webContents) return 0
     if (!server.hasConnectedPeer()) return 0
     const files = existingFiles(paths)
@@ -438,26 +472,26 @@ function registerIpc(): void {
     return files.length
   })
 
-  ipcMain.handle('clipboard:set', (_event, text: unknown) => {
+  handle('clipboard:set', (_event, text: unknown) => {
     if (typeof text !== 'string') return false
     // Suppress the watcher echo for a manual send.
     watcher.applyRemote(text)
     return server.sendClipboard(text)
   })
 
-  ipcMain.handle('clipboard:copy', (_event, text: unknown) => {
+  handle('clipboard:copy', (_event, text: unknown) => {
     if (typeof text === 'string') clipboard.writeText(text)
   })
 
-  ipcMain.handle('clipboard:enable', (_event, enabled: unknown) => {
+  handle('clipboard:enable', (_event, enabled: unknown) => {
     store.setClipboardEnabled(Boolean(enabled))
     server.sendClipboardEnabled()
     if (store.clipboardEnabled) watcher.flushPending()
   })
 
-  ipcMain.handle('clipboard:request', () => server.requestClipboard())
+  handle('clipboard:request', () => server.requestClipboard())
 
-  ipcMain.handle('startup:set', (_event, enabled: unknown) => {
+  handle('startup:set', (_event, enabled: unknown) => {
     if (typeof enabled === 'boolean') applyLaunchAtLogin(enabled)
   })
 
@@ -466,28 +500,28 @@ function registerIpc(): void {
     server.sendNotificationCancel([{ deviceId, key }])
   }
 
-  ipcMain.handle('notifications:clear', () => {
+  handle('notifications:clear', () => {
     const refs = store.clearNotifications()
     server.sendNotificationCancel(refs)
   })
 
-  ipcMain.handle('notifications:pause', (_event, until: unknown) => {
+  handle('notifications:pause', (_event, until: unknown) => {
     if (typeof until !== 'number' || !Number.isFinite(until) || until <= 0) {
       store.resumeNotifications()
       return
     }
     store.pauseNotifications(until)
   })
-  ipcMain.handle('notifications:history', () => store.getNotificationHistory())
-  ipcMain.handle('notifications:history-clear', () => store.clearNotificationHistory())
+  handle('notifications:history', () => store.getNotificationHistory())
+  handle('notifications:history-clear', () => store.clearNotificationHistory())
 
-  ipcMain.handle('notification:dismiss', (_event, deviceId: unknown, key: unknown) => {
+  handle('notification:dismiss', (_event, deviceId: unknown, key: unknown) => {
     if (typeof deviceId === 'string' && typeof key === 'string') {
       dismissNotificationEverywhere(deviceId, key)
     }
   })
 
-  ipcMain.handle(
+  handle(
     'notification:reply',
     (_event, deviceId: unknown, key: unknown, actionId: unknown, text: unknown, label: unknown) => {
       if (
@@ -513,7 +547,7 @@ function registerIpc(): void {
     }
   )
 
-  ipcMain.handle(
+  handle(
     'notification:action',
     (_event, deviceId: unknown, key: unknown, actionId: unknown, label: unknown) => {
       if (typeof deviceId !== 'string' || typeof key !== 'string' || typeof actionId !== 'string') {
@@ -532,29 +566,29 @@ function registerIpc(): void {
     }
   )
 
-  ipcMain.handle('notification:set-muted', (_event, pkg: unknown, app: unknown, muted: unknown) => {
+  handle('notification:set-muted', (_event, pkg: unknown, app: unknown, muted: unknown) => {
     if (typeof pkg !== 'string' || typeof app !== 'string' || typeof muted !== 'boolean') return
     store.setNotificationMuted(pkg, app, muted)
   })
 
-  ipcMain.handle('notifications:clear-app', (_event, pkg: unknown, app: unknown) => {
+  handle('notifications:clear-app', (_event, pkg: unknown, app: unknown) => {
     if (typeof pkg !== 'string' || typeof app !== 'string') return
     const refs = store.clearNotificationsForApp(pkg, app)
     server.sendNotificationCancel(refs)
   })
 
-  ipcMain.handle('files:open-downloads', () => shell.openPath(store.downloadsDir))
+  handle('files:open-downloads', () => shell.openPath(store.downloadsDir))
 
-  ipcMain.handle('sms:threads', () => server.requestSmsThreads())
+  handle('sms:threads', () => server.requestSmsThreads())
 
-  ipcMain.handle('sms:thread', (_event, threadId: unknown, address: unknown) => {
+  handle('sms:thread', (_event, threadId: unknown, address: unknown) => {
     if (typeof threadId !== 'string') return
     server.requestSmsThread(threadId, typeof address === 'string' ? address : '')
   })
 
-  ipcMain.handle('sms:close', () => store.openSmsThread(null))
+  handle('sms:close', () => store.openSmsThread(null))
 
-  ipcMain.handle('sms:send', (_event, threadId: unknown, address: unknown, body: unknown, subscriptionId: unknown) => {
+  handle('sms:send', (_event, threadId: unknown, address: unknown, body: unknown, subscriptionId: unknown) => {
     if (typeof threadId !== 'string' || typeof address !== 'string' || typeof body !== 'string') {
       return 'invalid'
     }
@@ -564,7 +598,7 @@ function registerIpc(): void {
     return server.sendSms(threadId, address, body, subId)
   })
 
-  ipcMain.handle('sms:retry', (_event, id: unknown) => {
+  handle('sms:retry', (_event, id: unknown) => {
     if (typeof id !== 'string') return 'invalid'
     return server.retrySms(id)
   })
@@ -572,23 +606,23 @@ function registerIpc(): void {
   const galleryKind = (value: unknown): 'image' | 'video' =>
     value === 'video' ? 'video' : 'image'
 
-  ipcMain.handle('gallery:albums', (_event, kind: unknown) =>
+  handle('gallery:albums', (_event, kind: unknown) =>
     server.requestGalleryAlbums(galleryKind(kind))
   )
 
-  ipcMain.handle('gallery:album', (_event, kind: unknown, albumId: unknown, name: unknown) => {
+  handle('gallery:album', (_event, kind: unknown, albumId: unknown, name: unknown) => {
     if (typeof albumId !== 'string' || typeof name !== 'string') return
     server.openGalleryAlbum(galleryKind(kind), albumId, name)
   })
 
-  ipcMain.handle('gallery:close-album', () => server.closeGalleryAlbum())
+  handle('gallery:close-album', () => server.closeGalleryAlbum())
 
-  ipcMain.handle('gallery:more', (_event, kind: unknown, albumId: unknown, offset: unknown) => {
+  handle('gallery:more', (_event, kind: unknown, albumId: unknown, offset: unknown) => {
     if (typeof albumId !== 'string' || typeof offset !== 'number') return
     server.loadMoreGallery(galleryKind(kind), albumId, offset)
   })
 
-  ipcMain.handle('gallery:thumbnails', (_event, kind: unknown, photoIds: unknown) => {
+  handle('gallery:thumbnails', (_event, kind: unknown, photoIds: unknown) => {
     if (!Array.isArray(photoIds)) return
     server.requestGalleryThumbnails(
       galleryKind(kind),
@@ -596,55 +630,55 @@ function registerIpc(): void {
     )
   })
 
-  ipcMain.handle('gallery:preview', (_event, kind: unknown, photoId: unknown, name: unknown) => {
+  handle('gallery:preview', (_event, kind: unknown, photoId: unknown, name: unknown) => {
     if (typeof photoId !== 'string' || typeof name !== 'string') return
     server.requestGalleryPreview(galleryKind(kind), photoId, name)
   })
 
-  ipcMain.handle('gallery:close-preview', () => server.closeGalleryPreview())
+  handle('gallery:close-preview', () => server.closeGalleryPreview())
 
-  ipcMain.handle('gallery:download', (_event, kind: unknown, photoId: unknown) => {
+  handle('gallery:download', (_event, kind: unknown, photoId: unknown) => {
     if (typeof photoId === 'string') server.downloadGalleryPhoto(galleryKind(kind), photoId)
   })
 
-  ipcMain.handle('update:check', () => updater.check(true))
-  ipcMain.handle('update:download', () => updater.download())
-  ipcMain.on('update:install', () => updater.install())
+  handle('update:check', () => updater.check(true))
+  handle('update:download', () => updater.download())
+  on('update:install', () => updater.install())
 
-  ipcMain.handle('call:place', (_event, number: unknown, accountId: unknown) => {
+  handle('call:place', (_event, number: unknown, accountId: unknown) => {
     if (typeof number === 'string') {
       server.placeCall(number, typeof accountId === 'string' ? accountId : undefined)
     }
   })
-  ipcMain.handle('call:answer', (_event, callId: unknown) => {
+  handle('call:answer', (_event, callId: unknown) => {
     if (typeof callId === 'string') server.answerCall(callId)
   })
-  ipcMain.handle('call:reject', (_event, callId: unknown) => {
+  handle('call:reject', (_event, callId: unknown) => {
     if (typeof callId === 'string') server.rejectCall(callId)
   })
-  ipcMain.handle('call:disconnect', (_event, callId: unknown) => {
+  handle('call:disconnect', (_event, callId: unknown) => {
     if (typeof callId === 'string') server.disconnectCall(callId)
   })
-  ipcMain.handle('call:speaker', (_event, enabled: unknown) => {
+  handle('call:speaker', (_event, enabled: unknown) => {
     server.setCallSpeaker(Boolean(enabled))
   })
-  ipcMain.handle('call:mute', (_event, enabled: unknown) => {
+  handle('call:mute', (_event, enabled: unknown) => {
     server.setCallMute(Boolean(enabled))
   })
-  ipcMain.handle('call:placed-dismiss', () => store.dismissCallPlaced())
-  ipcMain.handle('call:error-dismiss', () => store.dismissCallError())
-  ipcMain.handle('phone:ring', (_event, deviceId: unknown) => {
+  handle('call:placed-dismiss', () => store.dismissCallPlaced())
+  handle('call:error-dismiss', () => store.dismissCallError())
+  handle('phone:ring', (_event, deviceId: unknown) => {
     if (typeof deviceId === 'string') server.ringPhone(deviceId)
   })
-  ipcMain.handle('ring:duration', (_event, value: unknown) => {
+  handle('ring:duration', (_event, value: unknown) => {
     if (typeof value === 'number' && RING_DURATIONS.includes(value)) {
       store.setRingDurationMs(value)
     }
   })
-  ipcMain.handle('phone:ring-stop', (_event, deviceId: unknown) => {
+  handle('phone:ring-stop', (_event, deviceId: unknown) => {
     if (typeof deviceId === 'string') server.stopRing(deviceId)
   })
-  ipcMain.handle('media:action', (_event, action: unknown, value: unknown) => {
+  handle('media:action', (_event, action: unknown, value: unknown) => {
     if (
       action === 'play' ||
       action === 'pause' ||
@@ -660,10 +694,10 @@ function registerIpc(): void {
     }
   })
 
-  ipcMain.handle('contacts:request', () => server.requestContacts())
-  ipcMain.handle('calllog:request', () => server.requestCallHistory())
-  ipcMain.handle('sims:request', () => server.requestSims())
-  ipcMain.handle(
+  handle('contacts:request', () => server.requestContacts())
+  handle('calllog:request', () => server.requestCallHistory())
+  handle('sims:request', () => server.requestSims())
+  handle(
     'sms:start',
     (_event, address: unknown, body: unknown, subscriptionId: unknown) => {
       if (typeof address !== 'string' || typeof body !== 'string') return 'invalid'
@@ -675,17 +709,17 @@ function registerIpc(): void {
     }
   )
 
-  ipcMain.handle('shell:open', (_event, url: unknown) => {
+  handle('shell:open', (_event, url: unknown) => {
     if (typeof url === 'string' && /^https?:\/\//i.test(url)) return shell.openExternal(url)
     return undefined
   })
 
-  ipcMain.on('app:quit', () => {
+  on('app:quit', () => {
     quitting = true
     app.quit()
   })
 
-  ipcMain.on('app:hide', () => win?.hide())
+  on('app:hide', () => win?.hide())
 }
 
 async function bootstrap(): Promise<void> {

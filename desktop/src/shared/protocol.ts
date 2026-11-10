@@ -7,6 +7,7 @@ export const PROTO_VERSION = 1
 export const CAP_NOTIF_PROGRESS = 'notif.progress'
 export const CAP_NOTIF_ACTION_V2 = 'notif.action.v2'
 export const CAP_NOTIF_ACTION_RESULT = 'notif.action.result'
+export const CAP_SERVER_PROOF = 'server.proof'
 export const SERVICE_TYPE = 'linkphone'
 export const DEFAULT_PORT = 8765
 export const MAX_FILE_CHUNK = 64 * 1024
