@@ -111,7 +111,7 @@ jobs:
                apps" when asked). A fresh install opens a three-step intro: what LinkPhone is, why
                each permission is needed, and pairing.
                **If an earlier LinkPhone build is installed, uninstall it first and pair again.**
-            2. **PC** — download and run `LinkPhone.Setup.0.1.4.exe`. SmartScreen will warn because
+            2. **PC** — download and run `LinkPhone.Setup.0.1.5.exe`. SmartScreen will warn because
                the installer is unsigned: *More info → Run anyway*. Allow it on **private**
                networks when Windows Firewall asks.
             3. Make sure both devices are on the same Wi-Fi (not a guest network).
@@ -123,19 +123,17 @@ jobs:
             7. For calls, tap **Set as default phone app**, accept Android's role prompt, then allow
                phone permissions.
 
-            ## What's new in 0.1.4
+            ## What's new in 0.1.5
 
-            * Camera access is now a one-time, explained grant: Android asks once, and the card
-              tells you to choose "While using the app". "Only this time" is switched off when
-              LinkPhone goes to the background or the screen locks
-            * The Camera card distinguishes not asked, denied, revoked and blocked access, offers
-              **Open settings** when Android will no longer prompt, and refreshes when you return
-              from Settings
-            * A revoked grant stops the stream and tells the PC within a few seconds instead of
-              freezing the last frame
-            * The QR scanner shows **Open settings** instead of a dead permission dialog when
-              camera access is blocked
-            * No changes to streaming, video quality or the desktop UI
+            * Camera now streams hardware H.264 instead of JPEG: 1080p at 30 fps by default, with
+              720p/480p and a 60 fps option when the phone camera supports it
+            * Much lower bandwidth and CPU: roughly 8 Mbps at 1080p30 and 14 Mbps at 1080p60,
+              instead of tens of Mbps for the old JPEG stream
+            * The PC shows the measured frame rate, so a camera that delivers 30 fps at the "60 fps"
+              setting is visible
+            * **Update both apps.** The camera protocol changed; a 0.1.4 phone or PC shows an update
+              hint instead of a broken stream
+            * Camera permission, the permission watchdog and stop behaviour are unchanged
 
             ## Features
 

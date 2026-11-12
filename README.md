@@ -32,9 +32,8 @@ service or a relay server.
 
 **No account. No cloud. No relay.**
 
-> **v0.1.4** makes camera access a one-time grant: Android asks once, the card explains choosing
-> “While using the app” instead of “Only this time”, and a revoked grant stops the stream cleanly
-> instead of freezing it.
+> **v0.1.5** switches the camera stream to hardware H.264: 1080p at 30 fps by default, 60 fps when
+> the phone camera supports it, and far lower bandwidth than the old JPEG stream. Update both apps.
 
 ## Features
 
@@ -59,7 +58,7 @@ service or a relay server.
 | Auto-reconnect | Yes | Reclaims a paired PC after reboot, app restart or a PC address change |
 | Built-in updates | Yes | Automatic checks + notifications; verified Windows/Android installers |
 | Screen mirroring | Not yet | Planned; `MediaProjection` + WebRTC |
-| Camera | Yes | Live phone camera in the Camera tab, 720p/480p and front/back; share the LinkPhone window in meeting apps. Not a system webcam; no audio |
+| Camera | Yes | Live H.264 phone camera in the Camera tab, 1080p/720p/480p at 30 or 60 fps (60 depends on the camera); share the LinkPhone window in meeting apps. Not a system webcam; no audio |
 | App streaming | Not yet | Planned |
 
 ## Architecture
@@ -78,7 +77,7 @@ discovery. See [docs/PROTOCOL.md](docs/PROTOCOL.md) for the handshake, frames an
 2. **Phone:** install `linkphone-android.apk` (allow “install unknown apps”). A fresh install opens
    a three-step intro: what LinkPhone is, why each permission is needed, and pairing. You can skip
    it and set everything up later on the main screen.
-3. **PC:** run `LinkPhone.Setup.0.1.4.exe`. The installer is unsigned, so SmartScreen requires
+3. **PC:** run `LinkPhone.Setup.0.1.5.exe`. The installer is unsigned, so SmartScreen requires
    **More info → Run anyway**. It also adds **Send to → LinkPhone** to Explorer; Windows 11 may keep
    it under **Show more options**.
 4. **Pair:** on the PC, expand **Scan QR code instead** in the sidebar. On the phone, tap **Scan QR**
@@ -113,9 +112,14 @@ first ask permission for LinkPhone to install updates.
 <details>
 <summary><strong>Phone camera on the PC</strong></summary>
 
-Open **Camera** while LinkPhone is open on the phone and press **Start**. The phone streams 720p
-(or 480p) video over the encrypted link at about 15 fps; front/back and quality can be changed
-live. In Zoom, Meet, Teams or Discord choose **Share window → LinkPhone**. This is not a system
+Open **Camera** while LinkPhone is open on the phone and press **Start**. The phone streams hardware
+H.264 over the encrypted link: 1080p at 30 fps by default, with 720p/480p and a 60 fps option when
+the phone camera supports it. The PC shows the measured frame rate, so a camera that only delivers
+30 fps at the 60 fps setting is visible. Approximate bandwidth is 8 Mbps at 1080p30, 14 Mbps at
+1080p60, 4 Mbps at 720p30 and 2 Mbps at 480p. Both apps must be on 0.1.5 — the camera protocol
+changed, and older builds show an update hint.
+
+In Zoom, Meet, Teams or Discord choose **Share window → LinkPhone**. This is not a system
 camera device — those apps will not list a new camera — and there is no audio. Keep the LinkPhone
 window open: minimizing it, leaving the Camera tab, disconnecting or quitting stops the stream.
 Android shows an ongoing notification with **Stop** while the camera runs, and the phone must be

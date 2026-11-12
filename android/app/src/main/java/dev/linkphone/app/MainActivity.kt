@@ -807,7 +807,8 @@ private fun CameraCard(context: Context, connected: Boolean) {
     var access by remember { mutableStateOf(cameraAccessState(context, store)) }
     var showExplainer by remember { mutableStateOf(false) }
     var facing by remember { mutableStateOf("back") }
-    var quality by remember { mutableStateOf("720p") }
+    var quality by remember { mutableStateOf("1080p") }
+    var fps by remember { mutableStateOf(30) }
 
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
@@ -884,7 +885,7 @@ private fun CameraCard(context: Context, connected: Boolean) {
                     camera.streaming -> TextButton(onClick = { CameraHub.stop() }) { Text("Stop") }
                     else -> TextButton(
                         enabled = connected,
-                        onClick = { CameraHub.start(context, facing, quality) }
+                        onClick = { CameraHub.start(context, facing, quality, fps) }
                     ) { Text("Start") }
                 }
             }
@@ -894,19 +895,30 @@ private fun CameraCard(context: Context, connected: Boolean) {
                         TextButton(
                             onClick = {
                                 facing = if (facing == "back") "front" else "back"
-                                if (camera.streaming) CameraHub.start(context, facing, quality)
+                                if (camera.streaming) CameraHub.start(context, facing, quality, fps)
                             }
                         ) { Text(if (facing == "back") "Back camera" else "Front camera") }
                         TextButton(
                             onClick = {
-                                quality = if (quality == "720p") "480p" else "720p"
-                                if (camera.streaming) CameraHub.start(context, facing, quality)
+                                quality = when (quality) {
+                                    "1080p" -> "720p"
+                                    "720p" -> "480p"
+                                    else -> "1080p"
+                                }
+                                if (camera.streaming) CameraHub.start(context, facing, quality, fps)
                             }
                         ) { Text(quality) }
+                        TextButton(
+                            onClick = {
+                                fps = if (fps == 30) 60 else 30
+                                if (camera.streaming) CameraHub.start(context, facing, quality, fps)
+                            }
+                        ) { Text("$fps fps") }
                     }
                     Text(
                         "Video only. Share this window in Zoom, Meet or Teams; keep it open — " +
-                            "minimizing stops the camera. A notification stays visible while it runs.",
+                            "minimizing stops the camera. A notification stays visible while it runs. " +
+                            "60 fps depends on the phone camera.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall
                     )
@@ -935,10 +947,11 @@ private fun cameraStatusText(
             "permission" -> "Camera permission is off. Turn it on, then press Start"
             "busy" -> "The camera is in use by another app"
             "unsupported" -> "This phone can't stream video"
+            "update_pc" -> "Update LinkPhone on your PC to 0.1.5 or newer"
             "disconnected" -> "Phone disconnected"
             else -> "Camera unavailable"
         }
-        camera.streaming -> "Streaming · ${camera.quality} · ${camera.facing}"
+        camera.streaming -> "Streaming · ${camera.quality} · ${camera.fps} fps · ${camera.facing}"
         access == CameraAccess.Blocked ->
             "Camera is blocked for LinkPhone. Open Settings → Permissions → Camera"
         access == CameraAccess.Revoked ->

@@ -50,7 +50,7 @@ private const val CAP_NOTIF_PROGRESS = "notif.progress"
 private const val CAP_NOTIF_ACTION_V2 = "notif.action.v2"
 private const val CAP_NOTIF_ACTION_RESULT = "notif.action.result"
 private const val CAP_SERVER_PROOF = "server.proof"
-private const val CAP_CAMERA = "camera.stream"
+private const val CAP_CAMERA_H264 = "camera.stream.h264"
 private const val MAX_CAMERA_QUEUE = 512L * 1024
 private const val MAX_REPLY_CHARS = 2000
 private const val RECONNECT_MIN_MS = 2500L
@@ -145,6 +145,9 @@ class LinkClient(context: Context, private val store: PairStore) {
         private set
     @Volatile
     var supportsActionResult = false
+        private set
+    @Volatile
+    var supportsCameraH264 = false
         private set
     @Volatile private var wantConnection = false
     private var sendSeq = 0L
@@ -359,7 +362,7 @@ class LinkClient(context: Context, private val store: PairStore) {
                         JSONArray()
                             .put(CAP_NOTIF_ACTION_V2)
                             .put(CAP_NOTIF_ACTION_RESULT)
-                            .put(CAP_CAMERA)
+                            .put(CAP_CAMERA_H264)
                     )
                     if (wantsPair) put("pair", true)
                 }
@@ -530,6 +533,7 @@ class LinkClient(context: Context, private val store: PairStore) {
         supportsLiveProgress = hasCap(CAP_NOTIF_PROGRESS)
         supportsActionV2 = hasCap(CAP_NOTIF_ACTION_V2)
         supportsActionResult = hasCap(CAP_NOTIF_ACTION_RESULT)
+        supportsCameraH264 = hasCap(CAP_CAMERA_H264)
 
         if (!msg.optBoolean("needPair")) {
             if (store.keyB64 != null) {
@@ -756,9 +760,11 @@ class LinkClient(context: Context, private val store: PairStore) {
             "camera.start" -> CameraHub.start(
                 appContext,
                 msg.optString("facing", "back"),
-                msg.optString("quality", "720p")
+                msg.optString("quality", "1080p"),
+                msg.optInt("fps", 30)
             )
             "camera.stop" -> CameraHub.stop()
+            "camera.keyframe" -> CameraHub.requestKeyframe()
             "file.offer" -> onIncomingOffer(msg)
             "file.accept" -> {
                 val id = msg.optString("id")
@@ -1335,18 +1341,37 @@ class LinkClient(context: Context, private val store: PairStore) {
 
     /** Drops frames instead of buffering when the socket is behind. */
     @Synchronized
-    fun sendCameraFrame(frameSeq: Int, tsMs: Long, jpeg: ByteArray): Boolean {
+    fun sendCameraFrame(
+        flags: Int,
+        frameSeq: Int,
+        ptsUs: Long,
+        data: ByteArray
+    ): Boolean {
         val currentKey = key ?: return false
         val socket = ws ?: return false
         if (!ready) return false
         if (socket.queueSize() > MAX_CAMERA_QUEUE) return false
-        val plain = ByteArray(1 + 4 + 8 + jpeg.size)
+        val plain = ByteArray(1 + 1 + 4 + 8 + data.size)
         plain[0] = Proto.KIND_CAMERA.toByte()
-        System.arraycopy(ByteBuffer.allocate(4).putInt(frameSeq).array(), 0, plain, 1, 4)
-        System.arraycopy(ByteBuffer.allocate(8).putLong(tsMs).array(), 0, plain, 5, 8)
-        System.arraycopy(jpeg, 0, plain, 13, jpeg.size)
+        plain[1] = flags.toByte()
+        System.arraycopy(ByteBuffer.allocate(4).putInt(frameSeq).array(), 0, plain, 2, 4)
+        System.arraycopy(ByteBuffer.allocate(8).putLong(ptsUs).array(), 0, plain, 6, 8)
+        System.arraycopy(data, 0, plain, 14, data.size)
         sendSeq += 1
         return socket.send(Crypto.seal(currentKey, "c2s", sendSeq, plain).toByteString())
+    }
+
+    internal fun sendCameraConfig(width: Int, height: Int, fps: Int, avcC: ByteArray) {
+        send(
+            JSONObject().apply {
+                put("t", "camera.config")
+                put("codec", "h264")
+                put("width", width)
+                put("height", height)
+                put("fps", fps)
+                put("description", b64(avcC))
+            }
+        )
     }
 
     internal fun sendCameraState(
@@ -1354,6 +1379,8 @@ class LinkClient(context: Context, private val store: PairStore) {
         facing: String,
         quality: String,
         fps: Int,
+        width: Int,
+        height: Int,
         error: String?
     ) {
         send(
@@ -1363,6 +1390,9 @@ class LinkClient(context: Context, private val store: PairStore) {
                 put("facing", facing)
                 put("quality", quality)
                 put("fps", fps)
+                put("width", width)
+                put("height", height)
+                put("codec", "h264")
                 error?.let { put("error", it) }
             }
         )

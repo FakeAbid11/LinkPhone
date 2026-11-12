@@ -696,15 +696,22 @@ function registerIpc(): void {
     }
   })
 
-  handle('camera:start', (_event, facing: unknown, quality: unknown) => {
+  handle('camera:start', (_event, facing: unknown, quality: unknown, fps: unknown) => {
     const deviceId = store.snapshot().devices.find((d) => d.connected)?.deviceId ?? ''
+    const qualityValue =
+      quality === '1080p' || quality === '720p' || quality === '480p' ? quality : '1080p'
     return server.cameraStart(
       deviceId,
       facing === 'front' ? 'front' : 'back',
-      quality === '480p' ? '480p' : '720p'
+      qualityValue,
+      fps === 60 ? 60 : 30
     )
   })
   handle('camera:stop', () => server.cameraStop())
+  handle('camera:keyframe', () => {
+    const deviceId = store.snapshot().devices.find((d) => d.connected)?.deviceId ?? ''
+    server.cameraKeyframe(deviceId)
+  })
 
   handle('contacts:request', () => server.requestContacts())
   handle('calllog:request', () => server.requestCallHistory())
@@ -897,13 +904,20 @@ async function bootstrap(): Promise<void> {
   })
   server.on(
     'camera-frame',
-    (_deviceId: string, frame: { seq: number; ts: number; jpeg: Buffer }) => {
+    (
+      _deviceId: string,
+      frame: { flags: number; seq: number; pts: number; data: Buffer }
+    ) => {
       // A hidden or minimized window would only queue frames; the phone keeps streaming
       // until the camera tab or window closes, which sends an explicit stop.
       if (!win || win.isDestroyed() || !win.isVisible() || win.isMinimized()) return
-      win.webContents.send('camera:frame', frame.jpeg)
+      win.webContents.send('camera:frame', frame)
     }
   )
+  server.on('camera-config', (config: unknown) => {
+    if (!win || win.isDestroyed()) return
+    win.webContents.send('camera:config', config)
+  })
   store.on(
     'batteryLow',
     (event: { deviceId: string; name: string; batteryLevel: number }) => {

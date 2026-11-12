@@ -9,6 +9,7 @@ import {
   CAP_NOTIF_ACTION_V2,
   CAP_NOTIF_PROGRESS,
   CAP_SERVER_PROOF,
+  CAP_CAMERA_H264,
   DEFAULT_PORT,
   KIND_CONTROL,
   KIND_FILE,
@@ -444,7 +445,13 @@ export class LinkServer extends EventEmitter {
         serverName: this.store.serverName,
         needPair: false,
         needAuth: true,
-        caps: [CAP_NOTIF_PROGRESS, CAP_NOTIF_ACTION_V2, CAP_NOTIF_ACTION_RESULT, CAP_SERVER_PROOF]
+        caps: [
+          CAP_NOTIF_PROGRESS,
+          CAP_NOTIF_ACTION_V2,
+          CAP_NOTIF_ACTION_RESULT,
+          CAP_SERVER_PROOF,
+          CAP_CAMERA_H264
+        ]
       })
       this.send(peer, { t: 'auth.challenge', nonce: peer.nonceB64 })
       return
@@ -459,7 +466,13 @@ export class LinkServer extends EventEmitter {
       serverName: this.store.serverName,
       needPair: true,
       needAuth: false,
-      caps: [CAP_NOTIF_PROGRESS, CAP_NOTIF_ACTION_V2, CAP_NOTIF_ACTION_RESULT, CAP_SERVER_PROOF],
+      caps: [
+        CAP_NOTIF_PROGRESS,
+        CAP_NOTIF_ACTION_V2,
+        CAP_NOTIF_ACTION_RESULT,
+        CAP_SERVER_PROOF,
+        CAP_CAMERA_H264
+      ],
       salt: peer.salt.toString('base64')
     })
   }
@@ -649,12 +662,14 @@ export class LinkServer extends EventEmitter {
 
   private onCameraFrame(peer: Peer, plain: Buffer): void {
     if (plain.length < 15) return
-    if (plain.length > 2 * 1024 * 1024) return
-    if (plain[13] !== 0xff || plain[14] !== 0xd8) return
+    if (plain.length > 4 * 1024 * 1024) return
+    const flags = plain[1]
+    if ((flags & ~1) !== 0) return
     this.emit('camera-frame', peer.deviceId, {
-      seq: plain.readUInt32BE(1),
-      ts: Number(plain.readBigUInt64BE(5)),
-      jpeg: Buffer.from(plain.subarray(13))
+      flags,
+      seq: plain.readUInt32BE(2),
+      pts: Number(plain.readBigUInt64BE(6)),
+      data: Buffer.from(plain.subarray(14))
     })
   }
 
@@ -683,17 +698,38 @@ export class LinkServer extends EventEmitter {
 
       case 'camera.state': {
         const facing = str(msg.facing, 'back') === 'front' ? 'front' : 'back'
-        const quality = str(msg.quality, '720p') === '480p' ? '480p' : '720p'
+        const qualityValue = str(msg.quality, '1080p')
+        const quality =
+          qualityValue === '1080p' || qualityValue === '720p' || qualityValue === '480p'
+            ? qualityValue
+            : '1080p'
         const error = str(msg.error)
         const info: CameraInfo = {
           deviceId: peer.deviceId,
           streaming: bool(msg.streaming),
           facing,
           quality,
-          fps: Math.round(num(msg.fps, 15))
+          fps: Math.round(num(msg.fps, 30)),
+          width: Math.round(num(msg.width)),
+          height: Math.round(num(msg.height)),
+          codec: 'h264'
         }
         if (error) info.error = error
         this.store.setCamera(info)
+        return
+      }
+
+      case 'camera.config': {
+        if (str(msg.codec, 'h264') !== 'h264') return
+        const description = str(msg.description)
+        if (!description || description.length > 2048) return
+        this.emit('camera-config', {
+          codec: 'h264',
+          width: Math.round(num(msg.width)),
+          height: Math.round(num(msg.height)),
+          fps: Math.round(num(msg.fps, 30)),
+          description
+        })
         return
       }
 
@@ -1422,13 +1458,26 @@ export class LinkServer extends EventEmitter {
     this.broadcast({ t: 'sms.thread.request', threadId })
   }
 
-  cameraStart(deviceId: string, facing: 'front' | 'back', quality: '720p' | '480p'): boolean {
+  cameraStart(
+    deviceId: string,
+    facing: 'front' | 'back',
+    quality: '1080p' | '720p' | '480p',
+    fps: 30 | 60
+  ): boolean {
     const peer = [...this.peers].find(
       (p) => p.phase === 'ready' && (!deviceId || p.deviceId === deviceId)
     )
     if (!peer) return false
-    this.send(peer, { t: 'camera.start', facing, quality })
+    this.send(peer, { t: 'camera.start', facing, quality, fps })
     return true
+  }
+
+  cameraKeyframe(deviceId: string): void {
+    const peer = [...this.peers].find(
+      (p) => p.phase === 'ready' && (!deviceId || p.deviceId === deviceId)
+    )
+    if (!peer) return
+    this.send(peer, { t: 'camera.keyframe' })
   }
 
   cameraStop(): void {
