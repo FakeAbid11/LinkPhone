@@ -136,7 +136,8 @@ export class AppStore extends EventEmitter {
   private galleryError = ''
   private desktopUpdate: DesktopUpdateState
   private phoneCalls: PhoneCallInfo[] = []
-  private camera: CameraInfo | null = null  private callDialerReady = false
+  private camera: CameraInfo | null = null
+  private callDialerReady = false
   private callOutgoingReady = false
   private callControlReady = false
   private callPlaced: { number: string; at: number } | null = null
@@ -1353,7 +1354,8 @@ export class AppStore extends EventEmitter {
     this.changed()
   }
 
-  setCallPlaced(number: string | null): void {    this.callPlaced = number ? { number, at: Date.now() } : null
+  setCallPlaced(number: string | null): void {
+    this.callPlaced = number ? { number, at: Date.now() } : null
     if (number) this.lastDialed = { number, at: Date.now() }
     this.changed()
   }
