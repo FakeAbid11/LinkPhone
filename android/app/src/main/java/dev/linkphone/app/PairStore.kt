@@ -81,6 +81,22 @@ class PairStore(context: Context) {
         get() = prefs.getBoolean("onboardingDone", false)
         set(value) = prefs.edit().putBoolean("onboardingDone", value).apply()
 
+    var cameraExplainerShown: Boolean
+        get() = prefs.getBoolean("cameraExplainerShown", false)
+        set(value) = prefs.edit().putBoolean("cameraExplainerShown", value).apply()
+
+    var cameraAsked: Boolean
+        get() = prefs.getBoolean("cameraAsked", false)
+        set(value) = prefs.edit().putBoolean("cameraAsked", value).apply()
+
+    var cameraGrantedBefore: Boolean
+        get() = prefs.getBoolean("cameraGrantedBefore", false)
+        set(value) = prefs.edit().putBoolean("cameraGrantedBefore", value).apply()
+
+    var cameraBlocked: Boolean
+        get() = prefs.getBoolean("cameraBlocked", false)
+        set(value) = prefs.edit().putBoolean("cameraBlocked", value).apply()
+
     fun hasPairing(): Boolean = keyB64 != null && host != null
 
     fun key(): ByteArray? = keyB64?.let { Base64.decode(it, Base64.NO_WRAP) }

@@ -10,6 +10,8 @@ import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.Matrix
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import android.util.Size
@@ -126,10 +128,33 @@ class CameraStreamService : LifecycleService() {
     private var quality = "720p"
     private var frameSeq = 0
     private var lastFrameAt = 0L
+    private val watchdogHandler = Handler(Looper.getMainLooper())
+    private val permissionWatchdog = object : Runnable {
+        override fun run() {
+            if (!hasCameraPermission()) {
+                runCatching { provider?.unbindAll() }
+                CameraHub.reportError("permission")
+                stopSelf()
+                return
+            }
+            watchdogHandler.postDelayed(this, WATCHDOG_MS)
+        }
+    }
+
+    private fun hasCameraPermission(): Boolean =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         if (intent?.action == ACTION_STOP) {
+            watchdogHandler.removeCallbacks(permissionWatchdog)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        // A camera-type foreground service without the grant throws on API 34+.
+        if (!hasCameraPermission()) {
+            CameraHub.reportError("permission")
             stopSelf()
             return START_NOT_STICKY
         }
@@ -141,6 +166,8 @@ class CameraStreamService : LifecycleService() {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
         )
         bind()
+        watchdogHandler.removeCallbacks(permissionWatchdog)
+        watchdogHandler.postDelayed(permissionWatchdog, WATCHDOG_MS)
         return START_NOT_STICKY
     }
 
@@ -237,6 +264,7 @@ class CameraStreamService : LifecycleService() {
     }
 
     override fun onDestroy() {
+        watchdogHandler.removeCallbacks(permissionWatchdog)
         runCatching { provider?.unbindAll() }
         provider = null
         executor.shutdown()
@@ -249,6 +277,7 @@ class CameraStreamService : LifecycleService() {
         private const val CHANNEL_ID = "linkphone_camera"
         private const val NOTIFICATION_ID = 7
         private const val FRAME_INTERVAL_MS = 66L
+        private const val WATCHDOG_MS = 5_000L
         private const val JPEG_QUALITY = 70
         const val ACTION_START = "dev.linkphone.app.CAMERA_START"
         const val ACTION_STOP = "dev.linkphone.app.CAMERA_STOP"

@@ -1,6 +1,7 @@
 package dev.linkphone.app
 
 import android.Manifest
+import android.app.Activity
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Matrix
@@ -47,7 +48,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.BinaryBitmap
@@ -120,6 +124,7 @@ fun preferredAddress(addresses: List<String>): String? =
 @Composable
 fun QrScannerScreen(onResult: (String) -> Unit, onClose: () -> Unit) {
     val context = LocalContext.current
+    val store = LinkCore.requireStore()
     val lifecycleOwner = LocalLifecycleOwner.current
     var granted by remember {
         mutableStateOf(
@@ -127,6 +132,7 @@ fun QrScannerScreen(onResult: (String) -> Unit, onClose: () -> Unit) {
                 PackageManager.PERMISSION_GRANTED
         )
     }
+    var access by remember { mutableStateOf(cameraAccessState(context, store)) }
     var error by remember { mutableStateOf<String?>(null) }
     val handled = remember { AtomicBoolean(false) }
     val executor = remember { Executors.newSingleThreadExecutor() }
@@ -139,11 +145,37 @@ fun QrScannerScreen(onResult: (String) -> Unit, onClose: () -> Unit) {
         ActivityResultContracts.RequestPermission()
     ) { ok ->
         granted = ok
-        if (!ok) error = "Camera permission is required to scan the QR code."
+        if (ok) {
+            store.cameraGrantedBefore = true
+            store.cameraBlocked = false
+        } else {
+            store.cameraBlocked = (context as? Activity)?.let {
+                !ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.CAMERA)
+            } ?: false
+            error = "Camera permission is required to scan the QR code."
+        }
+        access = cameraAccessState(context, store)
     }
 
     LaunchedEffect(Unit) {
-        if (!granted) permissionLauncher.launch(Manifest.permission.CAMERA)
+        access = cameraAccessState(context, store)
+        if (!granted && access != CameraAccess.Blocked) {
+            store.cameraAsked = true
+            permissionLauncher.launch(Manifest.permission.CAMERA)
+        } else if (access == CameraAccess.Blocked) {
+            error = "Camera is blocked for LinkPhone. Open Settings → Permissions → Camera."
+        }
+    }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        access = cameraAccessState(context, store)
+        if (access == CameraAccess.Granted) {
+            granted = true
+            error = null
+        }
+        if (access == CameraAccess.Blocked) {
+            error = "Camera is blocked for LinkPhone. Open Settings → Permissions → Camera."
+        }
     }
 
     Dialog(
@@ -268,6 +300,17 @@ fun QrScannerScreen(onResult: (String) -> Unit, onClose: () -> Unit) {
                             color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 13.sp
                         )
+                    }
+                }
+
+                if (access == CameraAccess.Blocked) {
+                    TextButton(
+                        onClick = { openAppSettings(context) },
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 84.dp)
+                    ) {
+                        Text("Open settings", color = Color.White)
                     }
                 }
 
