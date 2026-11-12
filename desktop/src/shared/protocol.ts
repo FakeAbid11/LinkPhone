@@ -8,7 +8,7 @@ export const CAP_NOTIF_PROGRESS = 'notif.progress'
 export const CAP_NOTIF_ACTION_V2 = 'notif.action.v2'
 export const CAP_NOTIF_ACTION_RESULT = 'notif.action.result'
 export const CAP_SERVER_PROOF = 'server.proof'
-export const CAP_CAMERA = 'camera.stream'
+export const CAP_CAMERA_H264 = 'camera.stream.h264'
 export const SERVICE_TYPE = 'linkphone'
 export const DEFAULT_PORT = 8765
 export const MAX_FILE_CHUNK = 64 * 1024
@@ -285,9 +285,27 @@ export interface CameraInfo {
   deviceId: string
   streaming: boolean
   facing: 'front' | 'back'
-  quality: '720p' | '480p'
+  quality: '1080p' | '720p' | '480p'
   fps: number
+  width: number
+  height: number
+  codec: 'h264'
   error?: string
+}
+
+export interface CameraFrame {
+  flags: number
+  seq: number
+  pts: number
+  data: Uint8Array
+}
+
+export interface CameraConfig {
+  codec: 'h264'
+  width: number
+  height: number
+  fps: number
+  description: string
 }
 
 export interface AppState {

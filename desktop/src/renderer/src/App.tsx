@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AppState, GalleryPreview } from '@shared/protocol'
-import { CAP_CAMERA } from '@shared/protocol'
+import { CAP_CAMERA_H264 } from '@shared/protocol'
 import logo from './assets/logo.png'
 import { Icon, type IconName } from './components/Icon'
 import { ClipboardPanel } from './components/ClipboardPanel'
@@ -224,7 +224,7 @@ export default function App(): JSX.Element {
           <div className="brand-mark"><img src={logo} alt="" /></div>
           <div>
             <div className="brand-name">LinkPhone</div>
-            <div className="brand-sub">Local network · v{state.desktopUpdate.currentVersion || '0.1.4'}</div>
+            <div className="brand-sub">Local network · v{state.desktopUpdate.currentVersion || '0.1.5'}</div>
           </div>
         </div>
 
@@ -498,7 +498,7 @@ export default function App(): JSX.Element {
             <CameraPanel
               camera={state.camera}
               connected={connected.length > 0}
-              supported={connected[0]?.caps?.includes(CAP_CAMERA) ?? false}
+              supported={connected[0]?.caps?.includes(CAP_CAMERA_H264) ?? false}
             />
           )}
           {tab === 'clipboard' && (

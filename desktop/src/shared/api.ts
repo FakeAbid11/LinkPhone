@@ -1,5 +1,7 @@
 import type {
   AppState,
+  CameraConfig,
+  CameraFrame,
   ClipboardStatus,
   GalleryPreview,
   NotificationItem,
@@ -101,9 +103,15 @@ export interface LinkPhoneApi {
   onMediaArt: (
     cb: (art: { id: string; mime: string; data: string } | null) => void
   ) => () => void
-  startCamera: (facing: 'front' | 'back', quality: '720p' | '480p') => Promise<boolean>
+  startCamera: (
+    facing: 'front' | 'back',
+    quality: '1080p' | '720p' | '480p',
+    fps: 30 | 60
+  ) => Promise<boolean>
   stopCamera: () => Promise<void>
-  onCameraFrame: (cb: (frame: Uint8Array) => void) => () => void
+  requestCameraKeyframe: () => Promise<void>
+  onCameraFrame: (cb: (frame: CameraFrame) => void) => () => void
+  onCameraConfig: (cb: (config: CameraConfig) => void) => () => void
   requestContacts: () => Promise<void>
   requestCallHistory: () => Promise<void>
   requestSims: () => Promise<void>
