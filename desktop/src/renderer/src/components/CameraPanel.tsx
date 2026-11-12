@@ -41,7 +41,8 @@ export function CameraPanel({ camera, connected, supported }: Props): JSX.Elemen
     const off = window.linkphone.onCameraFrame((data) => {
       if (decoding.current) return
       decoding.current = true
-      createImageBitmap(new Blob([data], { type: 'image/jpeg' }))
+      const bytes = new Uint8Array(data)
+      createImageBitmap(new Blob([bytes.buffer], { type: 'image/jpeg' }))
         .then((bitmap) => {
           const canvas = canvasRef.current
           if (canvas) {
