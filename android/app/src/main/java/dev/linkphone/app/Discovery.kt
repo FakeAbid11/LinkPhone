@@ -10,6 +10,7 @@ object Proto {
     const val SERVICE_TYPE = "_linkphone._tcp."
     const val KIND_CONTROL = 0x10
     const val KIND_FILE = 0x20
+    const val KIND_CAMERA = 0x30
     const val CHUNK = 64 * 1024
 }
 

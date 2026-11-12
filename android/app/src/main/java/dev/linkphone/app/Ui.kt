@@ -61,6 +61,7 @@ internal object Symbols {
     const val notifications = "\ue7f5"
     const val sms = "\ue625"
     const val photo_library = "\ue413"
+    const val videocam = "\ue04b"
     const val contacts = "\ue0ba"
     const val call = "\uf0d4"
     const val folder = "\ue2c7"

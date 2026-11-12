@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AppState, GalleryPreview } from '@shared/protocol'
+import { CAP_CAMERA } from '@shared/protocol'
 import logo from './assets/logo.png'
 import { Icon, type IconName } from './components/Icon'
 import { ClipboardPanel } from './components/ClipboardPanel'
 import { CallsPanel } from './components/CallsPanel'
+import { CameraPanel } from './components/CameraPanel'
 import { DevicePanel } from './components/DevicePanel'
 import { FilesPanel } from './components/FilesPanel'
 import { MessagesPanel } from './components/MessagesPanel'
@@ -18,6 +20,7 @@ type Tab =
   | 'messages'
   | 'calls'
   | 'photos'
+  | 'camera'
   | 'files'
   | 'clipboard'
   | 'settings'
@@ -27,6 +30,7 @@ const TABS: Array<{ id: Tab; label: string; icon: IconName }> = [
   { id: 'messages', label: 'Messages', icon: 'sms' },
   { id: 'calls', label: 'Calls', icon: 'call' },
   { id: 'photos', label: 'Photos', icon: 'photo_library' },
+  { id: 'camera', label: 'Camera', icon: 'videocam' },
   { id: 'files', label: 'Files', icon: 'folder' },
   { id: 'clipboard', label: 'Clipboard', icon: 'content_paste' },
   { id: 'settings', label: 'Settings', icon: 'settings' }
@@ -220,7 +224,7 @@ export default function App(): JSX.Element {
           <div className="brand-mark"><img src={logo} alt="" /></div>
           <div>
             <div className="brand-name">LinkPhone</div>
-            <div className="brand-sub">Local network · v{state.desktopUpdate.currentVersion || '0.1.2'}</div>
+            <div className="brand-sub">Local network · v{state.desktopUpdate.currentVersion || '0.1.3'}</div>
           </div>
         </div>
 
@@ -488,6 +492,13 @@ export default function App(): JSX.Element {
               onDownload={(photoId) =>
                 void window.linkphone.downloadGalleryPhoto(state.galleryKind, photoId)
               }
+            />
+          )}
+          {tab === 'camera' && (
+            <CameraPanel
+              camera={state.camera}
+              connected={connected.length > 0}
+              supported={connected[0]?.caps?.includes(CAP_CAMERA) ?? false}
             />
           )}
           {tab === 'clipboard' && (

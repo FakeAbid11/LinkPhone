@@ -7,6 +7,7 @@ import type {
   AppState,
   CallAccountInfo,
   CallLogEntry,
+  CameraInfo,
   DesktopUpdateState,
   DeviceInfo,
   GalleryAlbum,
@@ -135,7 +136,7 @@ export class AppStore extends EventEmitter {
   private galleryError = ''
   private desktopUpdate: DesktopUpdateState
   private phoneCalls: PhoneCallInfo[] = []
-  private callDialerReady = false
+  private camera: CameraInfo | null = null  private callDialerReady = false
   private callOutgoingReady = false
   private callControlReady = false
   private callPlaced: { number: string; at: number } | null = null
@@ -1339,14 +1340,20 @@ export class AppStore extends EventEmitter {
   }
 
   setMedia(media: AppState['media']): void {
+
     const next = media && media.title.length > 0 ? media : null
     if (JSON.stringify(next) === JSON.stringify(this.media)) return
     this.media = next
     this.changed()
   }
 
-  setCallPlaced(number: string | null): void {
-    this.callPlaced = number ? { number, at: Date.now() } : null
+  setCamera(info: CameraInfo | null): void {
+    if (JSON.stringify(info) === JSON.stringify(this.camera)) return
+    this.camera = info
+    this.changed()
+  }
+
+  setCallPlaced(number: string | null): void {    this.callPlaced = number ? { number, at: Date.now() } : null
     if (number) this.lastDialed = { number, at: Date.now() }
     this.changed()
   }
@@ -1452,7 +1459,8 @@ export class AppStore extends EventEmitter {
         lastSeen: live?.lastSeen,
         batteryLevel: live?.batteryLevel,
         charging: live?.charging,
-        ringing: live?.ringing ?? false
+        ringing: live?.ringing ?? false,
+        caps: live?.caps
       }
     })
     for (const [id, live] of this.live) {
@@ -1496,6 +1504,7 @@ export class AppStore extends EventEmitter {
       notificationsPausedUntil: this.notificationsPausedUntil,
       desktopUpdate: this.desktopUpdate,
       phoneCalls: this.phoneCalls,
+      camera: this.camera,
       callDialerReady: this.callDialerReady,
       callOutgoingReady: this.callOutgoingReady,
       callControlReady: this.callControlReady,

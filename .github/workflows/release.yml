@@ -111,7 +111,7 @@ jobs:
                apps" when asked). A fresh install opens a three-step intro: what LinkPhone is, why
                each permission is needed, and pairing.
                **If an earlier LinkPhone build is installed, uninstall it first and pair again.**
-            2. **PC** — download and run `LinkPhone.Setup.0.1.2.exe`. SmartScreen will warn because
+            2. **PC** — download and run `LinkPhone.Setup.0.1.3.exe`. SmartScreen will warn because
                the installer is unsigned: *More info → Run anyway*. Allow it on **private**
                networks when Windows Firewall asks.
             3. Make sure both devices are on the same Wi-Fi (not a guest network).
@@ -123,20 +123,20 @@ jobs:
             7. For calls, tap **Set as default phone app**, accept Android's role prompt, then allow
                phone permissions.
 
-            ## What's new in 0.1.2
+            ## What's new in 0.1.3
 
-            * Update checks read the public GitHub Releases page instead of the rate-limited API, so
-              "GitHub update check failed (403)" is gone on shared carrier networks
-            * Update errors are one actionable sentence (rate limit, outage or no connection), and a
-              failed check backs off before retrying instead of re-running on every screen
-            * The release publishes `linkphone-android.apk.sha256`, and the app verifies it before
-              installing
-            * The Messages card and the PC composer explain why Android asks you to approve every
-              text LinkPhone sends: it is the system's confirmation for apps that are not the
-              default SMS app, and LinkPhone does not bypass it
-            * **If you are on 0.1.0 or 0.1.1 and the update check shows 403, install
-              `linkphone-android.apk` manually once.** Later checks work from inside the app.
-            * Includes the 0.1.1 pairing-proof hardening and bug fixes
+            * New **Camera** tab: stream the phone camera into LinkPhone at 720p or 480p, ~15 fps,
+              with front/back switching. In Zoom, Meet, Teams or Discord choose
+              **Share window → LinkPhone**
+            * This is not a system camera device — those apps will not list a new camera — and there
+              is no audio; meetings keep using the laptop microphone
+            * Video stays on the encrypted LAN link. The phone shows an ongoing notification with
+              Stop, and the stream stops when you leave the tab, hide or minimize the window,
+              disconnect, or quit
+            * The phone must be unlocked with LinkPhone visible to start the camera; Android 14
+              blocks camera foreground services from the background
+            * 0.1.0 and 0.1.1 phones still need the manual APK install once if their update check
+              shows 403
 
             ## Features
 

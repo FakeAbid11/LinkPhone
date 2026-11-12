@@ -101,6 +101,9 @@ export interface LinkPhoneApi {
   onMediaArt: (
     cb: (art: { id: string; mime: string; data: string } | null) => void
   ) => () => void
+  startCamera: (facing: 'front' | 'back', quality: '720p' | '480p') => Promise<boolean>
+  stopCamera: () => Promise<void>
+  onCameraFrame: (cb: (frame: Uint8Array) => void) => () => void
   requestContacts: () => Promise<void>
   requestCallHistory: () => Promise<void>
   requestSims: () => Promise<void>

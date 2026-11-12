@@ -12,12 +12,24 @@ object LinkCore {
     @Volatile private var clientRef: LinkClient? = null
     @Volatile private var storeRef: PairStore? = null
     @Volatile private var updaterRef: AppUpdateManager? = null
+    @Volatile private var contextRef: Context? = null
+
+    /** True while an app Activity is started; required before starting a camera foreground service. */
+    @Volatile var appVisible = false
+        private set
+
+    fun setAppVisible(visible: Boolean) {
+        appVisible = visible
+    }
+
+    fun contextOrNull(): Context? = contextRef
 
     fun init(context: Context) {
         if (clientRef != null) return
         synchronized(this) {
             if (clientRef != null) return
             val app = context.applicationContext
+            contextRef = app
             val store = PairStore(app)
             storeRef = store
             clientRef = LinkClient(app, store)
