@@ -12,6 +12,7 @@ import {
   DEFAULT_PORT,
   KIND_CONTROL,
   KIND_FILE,
+  KIND_CAMERA,
   MAX_CALL_LOG,
   MAX_CONTACTS,
   MAX_CONTACT_NUMBERS,
@@ -24,6 +25,7 @@ import {
   type CallAccountInfo,
   type CallLogEntry,
   type CallLogType,
+  type CameraInfo,
   type ControlMsg,
   type FileOfferMsg,
   type GalleryAlbum,
@@ -338,6 +340,7 @@ export class LinkServer extends EventEmitter {
         this.store.setCallState({ calls: [], dialerReady: false, outgoingReady: false, controlReady: false, speaker: false, muted: false })
         this.store.setCallPlaced(null)
         this.store.setMedia(null)
+        this.store.setCamera(null)
         this.emit('media-art', null)
         this.store.resetContacts()
         this.store.resetSims()
@@ -591,7 +594,8 @@ export class LinkServer extends EventEmitter {
       platform: peer.platform,
       paired: true,
       connected: true,
-      address: peer.address
+      address: peer.address,
+      caps: [...peer.caps]
     })
     this.send(peer, { t: 'clip.enabled', enabled: this.store.clipboardEnabled })
     this.emit('peer-ready', peer.deviceId)
@@ -633,10 +637,25 @@ export class LinkServer extends EventEmitter {
       if (isRawMsg(parsed)) this.onControl(peer, parsed)
       return
     }
+    if (kind === KIND_CAMERA) {
+      this.onCameraFrame(peer, plain)
+      return
+    }
     if (kind === KIND_FILE) {
       const chunk = decodeFileChunk(plain)
       this.receiver.write(chunk.transferId, chunk.offset, chunk.data)
     }
+  }
+
+  private onCameraFrame(peer: Peer, plain: Buffer): void {
+    if (plain.length < 15) return
+    if (plain.length > 2 * 1024 * 1024) return
+    if (plain[13] !== 0xff || plain[14] !== 0xd8) return
+    this.emit('camera-frame', peer.deviceId, {
+      seq: plain.readUInt32BE(1),
+      ts: Number(plain.readBigUInt64BE(5)),
+      jpeg: Buffer.from(plain.subarray(13))
+    })
   }
 
   private onControl(peer: Peer, msg: RawMsg): void {
@@ -661,6 +680,22 @@ export class LinkServer extends EventEmitter {
       case 'clip.error':
         this.emit('clipboardError', str(msg.reason, 'unavailable'))
         return
+
+      case 'camera.state': {
+        const facing = str(msg.facing, 'back') === 'front' ? 'front' : 'back'
+        const quality = str(msg.quality, '720p') === '480p' ? '480p' : '720p'
+        const error = str(msg.error)
+        const info: CameraInfo = {
+          deviceId: peer.deviceId,
+          streaming: bool(msg.streaming),
+          facing,
+          quality,
+          fps: Math.round(num(msg.fps, 15))
+        }
+        if (error) info.error = error
+        this.store.setCamera(info)
+        return
+      }
 
       case 'notif.post': {
         const raw = msg.notif
@@ -1385,6 +1420,21 @@ export class LinkServer extends EventEmitter {
       messages: []
     })
     this.broadcast({ t: 'sms.thread.request', threadId })
+  }
+
+  cameraStart(deviceId: string, facing: 'front' | 'back', quality: '720p' | '480p'): boolean {
+    const peer = [...this.peers].find(
+      (p) => p.phase === 'ready' && (!deviceId || p.deviceId === deviceId)
+    )
+    if (!peer) return false
+    this.send(peer, { t: 'camera.start', facing, quality })
+    return true
+  }
+
+  cameraStop(): void {
+    const peer = [...this.peers].find((p) => p.phase === 'ready')
+    if (!peer) return
+    this.send(peer, { t: 'camera.stop' })
   }
 
   sendSms(

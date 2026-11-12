@@ -8,6 +8,7 @@ export const CAP_NOTIF_PROGRESS = 'notif.progress'
 export const CAP_NOTIF_ACTION_V2 = 'notif.action.v2'
 export const CAP_NOTIF_ACTION_RESULT = 'notif.action.result'
 export const CAP_SERVER_PROOF = 'server.proof'
+export const CAP_CAMERA = 'camera.stream'
 export const SERVICE_TYPE = 'linkphone'
 export const DEFAULT_PORT = 8765
 export const MAX_FILE_CHUNK = 64 * 1024
@@ -18,6 +19,7 @@ export const MAX_CALL_LOG = 200
 /** Binary frame plaintext kinds (first byte after decryption). */
 export const KIND_CONTROL = 0x10
 export const KIND_FILE = 0x20
+export const KIND_CAMERA = 0x30
 
 export type Direction = 'c2s' | 's2c'
 export type Platform = 'android' | 'ios' | 'desktop'
@@ -275,6 +277,17 @@ export interface DeviceInfo {
   batteryLevel?: number
   charging?: boolean
   ringing?: boolean
+  /** Feature caps advertised by the phone, e.g. camera.stream. */
+  caps?: string[]
+}
+
+export interface CameraInfo {
+  deviceId: string
+  streaming: boolean
+  facing: 'front' | 'back'
+  quality: '720p' | '480p'
+  fps: number
+  error?: string
 }
 
 export interface AppState {
@@ -314,6 +327,7 @@ export interface AppState {
   notificationsPausedUntil: number
   desktopUpdate: DesktopUpdateState
   phoneCalls: PhoneCallInfo[]
+  camera: CameraInfo | null
   callDialerReady: boolean
   callOutgoingReady: boolean
   callControlReady: boolean

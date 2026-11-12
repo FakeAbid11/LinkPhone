@@ -294,6 +294,8 @@ function createWindow(): void {
     event.preventDefault()
     win?.hide()
   })
+  win.on('hide', () => server.cameraStop())
+  win.on('minimize', () => server.cameraStop())
 
   const devUrl = process.env['ELECTRON_RENDERER_URL']
   if (devUrl) void win.loadURL(devUrl)
@@ -694,6 +696,16 @@ function registerIpc(): void {
     }
   })
 
+  handle('camera:start', (_event, facing: unknown, quality: unknown) => {
+    const deviceId = store.snapshot().devices.find((d) => d.connected)?.deviceId ?? ''
+    return server.cameraStart(
+      deviceId,
+      facing === 'front' ? 'front' : 'back',
+      quality === '480p' ? '480p' : '720p'
+    )
+  })
+  handle('camera:stop', () => server.cameraStop())
+
   handle('contacts:request', () => server.requestContacts())
   handle('calllog:request', () => server.requestCallHistory())
   handle('sims:request', () => server.requestSims())
@@ -883,6 +895,15 @@ async function bootstrap(): Promise<void> {
   store.on('gallery-preview', (preview: GalleryPreview | null) => {
     win?.webContents.send('gallery:preview', preview)
   })
+  server.on(
+    'camera-frame',
+    (_deviceId: string, frame: { seq: number; ts: number; jpeg: Buffer }) => {
+      // A hidden or minimized window would only queue frames; the phone keeps streaming
+      // until the camera tab or window closes, which sends an explicit stop.
+      if (!win || win.isDestroyed() || !win.isVisible() || win.isMinimized()) return
+      win.webContents.send('camera:frame', frame.jpeg)
+    }
+  )
   store.on(
     'batteryLow',
     (event: { deviceId: string; name: string; batteryLevel: number }) => {
@@ -1023,6 +1044,7 @@ if (!gotLock) {
     watcher?.stop()
     updater?.stop()
     advertisement?.stop()
+    server?.cameraStop()
     server?.stop()
   })
 }

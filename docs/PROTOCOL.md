@@ -84,6 +84,7 @@ Plaintext payloads start with a kind byte:
 |---|---|
 | `0x10` | UTF-8 JSON control message |
 | `0x20` | file chunk: `idLen(1) ‖ id ‖ offset(8) ‖ data` |
+| `0x30` | camera frame: `frameSeq(4) ‖ timestamp(8) ‖ JPEG` |
 
 ## 4. Handshake
 
@@ -155,6 +156,9 @@ paired phone the behaviour is unchanged.
 | `clip.enabled` | PC → phone | `enabled` — the desktop automatic-sync toggle |
 | `clip.request` | PC → phone | — ask the phone to read and return its clipboard |
 | `clip.error` | phone → PC | `reason` (`offline`, `unavailable`, `empty`, `too-large`) |
+| `camera.start` | PC → phone | `facing` (`back`/`front`), `quality` (`720p`/`480p`) — requires the phone app visible |
+| `camera.stop` | PC → phone | — |
+| `camera.state` | phone → PC | `streaming`, `facing`, `quality`, `fps`, `error?` (`open_app`, `permission`, `busy`, `unsupported`, `disconnected`) |
 | `file.offer` | both | `id`, `name`, `size`, `mime`, `target?` (`downloads`/`pictures`/`videos`), `resumeFrom?`, `mtimeMs?`, `photoId?`, `mediaKind?` |
 | `file.accept` | both | `id`, `offset?` (bytes already received; absent means 0) |
 | `file.decline` | both | `id`, `reason?` |

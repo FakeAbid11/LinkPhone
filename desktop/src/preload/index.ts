@@ -152,6 +152,14 @@ const api: LinkPhoneApi = {
     ipcRenderer.on('media:art', handler)
     return () => ipcRenderer.removeListener('media:art', handler)
   },
+  startCamera: (facing, quality) =>
+    ipcRenderer.invoke('camera:start', facing, quality) as Promise<boolean>,
+  stopCamera: () => ipcRenderer.invoke('camera:stop') as Promise<void>,
+  onCameraFrame: (cb) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: Uint8Array): void => cb(data)
+    ipcRenderer.on('camera:frame', handler)
+    return () => ipcRenderer.removeListener('camera:frame', handler)
+  },
   requestContacts: () => ipcRenderer.invoke('contacts:request') as Promise<void>,
   requestCallHistory: () => ipcRenderer.invoke('calllog:request') as Promise<void>,
   requestSims: () => ipcRenderer.invoke('sims:request') as Promise<void>,

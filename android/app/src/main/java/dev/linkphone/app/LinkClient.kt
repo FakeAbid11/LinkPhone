@@ -50,6 +50,8 @@ private const val CAP_NOTIF_PROGRESS = "notif.progress"
 private const val CAP_NOTIF_ACTION_V2 = "notif.action.v2"
 private const val CAP_NOTIF_ACTION_RESULT = "notif.action.result"
 private const val CAP_SERVER_PROOF = "server.proof"
+private const val CAP_CAMERA = "camera.stream"
+private const val MAX_CAMERA_QUEUE = 512L * 1024
 private const val MAX_REPLY_CHARS = 2000
 private const val RECONNECT_MIN_MS = 2500L
 private const val RECONNECT_MAX_MS = 15_000L
@@ -329,6 +331,7 @@ class LinkClient(context: Context, private val store: PairStore) {
         supportsActionResult = false
         PhoneRinger.stop()
         abortAllIncoming()
+        CameraHub.stop("disconnected")
         // -2 is "interrupted" rather than -1 ("declined") so an intentional disconnect does
         // not leave outgoing transfers looking like failures.
         outgoing.values.forEach { it.attempt?.complete(-2L) }
@@ -353,7 +356,10 @@ class LinkClient(context: Context, private val store: PairStore) {
                     put("platform", "android")
                     put(
                         "caps",
-                        JSONArray().put(CAP_NOTIF_ACTION_V2).put(CAP_NOTIF_ACTION_RESULT)
+                        JSONArray()
+                            .put(CAP_NOTIF_ACTION_V2)
+                            .put(CAP_NOTIF_ACTION_RESULT)
+                            .put(CAP_CAMERA)
                     )
                     if (wantsPair) put("pair", true)
                 }
@@ -390,6 +396,7 @@ class LinkClient(context: Context, private val store: PairStore) {
         supportsActionResult = false
         PhoneRinger.stop()
         abortAllIncoming()
+        CameraHub.stop("disconnected")
         val interrupted = _transfers.value.map { transfer ->
             if (transfer.status == "active" || transfer.status == "pending") {
                 transfer.copy(status = "interrupted")
@@ -746,6 +753,12 @@ class LinkClient(context: Context, private val store: PairStore) {
                 if (store.pcClipboardEnabled) ClipboardSync.flushPending()
             }
             "clip.request" -> ClipboardSync.requestRead(manual = true)
+            "camera.start" -> CameraHub.start(
+                appContext,
+                msg.optString("facing", "back"),
+                msg.optString("quality", "720p")
+            )
+            "camera.stop" -> CameraHub.stop()
             "file.offer" -> onIncomingOffer(msg)
             "file.accept" -> {
                 val id = msg.optString("id")
@@ -1300,8 +1313,7 @@ class LinkClient(context: Context, private val store: PairStore) {
     }
 
     @Synchronized
-    private fun sendChunk(id: String, offset: Long, buffer: ByteArray, length: Int): Boolean {
-        val currentKey = key ?: return false
+    private fun sendChunk(id: String, offset: Long, buffer: ByteArray, length: Int): Boolean {        val currentKey = key ?: return false
         val socket = ws ?: return false
         if (!ready) return false
         val idBytes = id.toByteArray(Charsets.UTF_8)
@@ -1319,6 +1331,41 @@ class LinkClient(context: Context, private val store: PairStore) {
         System.arraycopy(buffer, 0, plain, 2 + idBytes.size + 8, length)
         sendSeq += 1
         return socket.send(Crypto.seal(currentKey, "c2s", sendSeq, plain).toByteString())
+    }
+
+    /** Drops frames instead of buffering when the socket is behind. */
+    @Synchronized
+    fun sendCameraFrame(frameSeq: Int, tsMs: Long, jpeg: ByteArray): Boolean {
+        val currentKey = key ?: return false
+        val socket = ws ?: return false
+        if (!ready) return false
+        if (socket.queueSize() > MAX_CAMERA_QUEUE) return false
+        val plain = ByteArray(1 + 4 + 8 + jpeg.size)
+        plain[0] = Proto.KIND_CAMERA.toByte()
+        System.arraycopy(ByteBuffer.allocate(4).putInt(frameSeq).array(), 0, plain, 1, 4)
+        System.arraycopy(ByteBuffer.allocate(8).putLong(tsMs).array(), 0, plain, 5, 8)
+        System.arraycopy(jpeg, 0, plain, 13, jpeg.size)
+        sendSeq += 1
+        return socket.send(Crypto.seal(currentKey, "c2s", sendSeq, plain).toByteString())
+    }
+
+    internal fun sendCameraState(
+        streaming: Boolean,
+        facing: String,
+        quality: String,
+        fps: Int,
+        error: String?
+    ) {
+        send(
+            JSONObject().apply {
+                put("t", "camera.state")
+                put("streaming", streaming)
+                put("facing", facing)
+                put("quality", quality)
+                put("fps", fps)
+                error?.let { put("error", it) }
+            }
+        )
     }
 
     private fun queryMeta(uri: Uri): Pair<String, Long> {

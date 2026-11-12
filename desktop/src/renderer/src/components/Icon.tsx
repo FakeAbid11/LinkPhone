@@ -34,6 +34,7 @@ const GLYPHS = {
   skip_next: '\ue044',
   skip_previous: '\ue045',
   photo_library: '\ue413',
+  videocam: '\ue04b',
   qr_code_2: '\ue00a',
   qr_code_scanner: '\uf206',
   radio_button_checked: '\ue837',

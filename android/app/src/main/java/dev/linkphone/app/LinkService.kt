@@ -80,6 +80,7 @@ class LinkService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        CameraHub.stop("disconnected")
         CallHub.restoreMute()
         SystemCallWatcher.stop()
         batteryMonitor?.stop()

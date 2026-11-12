@@ -117,10 +117,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        LinkCore.setAppVisible(true)
         ClipboardSync.beginForeground()
     }
 
     override fun onStop() {
+        LinkCore.setAppVisible(false)
         ClipboardSync.endForeground()
         super.onStop()
     }
@@ -530,6 +532,8 @@ private fun Screen(modifier: Modifier = Modifier) {
             }
         }
 
+        CameraCard(context, connected = status.state == LinkState.CONNECTED)
+
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
             Row(
                 Modifier.fillMaxWidth().padding(start = 16.dp, top = 10.dp, end = 8.dp, bottom = 10.dp),
@@ -788,6 +792,95 @@ private fun Screen(modifier: Modifier = Modifier) {
         )
     }
 }
+
+@Composable
+private fun CameraCard(context: Context, connected: Boolean) {
+    var cameraAccess by remember { mutableStateOf(hasCameraAccess(context)) }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        cameraAccess = it
+    }
+    var facing by remember { mutableStateOf("back") }
+    var quality by remember { mutableStateOf("720p") }
+    val camera by CameraHub.state.collectAsStateWithLifecycle()
+
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column(
+            Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Symbol(Symbols.videocam, 20.sp)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("Camera", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        cameraStatusText(camera, cameraAccess, connected),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                when {
+                    !cameraAccess -> TextButton(
+                        onClick = { permission.launch(Manifest.permission.CAMERA) }
+                    ) { Text("Allow") }
+                    camera.streaming -> TextButton(onClick = { CameraHub.stop() }) { Text("Stop") }
+                    else -> TextButton(
+                        enabled = connected,
+                        onClick = { CameraHub.start(context, facing, quality) }
+                    ) { Text("Start") }
+                }
+            }
+            if (cameraAccess) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = {
+                            facing = if (facing == "back") "front" else "back"
+                            if (camera.streaming) CameraHub.start(context, facing, quality)
+                        }
+                    ) { Text(if (facing == "back") "Back camera" else "Front camera") }
+                    TextButton(
+                        onClick = {
+                            quality = if (quality == "720p") "480p" else "720p"
+                            if (camera.streaming) CameraHub.start(context, facing, quality)
+                        }
+                    ) { Text(quality) }
+                }
+                Text(
+                    "Video only. Share this window in Zoom, Meet or Teams; keep it open — " +
+                        "minimizing stops the camera. A notification stays visible while it runs.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+    }
+}
+
+private fun cameraStatusText(
+    camera: CameraState,
+    cameraAccess: Boolean,
+    connected: Boolean
+): String {
+    val error = camera.error
+    return when {
+        error != null -> when (error) {
+            "open_app" -> "Open LinkPhone on this phone to start the camera"
+            "permission" -> "Camera permission is required"
+            "busy" -> "The camera is in use by another app"
+            "unsupported" -> "This phone can't stream video"
+            "disconnected" -> "Phone disconnected"
+            else -> "Camera unavailable"
+        }
+        camera.streaming -> "Streaming · ${camera.quality} · ${camera.facing}"
+        !cameraAccess -> "Allow camera access to stream video to your PC"
+        !connected -> "Connect your phone to use the camera"
+        else -> "Video only; stops when the link closes"
+    }
+}
+
+internal fun hasCameraAccess(context: Context): Boolean =
+    ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+        PackageManager.PERMISSION_GRANTED
 
 internal fun hasSmsAccess(context: Context): Boolean =
     ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) ==
