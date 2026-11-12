@@ -9,9 +9,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
@@ -20,6 +22,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.ActivityCompat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -74,6 +77,8 @@ import androidx.compose.ui.unit.sp
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 
@@ -793,15 +798,63 @@ private fun Screen(modifier: Modifier = Modifier) {
     }
 }
 
+internal enum class CameraAccess { Granted, NotAsked, Denied, Revoked, Blocked }
+
 @Composable
 private fun CameraCard(context: Context, connected: Boolean) {
-    var cameraAccess by remember { mutableStateOf(hasCameraAccess(context)) }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        cameraAccess = it
-    }
+    val store = LinkCore.requireStore()
+    val activity = context as? Activity
+    var access by remember { mutableStateOf(cameraAccessState(context, store)) }
+    var showExplainer by remember { mutableStateOf(false) }
     var facing by remember { mutableStateOf("back") }
     var quality by remember { mutableStateOf("720p") }
+
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            store.cameraGrantedBefore = true
+            store.cameraBlocked = false
+        } else {
+            store.cameraBlocked = activity?.let {
+                !ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.CAMERA)
+            } ?: false
+        }
+        access = cameraAccessState(context, store)
+    }
+    val requestCamera = {
+        store.cameraAsked = true
+        permission.launch(Manifest.permission.CAMERA)
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        access = cameraAccessState(context, store)
+    }
+
     val camera by CameraHub.state.collectAsStateWithLifecycle()
+
+    if (showExplainer) {
+        AlertDialog(
+            onDismissRequest = { showExplainer = false },
+            title = { Text("Camera access") },
+            text = {
+                Text(
+                    "Android asks for the camera once. Choose “While using the app”, not “Only this time” — " +
+                        "the one-time option is switched off as soon as LinkPhone goes to the background " +
+                        "or the screen locks, which stops streaming."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showExplainer = false
+                        store.cameraExplainerShown = true
+                        requestCamera()
+                    }
+                ) { Text("Continue") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExplainer = false }) { Text("Not now") }
+            }
+        )
+    }
 
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(
@@ -814,14 +867,19 @@ private fun CameraCard(context: Context, connected: Boolean) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text("Camera", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        cameraStatusText(camera, cameraAccess, connected),
+                        cameraStatusText(camera, access, connected),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
                 when {
-                    !cameraAccess -> TextButton(
-                        onClick = { permission.launch(Manifest.permission.CAMERA) }
+                    access == CameraAccess.Blocked -> TextButton(
+                        onClick = { openAppSettings(context) }
+                    ) { Text("Open settings") }
+                    access != CameraAccess.Granted -> TextButton(
+                        onClick = {
+                            if (store.cameraExplainerShown) requestCamera() else showExplainer = true
+                        }
                     ) { Text("Allow") }
                     camera.streaming -> TextButton(onClick = { CameraHub.stop() }) { Text("Stop") }
                     else -> TextButton(
@@ -830,24 +888,33 @@ private fun CameraCard(context: Context, connected: Boolean) {
                     ) { Text("Start") }
                 }
             }
-            if (cameraAccess) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(
-                        onClick = {
-                            facing = if (facing == "back") "front" else "back"
-                            if (camera.streaming) CameraHub.start(context, facing, quality)
-                        }
-                    ) { Text(if (facing == "back") "Back camera" else "Front camera") }
-                    TextButton(
-                        onClick = {
-                            quality = if (quality == "720p") "480p" else "720p"
-                            if (camera.streaming) CameraHub.start(context, facing, quality)
-                        }
-                    ) { Text(quality) }
+            when (access) {
+                CameraAccess.Granted -> {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(
+                            onClick = {
+                                facing = if (facing == "back") "front" else "back"
+                                if (camera.streaming) CameraHub.start(context, facing, quality)
+                            }
+                        ) { Text(if (facing == "back") "Back camera" else "Front camera") }
+                        TextButton(
+                            onClick = {
+                                quality = if (quality == "720p") "480p" else "720p"
+                                if (camera.streaming) CameraHub.start(context, facing, quality)
+                            }
+                        ) { Text(quality) }
+                    }
+                    Text(
+                        "Video only. Share this window in Zoom, Meet or Teams; keep it open — " +
+                            "minimizing stops the camera. A notification stays visible while it runs.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
-                Text(
-                    "Video only. Share this window in Zoom, Meet or Teams; keep it open — " +
-                        "minimizing stops the camera. A notification stays visible while it runs.",
+                CameraAccess.Blocked -> Unit
+                else -> Text(
+                    "Choose “While using the app” in the Android prompt so the camera keeps working " +
+                        "after the screen locks.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall
                 )
@@ -858,23 +925,48 @@ private fun CameraCard(context: Context, connected: Boolean) {
 
 private fun cameraStatusText(
     camera: CameraState,
-    cameraAccess: Boolean,
+    access: CameraAccess,
     connected: Boolean
 ): String {
     val error = camera.error
     return when {
         error != null -> when (error) {
             "open_app" -> "Open LinkPhone on this phone to start the camera"
-            "permission" -> "Camera permission is required"
+            "permission" -> "Camera permission is off. Turn it on, then press Start"
             "busy" -> "The camera is in use by another app"
             "unsupported" -> "This phone can't stream video"
             "disconnected" -> "Phone disconnected"
             else -> "Camera unavailable"
         }
         camera.streaming -> "Streaming · ${camera.quality} · ${camera.facing}"
-        !cameraAccess -> "Allow camera access to stream video to your PC"
+        access == CameraAccess.Blocked ->
+            "Camera is blocked for LinkPhone. Open Settings → Permissions → Camera"
+        access == CameraAccess.Revoked ->
+            "Android switched the camera off when LinkPhone was in the background. Tap Allow to switch it back on"
+        access == CameraAccess.Denied ->
+            "Camera access is off — tap Allow and choose “While using the app”"
+        access == CameraAccess.NotAsked -> "Allow camera access to stream video to your PC"
         !connected -> "Connect your phone to use the camera"
         else -> "Video only; stops when the link closes"
+    }
+}
+
+internal fun cameraAccessState(context: Context, store: PairStore): CameraAccess = when {
+    hasCameraAccess(context) -> CameraAccess.Granted
+    store.cameraBlocked -> CameraAccess.Blocked
+    !store.cameraAsked -> CameraAccess.NotAsked
+    store.cameraGrantedBefore -> CameraAccess.Revoked
+    else -> CameraAccess.Denied
+}
+
+internal fun openAppSettings(context: Context) {
+    runCatching {
+        context.startActivity(
+            Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.fromParts("package", context.packageName, null)
+            )
+        )
     }
 }
 

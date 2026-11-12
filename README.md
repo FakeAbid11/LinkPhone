@@ -32,8 +32,9 @@ service or a relay server.
 
 **No account. No cloud. No relay.**
 
-> **v0.1.3** adds a Camera tab: stream the phone camera into LinkPhone, then share that window in
-> Zoom, Meet or Teams. Video only — no system camera driver and no audio.
+> **v0.1.4** makes camera access a one-time grant: Android asks once, the card explains choosing
+> “While using the app” instead of “Only this time”, and a revoked grant stops the stream cleanly
+> instead of freezing it.
 
 ## Features
 
@@ -77,7 +78,7 @@ discovery. See [docs/PROTOCOL.md](docs/PROTOCOL.md) for the handshake, frames an
 2. **Phone:** install `linkphone-android.apk` (allow “install unknown apps”). A fresh install opens
    a three-step intro: what LinkPhone is, why each permission is needed, and pairing. You can skip
    it and set everything up later on the main screen.
-3. **PC:** run `LinkPhone.Setup.0.1.3.exe`. The installer is unsigned, so SmartScreen requires
+3. **PC:** run `LinkPhone.Setup.0.1.4.exe`. The installer is unsigned, so SmartScreen requires
    **More info → Run anyway**. It also adds **Send to → LinkPhone** to Explorer; Windows 11 may keep
    it under **Show more options**.
 4. **Pair:** on the PC, expand **Scan QR code instead** in the sidebar. On the phone, tap **Scan QR**
@@ -118,7 +119,10 @@ live. In Zoom, Meet, Teams or Discord choose **Share window → LinkPhone**. Thi
 camera device — those apps will not list a new camera — and there is no audio. Keep the LinkPhone
 window open: minimizing it, leaving the Camera tab, disconnecting or quitting stops the stream.
 Android shows an ongoing notification with **Stop** while the camera runs, and the phone must be
-unlocked with LinkPhone visible to start it.
+unlocked with LinkPhone visible to start it. Android asks for camera access once: choose
+**While using the app**. **Only this time** is switched off as soon as LinkPhone goes to the
+background or the screen locks, which stops the stream; the card then offers Allow again, and if
+Android will no longer prompt it offers **Open settings** instead.
 
 </details>
 
@@ -131,7 +135,8 @@ unlocked with LinkPhone visible to start it.
   that dialog is the system's per-message confirmation for apps that are not the default SMS app,
   not a LinkPhone permission request, and LinkPhone does not bypass it.
 - **Camera** powers the QR scanner and the optional Camera tab. It is used only while you start a
-  stream, and Android keeps a notification visible until it stops.
+  stream, and Android keeps a notification visible until it stops. Grant it with **While using the
+  app** so Android does not ask again; **Only this time** ends when LinkPhone backgrounds.
 - **Photos** uses Android's photo picker permissions; Android 14+ can expose all photos or a
   selected set.
 - **Contacts** (`READ_CONTACTS`) resolves names and powers the searchable contact list.
