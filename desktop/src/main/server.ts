@@ -20,12 +20,15 @@ import {
   MAX_FILE_CHUNK,
   PROTO_VERSION,
   bool,
+  cameraOrientation,
+  cameraRotation,
   isRawMsg,
   num,
   str,
   type CallAccountInfo,
   type CallLogEntry,
   type CallLogType,
+  type CameraConfig,
   type CameraInfo,
   type ControlMsg,
   type FileOfferMsg,
@@ -714,6 +717,10 @@ export class LinkServer extends EventEmitter {
           height: Math.round(num(msg.height)),
           codec: 'h264'
         }
+        const orientation = cameraOrientation(msg.orientation)
+        const rotation = cameraRotation(msg.rotation)
+        if (orientation) info.orientation = orientation
+        if (rotation !== undefined) info.rotation = rotation
         if (error) info.error = error
         this.store.setCamera(info)
         return
@@ -723,13 +730,18 @@ export class LinkServer extends EventEmitter {
         if (str(msg.codec, 'h264') !== 'h264') return
         const description = str(msg.description)
         if (!description || description.length > 2048) return
-        this.emit('camera-config', {
+        const config: CameraConfig = {
           codec: 'h264',
           width: Math.round(num(msg.width)),
           height: Math.round(num(msg.height)),
           fps: Math.round(num(msg.fps, 30)),
           description
-        })
+        }
+        const orientation = cameraOrientation(msg.orientation)
+        const rotation = cameraRotation(msg.rotation)
+        if (orientation) config.orientation = orientation
+        if (rotation !== undefined) config.rotation = rotation
+        this.emit('camera-config', config)
         return
       }
 
