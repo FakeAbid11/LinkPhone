@@ -111,7 +111,7 @@ jobs:
                apps" when asked). A fresh install opens a three-step intro: what LinkPhone is, why
                each permission is needed, and pairing.
                **If an earlier LinkPhone build is installed, uninstall it first and pair again.**
-            2. **PC** — download and run `LinkPhone.Setup.0.1.5.exe`. SmartScreen will warn because
+            2. **PC** — download and run `LinkPhone.Setup.0.1.6.exe`. SmartScreen will warn because
                the installer is unsigned: *More info → Run anyway*. Allow it on **private**
                networks when Windows Firewall asks.
             3. Make sure both devices are on the same Wi-Fi (not a guest network).
@@ -123,17 +123,17 @@ jobs:
             7. For calls, tap **Set as default phone app**, accept Android's role prompt, then allow
                phone permissions.
 
-            ## What's new in 0.1.5
+            ## What's new in 0.1.6
 
-            * Camera now streams hardware H.264 instead of JPEG: 1080p at 30 fps by default, with
-              720p/480p and a 60 fps option when the phone camera supports it
-            * Much lower bandwidth and CPU: roughly 8 Mbps at 1080p30 and 14 Mbps at 1080p60,
-              instead of tens of Mbps for the old JPEG stream
-            * The PC shows the measured frame rate, so a camera that delivers 30 fps at the "60 fps"
-              setting is visible
-            * **Update both apps.** The camera protocol changed; a 0.1.4 phone or PC shows an update
-              hint instead of a broken stream
-            * Camera permission, the permission watchdog and stop behaviour are unchanged
+            * The camera follows the phone. Turn it upright and the stream switches to portrait
+              (1080x1920, 720x1280 or 480x854); turn it back sideways and it returns to landscape.
+              The switch takes about half a second because the phone re-encodes at the new shape
+            * The PC resizes its video stage to match, so a portrait phone is no longer stretched
+              across a 16:9 picture, and the live badge shows **Portrait** or **Landscape**
+            * Hold the phone at an angle and it settles once instead of flipping back and forth
+            * **Update both apps.** An older phone keeps streaming landscape only and an older PC
+              keeps the 16:9 stage, so nothing breaks, but the rotation needs both sides
+            * Everything from 0.1.5 is unchanged: hardware H.264, 1080p/720p/480p, 30/60 fps
 
             ## Features
 
@@ -163,7 +163,7 @@ jobs:
 
             ## Not in this build
 
-            MMS, call audio on the PC, screen mirroring, app streaming and camera streaming.
+            MMS, call audio on the PC, screen mirroring and app streaming.
             Call audio deliberately remains on the phone.
 
             The desktop app targets Windows 10/11; Linux AppImage and .deb packages are also built.
