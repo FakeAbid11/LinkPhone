@@ -2,6 +2,7 @@ import type {
   AppState,
   CameraConfig,
   CameraFrame,
+  CameraMode,
   ClipboardStatus,
   GalleryPreview,
   NotificationItem,
@@ -106,7 +107,8 @@ export interface LinkPhoneApi {
   startCamera: (
     facing: 'front' | 'back',
     quality: '1080p' | '720p' | '480p',
-    fps: 30 | 60
+    fps: 30 | 60,
+    mode?: CameraMode
   ) => Promise<boolean>
   stopCamera: () => Promise<void>
   requestCameraKeyframe: () => Promise<void>

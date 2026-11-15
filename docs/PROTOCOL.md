@@ -156,7 +156,7 @@ paired phone the behaviour is unchanged.
 | `clip.enabled` | PC → phone | `enabled` — the desktop automatic-sync toggle |
 | `clip.request` | PC → phone | — ask the phone to read and return its clipboard |
 | `clip.error` | phone → PC | `reason` (`offline`, `unavailable`, `empty`, `too-large`) |
-| `camera.start` | PC → phone | `facing` (`back`/`front`), `quality` (`1080p`/`720p`/`480p`), `fps` (`30`/`60`) — requires the phone app visible |
+| `camera.start` | PC → phone | `facing` (`back`/`front`), `quality` (`1080p`/`720p`/`480p`), `fps` (`30`/`60`), `orientation?` (`auto`/`landscape`/`portrait`; needs the `camera.orientation` cap) — requires the phone app visible |
 | `camera.stop` | PC → phone | — |
 | `camera.keyframe` | PC → phone | — request a fresh config and IDR frame |
 | `camera.config` | phone → PC | `codec` (`h264`), `width`, `height`, `fps`, `description` (base64 avcC), `orientation?` (`landscape`/`portrait`), `rotation?` (`0`/`90`/`180`/`270`) |
@@ -227,6 +227,11 @@ must fall back to comparing `width` and `height`. Phones ignore unknown JSON fie
 phone keeps streaming the old shape without erroring.
 - Portrait targets 1080×1920, 720×1280 and 480×854. If a camera rejects the vertical size, the
 existing quality fallback ladder moves to the next attempt instead of failing the stream.
+- `camera.start.orientation` pins the shape: `auto` (default) follows the display rotation,
+`landscape` and `portrait` ignore the sensor and ask CameraX to rotate the sensor output to that
+shape. The phone remembers the choice, so its own facing/quality/fps buttons keep it. Phones that
+do not advertise the `camera.orientation` cap ignore the field and stay on `auto`, which is why the
+PC only shows the selector for phones that advertise it.
 
 ### Files, resume and phone storage
 

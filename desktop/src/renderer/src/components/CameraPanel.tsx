@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import type { CameraConfig, CameraFrame, CameraInfo } from '@shared/protocol'
+import type { CameraConfig, CameraFrame, CameraInfo, CameraMode } from '@shared/protocol'
 import { Icon } from './Icon'
 
 interface Props {
   camera: CameraInfo | null
   connected: boolean
   supported: boolean
+  /** The phone accepts a forced orientation; older builds only follow their own rotation. */
+  orientationSupported: boolean
 }
 
 function cameraError(code: string): string {
@@ -40,7 +42,12 @@ function codecString(description: string): string {
   }
 }
 
-export function CameraPanel({ camera, connected, supported }: Props): JSX.Element {
+export function CameraPanel({
+  camera,
+  connected,
+  supported,
+  orientationSupported
+}: Props): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const decoderRef = useRef<VideoDecoder | null>(null)
   const configRef = useRef<CameraConfig | null>(null)
@@ -52,6 +59,7 @@ export function CameraPanel({ camera, connected, supported }: Props): JSX.Elemen
   const [facing, setFacing] = useState<'front' | 'back'>('back')
   const [quality, setQuality] = useState<'1080p' | '720p' | '480p'>('1080p')
   const [captureFps, setCaptureFps] = useState<30 | 60>(30)
+  const [mode, setMode] = useState<CameraMode>('auto')
   const [waiting, setWaiting] = useState(false)
   const [startError, setStartError] = useState('')
   const [decodeError, setDecodeError] = useState('')
@@ -215,7 +223,7 @@ export function CameraPanel({ camera, connected, supported }: Props): JSX.Elemen
     setStartError('')
     setDecodeError('')
     setWaiting(true)
-    const ok = await window.linkphone.startCamera(facing, quality, captureFps)
+    const ok = await window.linkphone.startCamera(facing, quality, captureFps, mode)
     if (!ok) {
       setWaiting(false)
       setStartError('Phone disconnected. Reconnect and try again.')
@@ -225,11 +233,12 @@ export function CameraPanel({ camera, connected, supported }: Props): JSX.Elemen
   const restart = (
     nextFacing: 'front' | 'back',
     nextQuality: '1080p' | '720p' | '480p',
-    nextFps: 30 | 60
+    nextFps: 30 | 60,
+    nextMode: CameraMode
   ): void => {
     if (!streaming) return
     setWaiting(true)
-    void window.linkphone.startCamera(nextFacing, nextQuality, nextFps)
+    void window.linkphone.startCamera(nextFacing, nextQuality, nextFps, nextMode)
   }
 
   if (!connected) {
@@ -300,7 +309,7 @@ export function CameraPanel({ camera, connected, supported }: Props): JSX.Elemen
             onChange={(event) => {
               const next = event.target.value === 'front' ? 'front' : 'back'
               setFacing(next)
-              restart(next, quality, captureFps)
+              restart(next, quality, captureFps, mode)
             }}
           >
             <option value="back">Back</option>
@@ -320,7 +329,7 @@ export function CameraPanel({ camera, connected, supported }: Props): JSX.Elemen
                     ? '480p'
                     : '1080p'
               setQuality(next)
-              restart(facing, next, captureFps)
+              restart(facing, next, captureFps, mode)
             }}
           >
             <option value="1080p">1080p</option>
@@ -336,21 +345,43 @@ export function CameraPanel({ camera, connected, supported }: Props): JSX.Elemen
             onChange={(event) => {
               const next = event.target.value === '60' ? 60 : 30
               setCaptureFps(next)
-              restart(facing, quality, next)
+              restart(facing, quality, next, mode)
             }}
           >
             <option value="30">30 fps</option>
             <option value="60">60 fps</option>
           </select>
         </label>
+        {orientationSupported && (
+          <label>
+            Orientation
+            <select
+              value={mode}
+              disabled={!streaming}
+              onChange={(event) => {
+                const value = event.target.value
+                const next: CameraMode =
+                  value === 'portrait' ? 'portrait' : value === 'landscape' ? 'landscape' : 'auto'
+                setMode(next)
+                restart(facing, quality, captureFps, next)
+              }}
+            >
+              <option value="auto">Auto (follow phone)</option>
+              <option value="landscape">Landscape</option>
+              <option value="portrait">Portrait</option>
+            </select>
+          </label>
+        )}
       </div>
 
       {camera?.error && <p className="camera-hint error">{cameraError(camera.error)}</p>}
       <p className="camera-hint">
         In Zoom, Meet or Teams choose <strong>Share window → LinkPhone</strong>. Keep this window
         open; minimizing or leaving this tab stops the camera. The picture follows the phone:
-        turn it upright or sideways and the video stays the right way up. Video only — the phone
-        shows a notification while the camera runs. 60 fps depends on the phone camera.
+        turn it upright or sideways and the video stays the right way up. Choose{' '}
+        <strong>Landscape</strong> or <strong>Portrait</strong> to pin one shape regardless of how the
+        phone is held. Video only — the phone shows a notification while the camera runs. 60 fps
+        depends on the phone camera.
       </p>
     </div>
   )

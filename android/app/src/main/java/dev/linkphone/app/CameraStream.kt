@@ -56,7 +56,24 @@ object CameraHub {
 
     @Volatile private var service: CameraStreamService? = null
 
-    fun start(context: Context, facing: String, quality: String, fps: Int) {
+    /** "auto" follows the display rotation; "landscape"/"portrait" pin the shape. */
+    @Volatile private var mode = "auto"
+
+    private fun sanitizeMode(value: String?): String = when (value) {
+        "landscape" -> "landscape"
+        "portrait" -> "portrait"
+        else -> "auto"
+    }
+
+    fun start(
+        context: Context,
+        facing: String,
+        quality: String,
+        fps: Int,
+        requestedMode: String? = null
+    ) {
+        val cleanMode = sanitizeMode(requestedMode ?: mode)
+        mode = cleanMode
         val cleanFacing = if (facing == "front") "front" else "back"
         val cleanQuality = when (quality) {
             "480p", "720p", "1080p" -> quality
@@ -93,6 +110,7 @@ object CameraHub {
             putExtra(CameraStreamService.EXTRA_FACING, cleanFacing)
             putExtra(CameraStreamService.EXTRA_QUALITY, cleanQuality)
             putExtra(CameraStreamService.EXTRA_FPS, cleanFps)
+            putExtra(CameraStreamService.EXTRA_MODE, cleanMode)
         }
         runCatching { ContextCompat.startForegroundService(context, intent) }
             .onFailure {
@@ -187,6 +205,9 @@ class CameraStreamService : LifecycleService() {
 
     /** Display rotation the current session was bound with. */
     private var rotation = Surface.ROTATION_0
+
+    /** "auto" follows [rotation]; "landscape"/"portrait" pin the stream shape. */
+    private var mode = "auto"
     private var displayManager: DisplayManager? = null
 
     private val rotationHandler = Handler(Looper.getMainLooper())
@@ -243,6 +264,8 @@ class CameraStreamService : LifecycleService() {
         val next = currentRotation()
         if (next == rotation) return
         rotation = next
+        // A pinned orientation ignores the sensor; the phone can be turned freely.
+        if (mode != "auto") return
         if (attempts.isEmpty()) return
         attemptIndex = 0
         encoder?.stop()
@@ -250,6 +273,16 @@ class CameraStreamService : LifecycleService() {
         preview = null
         runCatching { provider?.unbindAll() }
         startAttempt()
+    }
+
+    /**
+     * Rotation the use case is bound with. Pinning an orientation means asking CameraX for that
+     * shape no matter how the phone is held, so CameraX rotates the sensor output accordingly.
+     */
+    private fun effectiveRotation(): Int = when (mode) {
+        "portrait" -> Surface.ROTATION_0
+        "landscape" -> Surface.ROTATION_90
+        else -> rotation
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -268,6 +301,13 @@ class CameraStreamService : LifecycleService() {
         facing = intent?.getStringExtra(EXTRA_FACING) ?: facing
         val quality = intent?.getStringExtra(EXTRA_QUALITY) ?: "1080p"
         val fps = intent?.getIntExtra(EXTRA_FPS, 30) ?: 30
+        // No extra means the phone restarted itself (facing/quality/fps buttons): keep the mode.
+        mode = when (intent?.getStringExtra(EXTRA_MODE)) {
+            "landscape" -> "landscape"
+            "portrait" -> "portrait"
+            "auto" -> "auto"
+            else -> mode
+        }
         startForeground(
             NOTIFICATION_ID,
             buildNotification(),
@@ -314,8 +354,8 @@ class CameraStreamService : LifecycleService() {
                 CameraSelector.DEFAULT_BACK_CAMERA
             }
             val builder = Preview.Builder()
-                .setTargetResolution(sizeOf(attempt.quality, rotation))
-                .setTargetRotation(rotation)
+                .setTargetResolution(sizeOf(attempt.quality, effectiveRotation()))
+                .setTargetRotation(effectiveRotation())
             runCatching { builder.setTargetFrameRate(Range(attempt.fps, attempt.fps)) }
             runCatching {
                 Camera2Interop.Extender(builder).setCaptureRequestOption(
@@ -437,7 +477,7 @@ class CameraStreamService : LifecycleService() {
     private fun orientationOf(width: Int, height: Int): String =
         if (width >= height) "landscape" else "portrait"
 
-    private fun rotationDegrees(): Int = when (rotation) {
+    private fun rotationDegrees(): Int = when (effectiveRotation()) {
         Surface.ROTATION_90 -> 90
         Surface.ROTATION_180 -> 180
         Surface.ROTATION_270 -> 270
@@ -482,5 +522,6 @@ class CameraStreamService : LifecycleService() {
         const val EXTRA_FACING = "facing"
         const val EXTRA_QUALITY = "quality"
         const val EXTRA_FPS = "fps"
+        const val EXTRA_MODE = "mode"
     }
 }

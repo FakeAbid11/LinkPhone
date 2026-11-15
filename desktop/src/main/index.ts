@@ -16,6 +16,7 @@ import {
   Tray
 } from 'electron'
 import type { AppState, GalleryPreview, NotificationAction, NotificationItem, PhoneCallInfo } from '../shared/protocol'
+import { cameraMode } from '../shared/protocol'
 import { mimeForPath } from '../shared/mime'
 import { ClipboardWatcher } from './clipboard'
 import { newPairCode } from './crypto'
@@ -696,7 +697,7 @@ function registerIpc(): void {
     }
   })
 
-  handle('camera:start', (_event, facing: unknown, quality: unknown, fps: unknown) => {
+  handle('camera:start', (_event, facing: unknown, quality: unknown, fps: unknown, mode: unknown) => {
     const deviceId = store.snapshot().devices.find((d) => d.connected)?.deviceId ?? ''
     const qualityValue =
       quality === '1080p' || quality === '720p' || quality === '480p' ? quality : '1080p'
@@ -704,7 +705,8 @@ function registerIpc(): void {
       deviceId,
       facing === 'front' ? 'front' : 'back',
       qualityValue,
-      fps === 60 ? 60 : 30
+      fps === 60 ? 60 : 30,
+      cameraMode(mode)
     )
   })
   handle('camera:stop', () => server.cameraStop())

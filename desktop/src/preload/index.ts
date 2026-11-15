@@ -152,8 +152,8 @@ const api: LinkPhoneApi = {
     ipcRenderer.on('media:art', handler)
     return () => ipcRenderer.removeListener('media:art', handler)
   },
-  startCamera: (facing, quality, fps) =>
-    ipcRenderer.invoke('camera:start', facing, quality, fps) as Promise<boolean>,
+  startCamera: (facing, quality, fps, mode) =>
+    ipcRenderer.invoke('camera:start', facing, quality, fps, mode) as Promise<boolean>,
   stopCamera: () => ipcRenderer.invoke('camera:stop') as Promise<void>,
   requestCameraKeyframe: () => ipcRenderer.invoke('camera:keyframe') as Promise<void>,
   onCameraFrame: (cb) => {

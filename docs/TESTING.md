@@ -698,6 +698,18 @@ Real calls still work:
 * ✅ Old phone app (pre-0.1.6) + new PC, and new phone app + old PC → the stream keeps working in
   landscape; no error appears on the camera panel.
 
+## 28. Camera orientation selector (v0.1.7+)
+
+* ✅ With a 0.1.7 phone, the Camera tab shows a fourth **Orientation** selector: Auto (follow phone),
+  Landscape, Portrait.
+* ✅ Choose **Portrait** while the phone lies flat and sideways → within about a second the stream is
+  portrait in a tall stage and stays portrait when the phone is turned; the badge reads **Portrait**.
+* ✅ Choose **Landscape** → the stream returns to 16:9 and turning the phone does not change it.
+* ✅ Set it back to **Auto** → turning the phone changes the shape again.
+* ✅ On the phone, tap **Front camera** / the quality / fps buttons while a shape is pinned → the
+  stream restarts and keeps the pinned shape.
+* ✅ With a 0.1.6 (or older) phone the selector is absent and the camera behaves exactly as before.
+
 ## Debugging
 
 ```powershell

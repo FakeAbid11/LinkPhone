@@ -123,8 +123,10 @@ changed, and older builds show an update hint.
 The picture follows the phone. Turn it upright and the stream switches to portrait (1080×1920,
 720×1280 or 480×854); turn it back sideways and it returns to landscape. The switch takes about
 half a second, because the phone re-encodes at the new shape, and the PC resizes its video stage to
-match instead of stretching the picture. Landscape-only behaviour on an older phone app is
-harmless — the PC just keeps a 16:9 stage.
+match instead of stretching the picture. If you would rather pin one shape, the **Orientation**
+selector in the Camera tab offers **Auto (follow phone)**, **Landscape** and **Portrait** — the
+phone then ignores how it is held until you set it back to Auto. Landscape-only behaviour on an
+older phone app is harmless — the PC just keeps a 16:9 stage.
 
 In Zoom, Meet, Teams or Discord choose **Share window → LinkPhone**. This is not a system
 camera device — those apps will not list a new camera — and there is no audio. Keep the LinkPhone

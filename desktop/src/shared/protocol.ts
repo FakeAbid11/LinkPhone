@@ -9,6 +9,8 @@ export const CAP_NOTIF_ACTION_V2 = 'notif.action.v2'
 export const CAP_NOTIF_ACTION_RESULT = 'notif.action.result'
 export const CAP_SERVER_PROOF = 'server.proof'
 export const CAP_CAMERA_H264 = 'camera.stream.h264'
+/** Phone accepts camera.start.orientation (auto/landscape/portrait). */
+export const CAP_CAMERA_ORIENTATION = 'camera.orientation'
 export const SERVICE_TYPE = 'linkphone'
 export const DEFAULT_PORT = 8765
 export const MAX_FILE_CHUNK = 64 * 1024
@@ -283,6 +285,9 @@ export interface DeviceInfo {
 
 /** Shape of the encoded picture. The phone flips this when it is rotated. */
 export type CameraOrientation = 'landscape' | 'portrait'
+
+/** What the PC asks for: follow the phone, or force one shape. */
+export type CameraMode = 'auto' | CameraOrientation
 
 /** Physical display rotation in degrees, as reported by the phone. */
 export type CameraRotation = 0 | 90 | 180 | 270
@@ -985,6 +990,11 @@ export function bool(value: unknown, fallback = false): boolean {
 export function cameraOrientation(value: unknown): CameraOrientation | undefined {
   const text = str(value)
   return text === 'landscape' || text === 'portrait' ? text : undefined
+}
+
+export function cameraMode(value: unknown): CameraMode {
+  const text = str(value)
+  return text === 'landscape' || text === 'portrait' ? text : 'auto'
 }
 
 export function cameraRotation(value: unknown): CameraRotation | undefined {

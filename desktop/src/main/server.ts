@@ -30,6 +30,7 @@ import {
   type CallLogType,
   type CameraConfig,
   type CameraInfo,
+  type CameraMode,
   type ControlMsg,
   type FileOfferMsg,
   type GalleryAlbum,
@@ -1474,13 +1475,14 @@ export class LinkServer extends EventEmitter {
     deviceId: string,
     facing: 'front' | 'back',
     quality: '1080p' | '720p' | '480p',
-    fps: 30 | 60
+    fps: 30 | 60,
+    mode: CameraMode = 'auto'
   ): boolean {
     const peer = [...this.peers].find(
       (p) => p.phase === 'ready' && (!deviceId || p.deviceId === deviceId)
     )
     if (!peer) return false
-    this.send(peer, { t: 'camera.start', facing, quality, fps })
+    this.send(peer, { t: 'camera.start', facing, quality, fps, orientation: mode })
     return true
   }
 

@@ -51,6 +51,8 @@ private const val CAP_NOTIF_ACTION_V2 = "notif.action.v2"
 private const val CAP_NOTIF_ACTION_RESULT = "notif.action.result"
 private const val CAP_SERVER_PROOF = "server.proof"
 private const val CAP_CAMERA_H264 = "camera.stream.h264"
+/** Accepts camera.start.orientation (auto/landscape/portrait). */
+private const val CAP_CAMERA_ORIENTATION = "camera.orientation"
 private const val MAX_CAMERA_QUEUE = 512L * 1024
 private const val MAX_REPLY_CHARS = 2000
 private const val RECONNECT_MIN_MS = 2500L
@@ -363,6 +365,7 @@ class LinkClient(context: Context, private val store: PairStore) {
                             .put(CAP_NOTIF_ACTION_V2)
                             .put(CAP_NOTIF_ACTION_RESULT)
                             .put(CAP_CAMERA_H264)
+                            .put(CAP_CAMERA_ORIENTATION)
                     )
                     if (wantsPair) put("pair", true)
                 }
@@ -761,7 +764,8 @@ class LinkClient(context: Context, private val store: PairStore) {
                 appContext,
                 msg.optString("facing", "back"),
                 msg.optString("quality", "1080p"),
-                msg.optInt("fps", 30)
+                msg.optInt("fps", 30),
+                msg.optString("orientation", "auto")
             )
             "camera.stop" -> CameraHub.stop()
             "camera.keyframe" -> CameraHub.requestKeyframe()
