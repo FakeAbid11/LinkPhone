@@ -84,7 +84,7 @@ Plaintext payloads start with a kind byte:
 |---|---|
 | `0x10` | UTF-8 JSON control message |
 | `0x20` | file chunk: `idLen(1) ‖ id ‖ offset(8) ‖ data` |
-| `0x30` | camera frame: `flags(1) ‖ frameSeq(4) ‖ pts µs(8) ‖ AVCC H.264`; flags bit0 = keyframe |
+| `0x30` | camera frame: `flags(1) ‖ frameSeq(4) ‖ pts µs(8) ‖ AVCC H.264`; flags bit0 = keyframe. Frames carry no orientation — it arrives in `camera.config` / `camera.state` |
 
 ## 4. Handshake
 
@@ -159,8 +159,8 @@ paired phone the behaviour is unchanged.
 | `camera.start` | PC → phone | `facing` (`back`/`front`), `quality` (`1080p`/`720p`/`480p`), `fps` (`30`/`60`) — requires the phone app visible |
 | `camera.stop` | PC → phone | — |
 | `camera.keyframe` | PC → phone | — request a fresh config and IDR frame |
-| `camera.config` | phone → PC | `codec` (`h264`), `width`, `height`, `fps`, `description` (base64 avcC) |
-| `camera.state` | phone → PC | `streaming`, `facing`, `quality`, `fps`, `width`, `height`, `codec`, `error?` (`open_app`, `permission`, `busy`, `unsupported`, `update_pc`, `disconnected`) |
+| `camera.config` | phone → PC | `codec` (`h264`), `width`, `height`, `fps`, `description` (base64 avcC), `orientation?` (`landscape`/`portrait`), `rotation?` (`0`/`90`/`180`/`270`) |
+| `camera.state` | phone → PC | `streaming`, `facing`, `quality`, `fps`, `width`, `height`, `codec`, `orientation?`, `rotation?`, `error?` (`open_app`, `permission`, `busy`, `unsupported`, `update_pc`, `disconnected`) |
 | `file.offer` | both | `id`, `name`, `size`, `mime`, `target?` (`downloads`/`pictures`/`videos`), `resumeFrom?`, `mtimeMs?`, `photoId?`, `mediaKind?` |
 | `file.accept` | both | `id`, `offset?` (bytes already received; absent means 0) |
 | `file.decline` | both | `id`, `reason?` |
@@ -213,6 +213,20 @@ paired phone the behaviour is unchanged.
 | `calllog.request` | PC → phone | `limit?` (1–200) |
 | `calllog.sync` | phone → PC | `entries[{id,number,name?,type,date,duration}]`, `granted` |
 | `ping` / `pong` | both | `ts` |
+
+### Camera orientation
+
+- The encoder has a fixed size, so a rotated phone means a new encoder: the app listens to the
+default display, waits about 600 ms for the rotation to settle, rebinds CameraX with
+`setTargetRotation` and a portrait target resolution, and sends a fresh `camera.config` with
+`width`/`height` swapped followed by a keyframe. The PC reconfigures its decoder on every
+`camera.config`, so both orientations decode upright.
+- `orientation` describes the picture (`landscape`/`portrait`); `rotation` is the raw display
+rotation in degrees. Both are optional — a PC paired with a phone older than 0.1.6 sees neither and
+must fall back to comparing `width` and `height`. Phones ignore unknown JSON fields, so an older
+phone keeps streaming the old shape without erroring.
+- Portrait targets 1080×1920, 720×1280 and 480×854. If a camera rejects the vertical size, the
+existing quality fallback ladder moves to the next attempt instead of failing the stream.
 
 ### Files, resume and phone storage
 

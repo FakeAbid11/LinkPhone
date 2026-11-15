@@ -1269,11 +1269,20 @@ button {
   overflow: hidden;
 }
 
+/* The phone reports portrait while it is held upright; keep the stage upright too and cap it so
+   the controls below stay reachable. */
+.camera-stage.camera-stage-portrait {
+  align-self: center;
+  width: min(calc(64vh * 9 / 16), 100%);
+  aspect-ratio: 9 / 16;
+}
+
+/* The canvas is a replaced element, so object-fit does not letterbox it: the stage aspect must
+   match the stream instead, and the canvas simply fills it. */
 .camera-canvas {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
 }
 
 .camera-placeholder {

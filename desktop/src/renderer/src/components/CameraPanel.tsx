@@ -55,9 +55,20 @@ export function CameraPanel({ camera, connected, supported }: Props): JSX.Elemen
   const [waiting, setWaiting] = useState(false)
   const [startError, setStartError] = useState('')
   const [decodeError, setDecodeError] = useState('')
+  // Shape of the picture actually being decoded; the phone re-sends config on rotation.
+  const [streamOrientation, setStreamOrientation] = useState<'landscape' | 'portrait' | null>(null)
 
   const streaming = camera?.streaming ?? false
   fpsRef.current = camera?.fps ?? captureFps
+
+  const orientation: 'landscape' | 'portrait' =
+    streamOrientation ??
+    camera?.orientation ??
+    (camera && camera.width > 0 && camera.height > 0
+      ? camera.width >= camera.height
+        ? 'landscape'
+        : 'portrait'
+      : 'landscape')
 
   const closeDecoder = (): void => {
     const decoder = decoderRef.current
@@ -99,6 +110,9 @@ export function CameraPanel({ camera, connected, supported }: Props): JSX.Elemen
         setDecodeError('This PC cannot decode H.264 video.')
         return
       }
+      if (config.width > 0 && config.height > 0) {
+        setStreamOrientation(config.width >= config.height ? 'landscape' : 'portrait')
+      }
       closeDecoder()
       const decoder = new VideoDecoder({
         output: (frame) => {
@@ -108,6 +122,10 @@ export function CameraPanel({ camera, connected, supported }: Props): JSX.Elemen
               canvas.width = frame.displayWidth
               canvas.height = frame.displayHeight
             }
+            setStreamOrientation((current) => {
+              const next = frame.displayWidth >= frame.displayHeight ? 'landscape' : 'portrait'
+              return current === next ? current : next
+            })
             canvas.getContext('2d')?.drawImage(frame, 0, 0)
             frameCount.current += 1
             setWaiting(false)
@@ -168,6 +186,7 @@ export function CameraPanel({ camera, connected, supported }: Props): JSX.Elemen
   useEffect(() => {
     if (!streaming) {
       setFps(0)
+      setStreamOrientation(null)
       closeDecoder()
       const canvas = canvasRef.current
       canvas?.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height)
@@ -235,7 +254,9 @@ export function CameraPanel({ camera, connected, supported }: Props): JSX.Elemen
 
   return (
     <div className="camera-panel">
-      <div className="camera-stage">
+      <div
+        className={`camera-stage${orientation === 'portrait' ? ' camera-stage-portrait' : ''}`}
+      >
         <canvas ref={canvasRef} className="camera-canvas" aria-label="Phone camera preview" />
         {!streaming && (
           <div className="camera-placeholder">
@@ -255,7 +276,8 @@ export function CameraPanel({ camera, connected, supported }: Props): JSX.Elemen
         )}
         {streaming && (
           <div className="camera-live">
-            <span className="camera-dot" /> Live · {fps} fps
+            <span className="camera-dot" /> Live · {fps} fps ·{' '}
+            {orientation === 'portrait' ? 'Portrait' : 'Landscape'}
           </div>
         )}
       </div>
@@ -326,8 +348,9 @@ export function CameraPanel({ camera, connected, supported }: Props): JSX.Elemen
       {camera?.error && <p className="camera-hint error">{cameraError(camera.error)}</p>}
       <p className="camera-hint">
         In Zoom, Meet or Teams choose <strong>Share window → LinkPhone</strong>. Keep this window
-        open; minimizing or leaving this tab stops the camera. Video only — the phone shows a
-        notification while the camera runs. 60 fps depends on the phone camera.
+        open; minimizing or leaving this tab stops the camera. The picture follows the phone:
+        turn it upright or sideways and the video stays the right way up. Video only — the phone
+        shows a notification while the camera runs. 60 fps depends on the phone camera.
       </p>
     </div>
   )

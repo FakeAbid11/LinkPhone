@@ -9,11 +9,14 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.hardware.camera2.CaptureRequest
+import android.hardware.display.DisplayManager
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.util.Range
 import android.util.Size
+import android.view.Display
+import android.view.Surface
 import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
@@ -34,7 +37,11 @@ data class CameraState(
     val width: Int = 0,
     val height: Int = 0,
     val codec: String = "h264",
-    val error: String? = null
+    val error: String? = null,
+    /** Shape of the encoded picture, so the PC can size its video stage. */
+    val orientation: String = "landscape",
+    /** Physical display rotation in degrees (0/90/180/270). */
+    val rotation: Int = 0
 )
 
 /**
@@ -124,7 +131,14 @@ object CameraHub {
         service = running
     }
 
-    internal fun updateActive(quality: String, fps: Int, width: Int, height: Int) {
+    internal fun updateActive(
+        quality: String,
+        fps: Int,
+        width: Int,
+        height: Int,
+        orientation: String,
+        rotation: Int
+    ) {
         _state.value = _state.value.copy(
             streaming = true,
             quality = quality,
@@ -132,7 +146,9 @@ object CameraHub {
             width = width,
             height = height,
             codec = "h264",
-            error = null
+            error = null,
+            orientation = orientation,
+            rotation = rotation
         )
         sendState()
     }
@@ -146,7 +162,9 @@ object CameraHub {
             current.fps,
             current.width,
             current.height,
-            current.error
+            current.error,
+            current.orientation,
+            current.rotation
         )
     }
 }
@@ -166,6 +184,25 @@ class CameraStreamService : LifecycleService() {
     private var facing = "back"
     private var attempts: List<Attempt> = emptyList()
     private var attemptIndex = 0
+
+    /** Display rotation the current session was bound with. */
+    private var rotation = Surface.ROTATION_0
+    private var displayManager: DisplayManager? = null
+
+    private val rotationHandler = Handler(Looper.getMainLooper())
+    private val rotationRestart = Runnable { applyRotation() }
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) = Unit
+
+        override fun onDisplayRemoved(displayId: Int) = Unit
+
+        override fun onDisplayChanged(displayId: Int) {
+            if (displayId != Display.DEFAULT_DISPLAY) return
+            // A hand rotation reports several times; wait for the phone to settle first.
+            rotationHandler.removeCallbacks(rotationRestart)
+            rotationHandler.postDelayed(rotationRestart, ROTATION_DEBOUNCE_MS)
+        }
+    }
 
     private val watchdogHandler = Handler(Looper.getMainLooper())
     private val permissionWatchdog = object : Runnable {
@@ -187,6 +224,32 @@ class CameraStreamService : LifecycleService() {
     override fun onCreate() {
         super.onCreate()
         CameraHub.attachService(this)
+        displayManager = getSystemService(DisplayManager::class.java)
+        rotation = currentRotation()
+        runCatching { displayManager?.registerDisplayListener(displayListener, rotationHandler) }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun currentRotation(): Int =
+        runCatching { displayManager?.getDisplay(Display.DEFAULT_DISPLAY)?.rotation }
+            .getOrNull() ?: Surface.ROTATION_0
+
+    /**
+     * The phone was turned. Rebinding re-provides the surface, and [provideSurface] always builds
+     * a fresh [H264Encoder] (it is single use), so the PC receives a new config with swapped
+     * width/height and reconfigures its decoder instead of stretching the old picture.
+     */
+    private fun applyRotation() {
+        val next = currentRotation()
+        if (next == rotation) return
+        rotation = next
+        if (attempts.isEmpty()) return
+        attemptIndex = 0
+        encoder?.stop()
+        encoder = null
+        preview = null
+        runCatching { provider?.unbindAll() }
+        startAttempt()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -250,7 +313,9 @@ class CameraStreamService : LifecycleService() {
             } else {
                 CameraSelector.DEFAULT_BACK_CAMERA
             }
-            val builder = Preview.Builder().setTargetResolution(sizeOf(attempt.quality))
+            val builder = Preview.Builder()
+                .setTargetResolution(sizeOf(attempt.quality, rotation))
+                .setTargetRotation(rotation)
             runCatching { builder.setTargetFrameRate(Range(attempt.fps, attempt.fps)) }
             runCatching {
                 Camera2Interop.Extender(builder).setCaptureRequestOption(
@@ -282,13 +347,21 @@ class CameraStreamService : LifecycleService() {
         encoder?.stop()
         encoder = null
         val size = request.resolution
+        val orientation = orientationOf(size.width, size.height)
         val codec = H264Encoder(
             width = size.width,
             height = size.height,
             fps = attempt.fps,
             bitrate = bitrateFor(attempt.quality, attempt.fps),
             onConfig = { w, h, f, avcC ->
-                LinkCore.clientOrNull()?.sendCameraConfig(w, h, f, avcC)
+                LinkCore.clientOrNull()?.sendCameraConfig(
+                    w,
+                    h,
+                    f,
+                    avcC,
+                    orientationOf(w, h),
+                    rotationDegrees()
+                )
             },
             onSample = { flags, seq, pts, data ->
                 LinkCore.clientOrNull()?.sendCameraFrame(flags, seq, pts, data) ?: false
@@ -305,7 +378,14 @@ class CameraStreamService : LifecycleService() {
             return
         }
         encoder = codec
-        CameraHub.updateActive(attempt.quality, attempt.fps, size.width, size.height)
+        CameraHub.updateActive(
+            attempt.quality,
+            attempt.fps,
+            size.width,
+            size.height,
+            orientation,
+            rotationDegrees()
+        )
         request.provideSurface(codec.inputSurface!!, ContextCompat.getMainExecutor(this)) {
             codec.stop()
             if (encoder === codec) encoder = null
@@ -327,6 +407,9 @@ class CameraStreamService : LifecycleService() {
 
     private fun stopStreaming() {
         watchdogHandler.removeCallbacks(permissionWatchdog)
+        rotationHandler.removeCallbacks(rotationRestart)
+        runCatching { displayManager?.unregisterDisplayListener(displayListener) }
+        displayManager = null
         encoder?.stop()
         encoder = null
         runCatching { provider?.unbindAll() }
@@ -341,10 +424,24 @@ class CameraStreamService : LifecycleService() {
         super.onDestroy()
     }
 
-    private fun sizeOf(quality: String): Size = when (quality) {
-        "480p" -> Size(854, 480)
-        "720p" -> Size(1280, 720)
-        else -> Size(1920, 1080)
+    private fun sizeOf(quality: String, rotation: Int): Size {
+        // CameraX applies setTargetRotation, so ask for the shape the phone is held in.
+        val landscape = rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270
+        return when (quality) {
+            "480p" -> if (landscape) Size(854, 480) else Size(480, 854)
+            "720p" -> if (landscape) Size(1280, 720) else Size(720, 1280)
+            else -> if (landscape) Size(1920, 1080) else Size(1080, 1920)
+        }
+    }
+
+    private fun orientationOf(width: Int, height: Int): String =
+        if (width >= height) "landscape" else "portrait"
+
+    private fun rotationDegrees(): Int = when (rotation) {
+        Surface.ROTATION_90 -> 90
+        Surface.ROTATION_180 -> 180
+        Surface.ROTATION_270 -> 270
+        else -> 0
     }
 
     private fun bitrateFor(quality: String, fps: Int): Int = when (quality) {
@@ -379,6 +476,7 @@ class CameraStreamService : LifecycleService() {
         private const val CHANNEL_ID = "linkphone_camera"
         private const val NOTIFICATION_ID = 7
         private const val WATCHDOG_MS = 5_000L
+        private const val ROTATION_DEBOUNCE_MS = 600L
         const val ACTION_START = "dev.linkphone.app.CAMERA_START"
         const val ACTION_STOP = "dev.linkphone.app.CAMERA_STOP"
         const val EXTRA_FACING = "facing"

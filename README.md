@@ -58,7 +58,7 @@ service or a relay server.
 | Auto-reconnect | Yes | Reclaims a paired PC after reboot, app restart or a PC address change |
 | Built-in updates | Yes | Automatic checks + notifications; verified Windows/Android installers |
 | Screen mirroring | Not yet | Planned; `MediaProjection` + WebRTC |
-| Camera | Yes | Live H.264 phone camera in the Camera tab, 1080p/720p/480p at 30 or 60 fps (60 depends on the camera); share the LinkPhone window in meeting apps. Not a system webcam; no audio |
+| Camera | Yes | Live H.264 phone camera in the Camera tab, 1080p/720p/480p at 30 or 60 fps (60 depends on the camera), following the phone's portrait/landscape rotation; share the LinkPhone window in meeting apps. Not a system webcam; no audio |
 | App streaming | Not yet | Planned |
 
 ## Architecture
@@ -118,6 +118,12 @@ the phone camera supports it. The PC shows the measured frame rate, so a camera 
 30 fps at the 60 fps setting is visible. Approximate bandwidth is 8 Mbps at 1080p30, 14 Mbps at
 1080p60, 4 Mbps at 720p30 and 2 Mbps at 480p. Both apps must be on 0.1.5 — the camera protocol
 changed, and older builds show an update hint.
+
+The picture follows the phone. Turn it upright and the stream switches to portrait (1080×1920,
+720×1280 or 480×854); turn it back sideways and it returns to landscape. The switch takes about
+half a second, because the phone re-encodes at the new shape, and the PC resizes its video stage to
+match instead of stretching the picture. Landscape-only behaviour on an older phone app is
+harmless — the PC just keeps a 16:9 stage.
 
 In Zoom, Meet, Teams or Discord choose **Share window → LinkPhone**. This is not a system
 camera device — those apps will not list a new camera — and there is no audio. Keep the LinkPhone

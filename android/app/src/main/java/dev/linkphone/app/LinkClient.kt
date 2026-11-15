@@ -1361,7 +1361,14 @@ class LinkClient(context: Context, private val store: PairStore) {
         return socket.send(Crypto.seal(currentKey, "c2s", sendSeq, plain).toByteString())
     }
 
-    internal fun sendCameraConfig(width: Int, height: Int, fps: Int, avcC: ByteArray) {
+    internal fun sendCameraConfig(
+        width: Int,
+        height: Int,
+        fps: Int,
+        avcC: ByteArray,
+        orientation: String = if (width >= height) "landscape" else "portrait",
+        rotation: Int = 0
+    ) {
         send(
             JSONObject().apply {
                 put("t", "camera.config")
@@ -1369,6 +1376,8 @@ class LinkClient(context: Context, private val store: PairStore) {
                 put("width", width)
                 put("height", height)
                 put("fps", fps)
+                put("orientation", orientation)
+                put("rotation", rotation)
                 put("description", b64(avcC))
             }
         )
@@ -1381,7 +1390,9 @@ class LinkClient(context: Context, private val store: PairStore) {
         fps: Int,
         width: Int,
         height: Int,
-        error: String?
+        error: String?,
+        orientation: String = if (width >= height) "landscape" else "portrait",
+        rotation: Int = 0
     ) {
         send(
             JSONObject().apply {
@@ -1393,6 +1404,8 @@ class LinkClient(context: Context, private val store: PairStore) {
                 put("width", width)
                 put("height", height)
                 put("codec", "h264")
+                put("orientation", orientation)
+                put("rotation", rotation)
                 error?.let { put("error", it) }
             }
         )

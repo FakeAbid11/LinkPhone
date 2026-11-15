@@ -683,6 +683,21 @@ Real calls still work:
   no-op.
 * ✅ A large photo (> 1 MB) and a large file both complete; transfers no longer stop at 512 KiB.
 
+## 27. Camera orientation (v0.1.6+)
+
+* ✅ Start the camera with the phone held sideways → the PC stage is wide (16:9) and the picture is
+  upright. Turn the phone upright without touching the PC → within about a second the picture is
+  upright in a tall (9:16) stage, the badge reads **Portrait**, and the frame rate recovers.
+* ✅ Turn it back sideways → the stage returns to 16:9 and the badge reads **Landscape**.
+* ✅ Rotate while the phone screen is locked → the stream survives and follows the rotation; the
+  ongoing notification stays put.
+* ✅ Rotate while the PC is on another tab, then open **Camera** again → the stage matches the
+  phone's current orientation and no "Reconnecting video…" overlay is stuck.
+* ✅ Leave the phone at, say, 45° (between orientations) → the picture settles once; it does not
+  flip back and forth.
+* ✅ Old phone app (pre-0.1.6) + new PC, and new phone app + old PC → the stream keeps working in
+  landscape; no error appears on the camera panel.
+
 ## Debugging
 
 ```powershell

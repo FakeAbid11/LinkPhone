@@ -281,6 +281,12 @@ export interface DeviceInfo {
   caps?: string[]
 }
 
+/** Shape of the encoded picture. The phone flips this when it is rotated. */
+export type CameraOrientation = 'landscape' | 'portrait'
+
+/** Physical display rotation in degrees, as reported by the phone. */
+export type CameraRotation = 0 | 90 | 180 | 270
+
 export interface CameraInfo {
   deviceId: string
   streaming: boolean
@@ -290,6 +296,9 @@ export interface CameraInfo {
   width: number
   height: number
   codec: 'h264'
+  /** Absent on phones older than 0.1.6; fall back to comparing width and height. */
+  orientation?: CameraOrientation
+  rotation?: CameraRotation
   error?: string
 }
 
@@ -306,6 +315,9 @@ export interface CameraConfig {
   height: number
   fps: number
   description: string
+  /** Absent on phones older than 0.1.6; fall back to comparing width and height. */
+  orientation?: CameraOrientation
+  rotation?: CameraRotation
 }
 
 export interface AppState {
@@ -968,4 +980,16 @@ export function num(value: unknown, fallback = 0): number {
 
 export function bool(value: unknown, fallback = false): boolean {
   return typeof value === 'boolean' ? value : fallback
+}
+
+export function cameraOrientation(value: unknown): CameraOrientation | undefined {
+  const text = str(value)
+  return text === 'landscape' || text === 'portrait' ? text : undefined
+}
+
+export function cameraRotation(value: unknown): CameraRotation | undefined {
+  const degrees = num(value, -1)
+  return degrees === 0 || degrees === 90 || degrees === 180 || degrees === 270
+    ? (degrees as CameraRotation)
+    : undefined
 }
