@@ -32,9 +32,9 @@ service or a relay server.
 
 **No account. No cloud. No relay.**
 
-> **v0.1.6** makes the camera follow the phone: turn it upright and the stream switches to
-> portrait, turn it back sideways for landscape, and the PC resizes its video stage to match.
-> Everything from 0.1.5 (hardware H.264, 1080p/720p/480p, 30/60 fps) is unchanged. Update both apps.
+> **v0.1.7** adds an **Orientation** selector to the camera: Auto (follow the phone), Landscape or
+> Portrait, so you can pin a shape instead of letting the phone decide. Auto works exactly as in
+> 0.1.6. The selector needs the 0.1.7 phone app; older phones keep the auto behaviour.
 
 ## Features
 
@@ -78,7 +78,7 @@ discovery. See [docs/PROTOCOL.md](docs/PROTOCOL.md) for the handshake, frames an
 2. **Phone:** install `linkphone-android.apk` (allow “install unknown apps”). A fresh install opens
    a three-step intro: what LinkPhone is, why each permission is needed, and pairing. You can skip
    it and set everything up later on the main screen.
-3. **PC:** run `LinkPhone.Setup.0.1.6.exe`. The installer is unsigned, so SmartScreen requires
+3. **PC:** run `LinkPhone.Setup.0.1.7.exe`. The installer is unsigned, so SmartScreen requires
    **More info → Run anyway**. It also adds **Send to → LinkPhone** to Explorer; Windows 11 may keep
    it under **Show more options**.
 4. **Pair:** on the PC, expand **Scan QR code instead** in the sidebar. On the phone, tap **Scan QR**
