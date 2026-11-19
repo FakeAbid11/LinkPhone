@@ -48,6 +48,9 @@ internal object LinkColors {
     val lineStrong = Color(0xFF3A3A3A)
     val text = Color(0xFFFFFFFF)
     val muted = Color(0xFFB3B3B3)
+    /** Matches the desktop's --danger/--warn so a failure reads as one on both screens. */
+    val danger = Color(0xFFFF6B6B)
+    val warn = Color(0xFFF5A524)
 }
 
 internal val Primary = LinkColors.text
@@ -106,10 +109,10 @@ internal fun linkScheme(): ColorScheme = darkColorScheme(
     surfaceContainerHighest = LinkColors.raised,
     outline = LinkColors.lineStrong,
     outlineVariant = LinkColors.line,
-    error = LinkColors.text,
+    error = LinkColors.danger,
     onError = LinkColors.background,
     errorContainer = LinkColors.raised,
-    onErrorContainer = LinkColors.text,
+    onErrorContainer = LinkColors.danger,
     scrim = LinkColors.background,
     inverseSurface = LinkColors.text,
     inverseOnSurface = LinkColors.background,
@@ -234,7 +237,7 @@ internal fun NoticeCard(glyph: String, text: String) {
     }
 }
 
-/** Monochrome failure: a left rule and full-contrast text, never a gray tint. */
+/** Failure: a red rule and red text, the same signal the desktop uses for --danger. */
 @Composable
 internal fun ErrorNote(text: String) {
     Row(
@@ -244,12 +247,12 @@ internal fun ErrorNote(text: String) {
         Box(
             Modifier
                 .size(width = 2.dp, height = 16.dp)
-                .background(LinkColors.lineStrong)
+                .background(LinkColors.danger)
         )
         Text(
             text,
             style = MaterialTheme.typography.bodySmall,
-            color = LinkColors.text
+            color = LinkColors.danger
         )
     }
 }
