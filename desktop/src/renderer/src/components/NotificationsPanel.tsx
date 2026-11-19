@@ -424,10 +424,10 @@ export function NotificationsPanel({
       )}
 
       <div className="notif-toolbar">
-        <div className="notif-view" role="group" aria-label="Notification source">
+        <div className="segmented" role="group" aria-label="Notification source">
           <button
             type="button"
-            className={mode === 'live' ? 'notif-view-active' : ''}
+            className={mode === 'live' ? 'segmented-active' : ''}
             aria-pressed={mode === 'live'}
             onClick={() => setMode('live')}
           >
@@ -435,7 +435,7 @@ export function NotificationsPanel({
           </button>
           <button
             type="button"
-            className={mode === 'history' ? 'notif-view-active' : ''}
+            className={mode === 'history' ? 'segmented-active' : ''}
             aria-pressed={mode === 'history'}
             onClick={() => setMode('history')}
           >
@@ -552,10 +552,10 @@ export function NotificationsPanel({
             />
           </div>
           {mode === 'live' && (
-            <div className="notif-view" role="group" aria-label="Notification view">
+            <div className="segmented" role="group" aria-label="Notification view">
               <button
                 type="button"
-                className={view === 'newest' ? 'notif-view-active' : ''}
+                className={view === 'newest' ? 'segmented-active' : ''}
                 aria-pressed={view === 'newest'}
                 onClick={() => setView('newest')}
               >
@@ -563,7 +563,7 @@ export function NotificationsPanel({
               </button>
               <button
                 type="button"
-                className={view === 'app' ? 'notif-view-active' : ''}
+                className={view === 'app' ? 'segmented-active' : ''}
                 aria-pressed={view === 'app'}
                 onClick={() => setView('app')}
               >

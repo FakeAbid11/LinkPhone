@@ -273,10 +273,10 @@ export function PhotosPanel({
             </div>
             <div className="gallery-actions">
               {kinds.includes('video') && (
-                <div className="notif-view" role="group" aria-label="Media kind">
+                <div className="segmented" role="group" aria-label="Media kind">
                   <button
                     type="button"
-                    className={kind === 'image' ? 'notif-view-active' : ''}
+                    className={kind === 'image' ? 'segmented-active' : ''}
                     aria-pressed={kind === 'image'}
                     onClick={() => onSelectKind('image')}
                   >
@@ -284,7 +284,7 @@ export function PhotosPanel({
                   </button>
                   <button
                     type="button"
-                    className={kind === 'video' ? 'notif-view-active' : ''}
+                    className={kind === 'video' ? 'segmented-active' : ''}
                     aria-pressed={kind === 'video'}
                     onClick={() => onSelectKind('video')}
                   >

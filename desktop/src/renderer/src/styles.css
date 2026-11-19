@@ -1632,6 +1632,42 @@ button {
   object-fit: contain;
 }
 
+/* ---------------- segmented control ---------------- */
+
+/* One control for "pick one of N": notification source, gallery kind, calls side. */
+.segmented {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-elev);
+}
+
+.segmented button {
+  flex: 1 1 0;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.segmented button:hover {
+  color: var(--text);
+}
+
+.segmented .segmented-active {
+  background: var(--bg-soft);
+  color: var(--text);
+  font-weight: 600;
+}
+
 /* ---------------- settings / updates ---------------- */
 
 .settings-panel {
@@ -1729,37 +1765,6 @@ button {
 .calls-side .empty {
   margin: 24px auto 0;
   max-width: 100%;
-}
-
-.calls-side-switch {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
-  padding: 4px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--bg-elev);
-}
-
-.calls-side-switch button {
-  border: 0;
-  border-radius: 8px;
-  padding: 8px 10px;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.calls-side-switch button:hover {
-  color: var(--text);
-}
-
-.calls-side-switch button.active {
-  background: var(--text);
-  color: var(--bg);
-  font-weight: 600;
 }
 
 @media (max-width: 1180px) {
@@ -2557,14 +2562,6 @@ button {
   font-size: 13px;
 }
 
-.notif-view {
-  display: flex;
-  flex: 0 0 auto;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
-
 .notif-history-actions {
   display: flex;
   align-items: center;
@@ -2574,25 +2571,6 @@ button {
 
 .notif-history-row {
   opacity: 0.92;
-}
-
-.notif-view button {
-  padding: 8px 12px;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.notif-view button:hover {
-  color: var(--text);
-}
-
-.notif-view .notif-view-active {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text);
 }
 
 .notif-muted-row {
@@ -2664,13 +2642,6 @@ button {
   display: flex;
   flex: 0 0 auto;
   gap: 8px;
-}
-
-.notif-view button:focus-visible,
-.notif-chip:focus-visible,
-.notif-group-actions button:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.45);
-  outline-offset: 2px;
 }
 
 .drop-overlay {
