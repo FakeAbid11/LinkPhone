@@ -32,9 +32,11 @@ service or a relay server.
 
 **No account. No cloud. No relay.**
 
-> **v0.1.7** adds an **Orientation** selector to the camera: Auto (follow the phone), Landscape or
-> Portrait, so you can pin a shape instead of letting the phone decide. Auto works exactly as in
-> 0.1.6. The selector needs the 0.1.7 phone app; older phones keep the auto behaviour.
+> **v0.1.8** is a visual-correctness pass on both apps: no protocol change, so 0.1.7 and 0.1.8
+> pair and behave exactly as before. Messages no longer gets a second scrollbar, the New message
+> contact list is no longer clipped, photo and video lightboxes trap focus, the camera badge waits
+> for the first frame, and on Android failures are red, Share/Call respect the system bars, Setup
+> can be collapsed before pairing and the QR finder frames correctly on tablets.
 
 ## Features
 
@@ -78,7 +80,7 @@ discovery. See [docs/PROTOCOL.md](docs/PROTOCOL.md) for the handshake, frames an
 2. **Phone:** install `linkphone-android.apk` (allow “install unknown apps”). A fresh install opens
    a three-step intro: what LinkPhone is, why each permission is needed, and pairing. You can skip
    it and set everything up later on the main screen.
-3. **PC:** run `LinkPhone.Setup.0.1.7.exe`. The installer is unsigned, so SmartScreen requires
+3. **PC:** run `LinkPhone.Setup.0.1.8.exe`. The installer is unsigned, so SmartScreen requires
    **More info → Run anyway**. It also adds **Send to → LinkPhone** to Explorer; Windows 11 may keep
    it under **Show more options**.
 4. **Pair:** on the PC, expand **Scan QR code instead** in the sidebar. On the phone, tap **Scan QR**
