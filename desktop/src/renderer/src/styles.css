@@ -125,6 +125,8 @@ button {
   border-right: 1px solid var(--line);
   min-height: 0;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
 }
 
 .brand {
@@ -1754,7 +1756,22 @@ button {
   font-weight: 600;
 }
 
+@media (max-width: 1180px) {
+  .app {
+    grid-template-columns: 248px 1fr;
+  }
+}
+
 @media (max-width: 1000px) {
+  .app {
+    grid-template-columns: 216px 1fr;
+  }
+
+  .main-head {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
   .calls-grid {
     grid-template-columns: minmax(0, 1fr);
   }
