@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#000000</color>
+    <!-- Tints the small icon in every notification; white is what Android expects here. -->
     <color name="notification_accent">#FFFFFF</color>
+    <!-- Oldest-API window background, so the black is declared once. -->
+    <color name="lp_background">#000000</color>
 </resources>

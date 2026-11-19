@@ -21,6 +21,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -250,22 +251,27 @@ fun QrScannerScreen(onResult: (String) -> Unit, onClose: () -> Unit) {
                         }
                     }
 
-                    Canvas(Modifier.fillMaxSize()) {
-                        val half = 130.dp.toPx()
-                        val cx = size.width / 2f
-                        val cy = size.height / 2f
-                        val shade = Color.Black.copy(alpha = 0.55f)
-                        drawRect(shade, Offset(0f, 0f), GeometrySize(size.width, cy - half))
-                        drawRect(shade, Offset(0f, cy + half), GeometrySize(size.width, size.height - cy - half))
-                        drawRect(shade, Offset(0f, cy - half), GeometrySize(cx - half, half * 2))
-                        drawRect(shade, Offset(cx + half, cy - half), GeometrySize(size.width - cx - half, half * 2))
+                    BoxWithConstraints(Modifier.fillMaxSize()) {
+                        // Size the finder from the shorter screen edge so a tablet does not get a
+                        // stamp-sized box and a short landscape phone does not overflow the header.
+                        val side = minOf(maxWidth, maxHeight) * 0.66f
+                        Canvas(Modifier.fillMaxSize()) {
+                            val half = side.toPx() / 2
+                            val cx = size.width / 2f
+                            val cy = size.height / 2f
+                            val shade = Color.Black.copy(alpha = 0.55f)
+                            drawRect(shade, Offset(0f, 0f), GeometrySize(size.width, cy - half))
+                            drawRect(shade, Offset(0f, cy + half), GeometrySize(size.width, size.height - cy - half))
+                            drawRect(shade, Offset(0f, cy - half), GeometrySize(cx - half, half * 2))
+                            drawRect(shade, Offset(cx + half, cy - half), GeometrySize(size.width - cx - half, half * 2))
+                        }
+                        Box(
+                            Modifier
+                                .align(Alignment.Center)
+                                .size(side)
+                                .border(2.dp, Color.White, RoundedCornerShape(12.dp))
+                        )
                     }
-                    Box(
-                        Modifier
-                            .align(Alignment.Center)
-                            .size(260.dp)
-                            .border(2.dp, Color.White, RoundedCornerShape(12.dp))
-                    )
                 }
 
                 Column(

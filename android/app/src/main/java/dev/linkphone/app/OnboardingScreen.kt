@@ -9,6 +9,9 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -220,18 +223,28 @@ fun OnboardingScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             repeat(STEPS) { index ->
+                val active = index == step
+                // Animate the size change: an instant 8dp/6dp swap jittered the row every step.
+                val dotSize by animateDpAsState(
+                    targetValue = if (active) 8.dp else 6.dp,
+                    animationSpec = tween(200),
+                    label = "dotSize"
+                )
+                val dotColor by animateColorAsState(
+                    targetValue = if (active) {
+                        MaterialTheme.colorScheme.onBackground
+                    } else {
+                        MaterialTheme.colorScheme.outline
+                    },
+                    animationSpec = tween(200),
+                    label = "dotColor"
+                )
                 Box(
                     Modifier
                         .padding(horizontal = 3.dp)
-                        .size(if (index == step) 8.dp else 6.dp)
+                        .size(dotSize)
                         .clip(CircleShape)
-                        .background(
-                            if (index == step) {
-                                MaterialTheme.colorScheme.onBackground
-                            } else {
-                                MaterialTheme.colorScheme.outline
-                            }
-                        )
+                        .background(dotColor)
                 )
             }
         }

@@ -209,7 +209,7 @@ export default function App(): JSX.Element {
   }
 
   const connected = state.devices.filter((d) => d.connected)
-  const unread = state.notifications.length
+  const liveNotifications = state.notifications.length
   const pictureUploads = state.transfers.filter(
     (t) =>
       t.direction === 'out' &&
@@ -224,7 +224,7 @@ export default function App(): JSX.Element {
           <div className="brand-mark"><img src={logo} alt="" /></div>
           <div>
             <div className="brand-name">LinkPhone</div>
-            <div className="brand-sub">Local network · v{state.desktopUpdate.currentVersion || '0.1.7'}</div>
+            <div className="brand-sub">Local network · v{state.desktopUpdate.currentVersion || '0.1.8'}</div>
           </div>
         </div>
 
@@ -259,7 +259,14 @@ export default function App(): JSX.Element {
                 <Icon name={t.icon} />
                 <span>{t.label}</span>
               </span>
-              {t.id === 'notifications' && unread > 0 && <span className="badge">{unread}</span>}
+              {t.id === 'notifications' && liveNotifications > 0 && (
+                <span
+                  className="badge"
+                  title={`${liveNotifications} notifications showing on the phone`}
+                >
+                  {liveNotifications}
+                </span>
+              )}
               {t.id === 'calls' && state.phoneCalls.some((call) => call.phase === 'ringing') && (
                 <span className="call-tab-ring" title="Incoming call" />
               )}
@@ -315,7 +322,7 @@ export default function App(): JSX.Element {
           </div>
         </header>
 
-        <section className="content">
+        <section className={`content${tab === 'messages' ? ' content-fill' : ''}`}>
           {tab === 'notifications' && (
             <NotificationsPanel
               notifications={state.notifications}

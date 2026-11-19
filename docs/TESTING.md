@@ -710,6 +710,31 @@ Real calls still work:
   stream restarts and keeps the pinned shape.
 * ✅ With a 0.1.6 (or older) phone the selector is absent and the camera behaves exactly as before.
 
+## 29. Visual pass (v0.1.8)
+
+Desktop:
+
+* ✅ Narrow the window to ~1000 px, open **Messages** → one scrollbar, the composer stays visible,
+  and the sidebar narrows instead of overlapping the pane.
+* ✅ **New message** → the contact suggestions float over the thread instead of being cut off at the
+  pane edge, and they follow the field when the message list scrolls.
+* ✅ Open a photo and a video, then press Tab repeatedly → focus stays inside the lightbox;
+  Escape/close returns focus to the thumbnail that opened it.
+* ✅ Start the camera → the **Live** badge appears with the first frame, never `0 fps`.
+* ✅ Pairing → the QR loading placeholder is the same size as the QR that replaces it.
+* ✅ With **Reduce motion** enabled in Windows, the incoming-call ring and camera dot stop pulsing.
+* ✅ Notifications, Photos and Calls all use the same segmented control.
+
+Android:
+
+* ✅ Trigger a failed call or deny a permission → the message is red, not grey.
+* ✅ **Share to LinkPhone** and the call screen: content clears the status bar and the gesture bar,
+  and the call field stays above the keyboard when it is open.
+* ✅ Fresh install → the Setup card can be collapsed before pairing; **Hide setup** / **Show setup**
+  toggles it both before and after pairing.
+* ✅ Open the QR scanner on a tablet and in landscape → the finder box scales with the screen.
+* ✅ Onboarding → the step dots resize smoothly instead of snapping.
+
 ## Debugging
 
 ```powershell

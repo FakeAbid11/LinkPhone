@@ -32,9 +32,11 @@ service or a relay server.
 
 **No account. No cloud. No relay.**
 
-> **v0.1.7** adds an **Orientation** selector to the camera: Auto (follow the phone), Landscape or
-> Portrait, so you can pin a shape instead of letting the phone decide. Auto works exactly as in
-> 0.1.6. The selector needs the 0.1.7 phone app; older phones keep the auto behaviour.
+> **v0.1.8** is a visual-correctness pass on both apps: no protocol change, so 0.1.7 and 0.1.8
+> pair and behave exactly as before. Messages no longer gets a second scrollbar, the New message
+> contact list is no longer clipped, photo and video lightboxes trap focus, the camera badge waits
+> for the first frame, and on Android failures are red, Share/Call respect the system bars, Setup
+> can be collapsed before pairing and the QR finder frames correctly on tablets.
 
 ## Features
 
@@ -78,7 +80,7 @@ discovery. See [docs/PROTOCOL.md](docs/PROTOCOL.md) for the handshake, frames an
 2. **Phone:** install `linkphone-android.apk` (allow “install unknown apps”). A fresh install opens
    a three-step intro: what LinkPhone is, why each permission is needed, and pairing. You can skip
    it and set everything up later on the main screen.
-3. **PC:** run `LinkPhone.Setup.0.1.7.exe`. The installer is unsigned, so SmartScreen requires
+3. **PC:** run `LinkPhone.Setup.0.1.8.exe`. The installer is unsigned, so SmartScreen requires
    **More info → Run anyway**. It also adds **Send to → LinkPhone** to Explorer; Windows 11 may keep
    it under **Show more options**.
 4. **Pair:** on the PC, expand **Scan QR code instead** in the sidebar. On the phone, tap **Scan QR**
@@ -295,10 +297,12 @@ does not subject to the six-hour `dataSync` limit.
 <details>
 <summary><strong>Theme and Start with Windows</strong></summary>
 
-Both apps use a strictly monochrome, dark-only Material 3 theme: `#000000` background, `#121212`
-cards, `#1C1C1C` elevated components, white primary text, `#B3B3B3` secondary text, and white/gray
-Material Symbols Rounded icons. There is no light theme and no colorful accent. Android
-notifications use a simplified phone + link mark with a gray accent so it stays legible at 24 dp.
+Both apps use a dark-only Material 3 theme built on one neutral gray ramp: `#000000` background,
+`#121212` cards, `#1C1C1C` elevated components, white primary text, `#B3B3B3` secondary text, and
+white/gray Material Symbols Rounded icons. There is no light theme and no decorative accent; the
+only hues are `#FF6B6B` for a failure and `#F5A524` for a caution, so an error cannot be mistaken
+for helper text. Android notifications use a simplified phone + link mark, tinted white so it stays
+legible at 24 dp.
 
 **Start with Windows** is off by default in **Settings**. Enabling it registers a per-user login item,
 so LinkPhone appears in **Windows Settings → Apps → Startup** and starts hidden in the tray. Disable

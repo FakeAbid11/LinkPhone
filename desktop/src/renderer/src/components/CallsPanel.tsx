@@ -261,7 +261,7 @@ export function CallsPanel({
         </div>
 
         <div className="calls-side">
-          <div className="calls-side-switch" role="tablist" aria-label="Recent calls or contacts">
+          <div className="segmented" role="tablist" aria-label="Recent calls or contacts">
             <button
               type="button"
               role="tab"

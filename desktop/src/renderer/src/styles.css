@@ -25,6 +25,11 @@
   --danger-soft: rgba(255, 107, 107, 0.16);
   --warn: #f5a524;
   --warn-soft: rgba(245, 165, 36, 0.16);
+  /* Solid-white hover for filled buttons, and the empty groove of a progress track. */
+  --hover-strong: #e0e0e0;
+  --track: #2a2a2a;
+  /* Tallest the video stage may get, so the controls under it stay on screen at any window height. */
+  --stage-max-h: 62vh;
   font-family: 'Segoe UI Variable', 'Segoe UI', Roboto, system-ui, -apple-system, sans-serif;
   color-scheme: dark;
 }
@@ -123,6 +128,8 @@ button {
   border-right: 1px solid var(--line);
   min-height: 0;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
 }
 
 .brand {
@@ -346,7 +353,7 @@ button {
   padding: 1px 6px;
   border-radius: 6px;
   background: var(--accent);
-  color: #000000;
+  color: var(--bg);
   font-size: 12px;
   font-weight: 600;
   text-align: center;
@@ -493,6 +500,13 @@ button {
   padding: 18px 26px 26px;
 }
 
+/* Views whose own child owns the scroller (a message thread) must not nest a second one. */
+.content-fill {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
 .btn {
   display: inline-flex;
   align-items: center;
@@ -508,7 +522,7 @@ button {
 }
 
 .btn:hover {
-  background: #e0e0e0;
+  background: var(--hover-strong);
 }
 
 .btn-ghost {
@@ -593,6 +607,7 @@ button {
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--bg-elev);
+  transition: border-color 150ms var(--ease);
 }
 
 .notif-avatar {
@@ -780,7 +795,7 @@ button {
 .pill-active {
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.08);
-  color: #ffffff;
+  color: var(--text);
 }
 
 .progress {
@@ -857,7 +872,7 @@ button {
 
 .switch-on span {
   transform: translateX(18px);
-  background: #000000;
+  background: var(--bg);
 }
 
 .field-label {
@@ -924,13 +939,13 @@ button {
 
 .qr-wrap img {
   border-radius: 8px;
-  background: #fff;
+  background: var(--text);
   padding: 4px;
 }
 
 .qr-loading {
-  width: 176px;
-  height: 176px;
+  width: 168px;
+  height: 168px;
   display: grid;
   place-items: center;
   border-radius: 8px;
@@ -948,6 +963,10 @@ button {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  /* .content-fill clips rather than scrolls, so the view that owns the content scrolls. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .sms-head-actions {
@@ -995,12 +1014,11 @@ button {
   position: relative;
 }
 
+/* Rendered in a body portal with fixed coordinates: .content scrolls, and an absolutely
+   positioned list inside it was clipped at the pane edge. */
 .sms-suggest-list {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
+  position: fixed;
+  z-index: 120;
   max-height: 240px;
   overflow-y: auto;
   margin: 0;
@@ -1141,11 +1159,34 @@ button {
   white-space: nowrap;
 }
 
+/* Height comes from the .content-fill chain, never from a hardcoded header/composer guess. */
+.sms {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* The conversation list and the composer are tall too; they scroll, not the pane. */
+.sms > .sms-new,
+.sms > .empty {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.sms > .files-head,
+.sms > .sms-search,
+.sms > .sms-approval-hint {
+  flex: 0 0 auto;
+}
+
 .sms-thread {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 190px);
-  min-height: 320px;
+  flex: 1;
+  min-height: 0;
 }
 
 .sms-thread-head {
@@ -1164,6 +1205,7 @@ button {
 
 .sms-messages {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 14px 4px;
   display: flex;
@@ -1261,9 +1303,10 @@ button {
   position: relative;
   display: grid;
   place-items: center;
-  width: 100%;
+  width: min(100%, calc(var(--stage-max-h) * 16 / 9));
+  margin-inline: auto;
   aspect-ratio: 16 / 9;
-  background: #000;
+  background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 12px;
   overflow: hidden;
@@ -1273,7 +1316,7 @@ button {
    the controls below stay reachable. */
 .camera-stage.camera-stage-portrait {
   align-self: center;
-  width: min(calc(64vh * 9 / 16), 100%);
+  width: min(100%, calc(var(--stage-max-h) * 9 / 16));
   aspect-ratio: 9 / 16;
 }
 
@@ -1489,7 +1532,6 @@ button {
 .photo-tile img {
   transition: transform 150ms var(--ease);
 }
-
 .photo-placeholder {
   width: 100%;
   height: 100%;
@@ -1507,16 +1549,19 @@ button {
   padding: 2px 5px;
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.72);
-  color: #ffffff;
+  color: var(--text);
   font-size: 12px;
 }
 
 .gallery-loading,
 .gallery-error {
   padding: 20px;
-  color: var(--muted);
   font-size: 13px;
   text-align: center;
+}
+
+.gallery-loading {
+  color: var(--muted);
 }
 
 .gallery-notice {
@@ -1572,6 +1617,11 @@ button {
   padding: 10px 14px;
 }
 
+.photo-lightbox-actions {
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+
 .photo-lightbox-head {
   border-bottom: 1px solid var(--line);
 }
@@ -1590,7 +1640,7 @@ button {
   place-items: center;
   overflow: hidden;
   padding: 10px;
-  background: #000000;
+  background: var(--bg);
 }
 
 .photo-preview-body img {
@@ -1599,9 +1649,40 @@ button {
   object-fit: contain;
 }
 
-.photo-lightbox-actions {
-  border-top: 1px solid var(--line);
+/* ---------------- segmented control ---------------- */
+
+/* One control for "pick one of N": notification source, gallery kind, calls side. */
+.segmented {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-elev);
+}
+
+.segmented button {
+  flex: 1 1 0;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
   font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.segmented button:hover {
+  color: var(--text);
+}
+
+.segmented .segmented-active {
+  background: var(--bg-soft);
+  color: var(--text);
+  font-weight: 600;
 }
 
 /* ---------------- settings / updates ---------------- */
@@ -1703,38 +1784,22 @@ button {
   max-width: 100%;
 }
 
-.calls-side-switch {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
-  padding: 4px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--bg-elev);
-}
-
-.calls-side-switch button {
-  border: 0;
-  border-radius: 8px;
-  padding: 8px 10px;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.calls-side-switch button:hover {
-  color: var(--text);
-}
-
-.calls-side-switch button.active {
-  background: #ffffff;
-  color: #000000;
-  font-weight: 600;
+@media (max-width: 1180px) {
+  .app {
+    grid-template-columns: 248px 1fr;
+  }
 }
 
 @media (max-width: 1000px) {
+  .app {
+    grid-template-columns: 216px 1fr;
+  }
+
+  .main-head {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
   .calls-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1776,7 +1841,11 @@ button {
   font-weight: 500;
 }
 
+/* An error is a row: the rule and the wrapping text sit side by side. */
 .call-error {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
   border-left: 2px solid var(--danger);
   color: var(--danger);
   font-weight: 500;
@@ -1811,12 +1880,6 @@ button {
 
 .call-placed strong {
   font-weight: 600;
-}
-
-.call-error {
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 10px;
 }
 
 .call-error-text {
@@ -2242,10 +2305,6 @@ button {
   color: var(--muted);
 }
 
-.notif {
-  transition: border-color 150ms var(--ease);
-}
-
 .notif:hover {
   border-color: var(--line-strong);
 }
@@ -2335,7 +2394,7 @@ button {
   height: 4px;
   overflow: hidden;
   border-radius: 999px;
-  background: #2a2a2a;
+  background: var(--track);
 }
 
 .notif-progress-fill {
@@ -2383,6 +2442,9 @@ button {
 
 @media (prefers-reduced-motion: reduce) {
   .call-tab-ring {
+    animation: none;
+  }
+  .camera-dot {
     animation: none;
   }
   .notif-progress-indeterminate .notif-progress-fill {
@@ -2434,7 +2496,7 @@ button {
 
 .media-seek input,
 .media-volume input {
-  accent-color: #ffffff;
+  accent-color: var(--text);
 }
 
 .media-seek input {
@@ -2520,14 +2582,6 @@ button {
   font-size: 13px;
 }
 
-.notif-view {
-  display: flex;
-  flex: 0 0 auto;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
-
 .notif-history-actions {
   display: flex;
   align-items: center;
@@ -2537,25 +2591,6 @@ button {
 
 .notif-history-row {
   opacity: 0.92;
-}
-
-.notif-view button {
-  padding: 8px 12px;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.notif-view button:hover {
-  color: var(--text);
-}
-
-.notif-view .notif-view-active {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text);
 }
 
 .notif-muted-row {
@@ -2627,13 +2662,6 @@ button {
   display: flex;
   flex: 0 0 auto;
   gap: 8px;
-}
-
-.notif-view button:focus-visible,
-.notif-chip:focus-visible,
-.notif-group-actions button:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.45);
-  outline-offset: 2px;
 }
 
 .drop-overlay {
@@ -2762,14 +2790,14 @@ button.dropzone {
   padding: 2px 8px;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.7);
-  color: #ffffff;
+  color: var(--text);
   font-size: 12px;
 }
 
 .video-player {
   width: 100%;
   max-height: 70vh;
-  background: #000000;
+  background: var(--bg);
   border-radius: 8px;
 }
 

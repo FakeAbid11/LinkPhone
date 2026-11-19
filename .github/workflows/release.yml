@@ -93,9 +93,15 @@ jobs:
     needs: [android, windows, linux]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v5
         with:
           path: artifacts
+      - name: Read the desktop version
+        id: version
+        run: |
+          version=$(node -p "require('./desktop/package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
@@ -111,30 +117,38 @@ jobs:
                apps" when asked). A fresh install opens a three-step intro: what LinkPhone is, why
                each permission is needed, and pairing.
                **If an earlier LinkPhone build is installed, uninstall it first and pair again.**
-            2. **PC** — download and run `LinkPhone.Setup.0.1.7.exe`. SmartScreen will warn because
-               the installer is unsigned: *More info → Run anyway*. Allow it on **private**
-               networks when Windows Firewall asks.
+            2. **PC** — download and run `LinkPhone.Setup.${{ steps.version.outputs.version }}.exe`.
+               SmartScreen will warn because the installer is unsigned: *More info → Run anyway*.
+               Allow it on **private** networks when Windows Firewall asks.
             3. Make sure both devices are on the same Wi-Fi (not a guest network).
             4. On the PC, click **Scan QR code instead** in the sidebar.
             5. On the phone: **Scan QR** and point the camera at the PC. Network scan + typed code is
                still available as a fallback.
             6. On the phone, open notification settings, then tap **Allow SMS access** and
                **Allow photo access**.
-            7. For calls, tap **Set as default phone app**, accept Android's role prompt, then allow
-               phone permissions.
+            7. For calls, allow the phone and contacts permissions when prompted. LinkPhone does
+               **not** need to be the default phone app; call audio always stays on the phone.
 
-            ## What's new in 0.1.7
+            ## What's new in ${{ steps.version.outputs.version }}
 
-            * New **Orientation** selector in the Camera tab: **Auto (follow phone)**,
-              **Landscape** or **Portrait**. Pinning a shape means you can lay the phone flat on a
-              desk, or point it at a screen, without the picture flipping when it is moved
-            * Auto still follows the phone exactly as in 0.1.6: turn it upright for portrait
-              (1080x1920, 720x1280 or 480x854), sideways for landscape, about half a second to switch
-            * The PC stage keeps resizing to the real picture, and the badge shows **Portrait** or
-              **Landscape**, so a wrong orientation is obvious
-            * **Update both apps.** The selector appears only when the phone app is 0.1.7 or newer;
-              with an older phone the camera keeps its auto behaviour and nothing breaks
-            * Everything from 0.1.5 and 0.1.6 is unchanged: hardware H.264, 1080p/720p/480p, 30/60 fps
+            A visual-correctness pass on both apps. No protocol change: 0.1.7 and 0.1.8 pair and
+            talk to each other exactly as before.
+
+            * **Messages** no longer scrolls inside a second scrollbar at small window sizes, and the
+              composer can no longer fall below the fold
+            * The contact suggestions in **New message** used to be clipped at the bottom of the
+              pane; they now float above it and follow the field
+            * The **photo and video lightboxes** trap focus, so Tab no longer walks into the grid
+              behind the overlay, and closing returns focus to where it was
+            * The camera stage is sized from one token instead of a magic number, so the portrait
+              view no longer leaves a wide empty gutter, and the **Live** badge waits for the first
+              frame instead of reading `0 fps`
+            * **Android**: failures are red instead of grey (matching the PC), Share and Call screens
+              respect the status and navigation bars, Setup can be collapsed before pairing, the QR
+              finder frames correctly on tablets and in landscape, and onboarding dots animate
+            * Sidebar steps down at narrower windows instead of staying a fixed 288 px
+            * Everything from 0.1.5, 0.1.6 and 0.1.7 is unchanged: hardware H.264, camera
+              orientation pinning, 1080p/720p/480p, 30/60 fps
 
             ## Features
 
@@ -159,8 +173,8 @@ jobs:
               optional Start with Windows hidden in the tray
             * Built-in Windows updater with download progress and restart-to-install, and an Android
               updater with SHA-256 and signing-certificate verification
-            * Strictly monochrome Material 3 themes on PC and Android with Material Symbols Rounded
-              icons, keyed to a single type and spacing scale
+            * Material 3 themes on PC and Android with Material Symbols Rounded icons, keyed to a
+              single type and spacing scale; one neutral gray ramp, with red reserved for failures
 
             ## Not in this build
 

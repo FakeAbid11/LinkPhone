@@ -559,10 +559,8 @@ private fun Screen(modifier: Modifier = Modifier) {
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
-                if (paired) {
-                    TextButton(onClick = { setupOpen = !setupOpen }) {
-                        Text(if (setupOpen) "Hide" else "Show")
-                    }
+                TextButton(onClick = { setupOpen = !setupOpen }) {
+                    Text(if (setupOpen) "Hide setup" else "Show setup")
                 }
             }
         }
@@ -573,184 +571,184 @@ private fun Screen(modifier: Modifier = Modifier) {
             exit = fadeOut(tween(150)) + shrinkVertically()
         ) {
 
-        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                CardTitle(Symbols.smartphone, "This phone")
-                OutlinedTextField(
-                    value = phoneNameDraft,
-                    onValueChange = { phoneNameDraft = it.take(32) },
-                    singleLine = true,
-                    label = { Text("Phone name") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedButton(
-                    enabled = phoneNameDraft.trim().isNotEmpty(),
-                    onClick = {
-                        if (client.renameDevice(phoneNameDraft)) {
-                            phoneNameDraft = client.deviceName
-                            notice = "Phone name updated."
-                        }
-                    }
-                ) { ButtonLabel(Symbols.check_circle, "Save name") }
-            }
-        }
-
-        if (store.hasPairing()) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CardTitle(Symbols.link, "Paired PC")
-                    Text(
-                        "${store.serverName ?: "PC"} · ${store.host ?: ""}:${store.port}",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall
+                    CardTitle(Symbols.smartphone, "This phone")
+                    OutlinedTextField(
+                        value = phoneNameDraft,
+                        onValueChange = { phoneNameDraft = it.take(32) },
+                        singleLine = true,
+                        label = { Text("Phone name") },
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = {
-                            confirmForget = true
-                        }) { ButtonLabel(Symbols.close, "Forget") }
+                    OutlinedButton(
+                        enabled = phoneNameDraft.trim().isNotEmpty(),
+                        onClick = {
+                            if (client.renameDevice(phoneNameDraft)) {
+                                phoneNameDraft = client.deviceName
+                                notice = "Phone name updated."
+                            }
+                        }
+                    ) { ButtonLabel(Symbols.check_circle, "Save name") }
+                }
+            }
+
+            if (store.hasPairing()) {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CardTitle(Symbols.link, "Paired PC")
+                        Text(
+                            "${store.serverName ?: "PC"} · ${store.host ?: ""}:${store.port}",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = {
+                                confirmForget = true
+                            }) { ButtonLabel(Symbols.close, "Forget") }
+                        }
                     }
                 }
             }
-        }
 
-        PairingSection(
-            store = store,
-            client = client,
-            onNotice = { notice = it }
-        )
-
-        if (!notifAccess) {
-            PermissionCard(
-                glyph = Symbols.notifications,
-                title = "Notification access",
-                body = "Required to mirror notifications. Android asks you to allow it in system settings.",
-                actionLabel = "Open settings",
-                onAction = {
-                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                }
+            PairingSection(
+                store = store,
+                client = client,
+                onNotice = { notice = it }
             )
-        } else if (!listenerConnected) {
-            PermissionCard(
-                glyph = Symbols.notifications,
-                title = "Notification listener",
-                body = "Notification access is on, but the listener is disconnected. Reconnect it to mirror notifications from your phone.",
-                actionLabel = "Reconnect",
-                onAction = { NotificationRelay.ensureBound(context, true) },
-                secondaryLabel = "Open settings",
-                onSecondary = {
-                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                }
-            )
-        }
 
-        if (!batteryExempt) {
-            PermissionCard(
-                glyph = Symbols.settings,
-                title = "Background connection",
-                body = "Keep the connection alive while the screen is off. Android battery optimization can pause background networking; LinkPhone can ask to be exempt.",
-                actionLabel = "Allow background",
-                onAction = {
-                    val request = Intent(
-                        Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                        "package:${context.packageName}".toUri()
-                    )
-                    runCatching { batteryExemption.launch(request) }.onFailure {
-                        runCatching {
-                            context.startActivity(
-                                Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+            if (!notifAccess) {
+                PermissionCard(
+                    glyph = Symbols.notifications,
+                    title = "Notification access",
+                    body = "Required to mirror notifications. Android asks you to allow it in system settings.",
+                    actionLabel = "Open settings",
+                    onAction = {
+                        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                    }
+                )
+            } else if (!listenerConnected) {
+                PermissionCard(
+                    glyph = Symbols.notifications,
+                    title = "Notification listener",
+                    body = "Notification access is on, but the listener is disconnected. Reconnect it to mirror notifications from your phone.",
+                    actionLabel = "Reconnect",
+                    onAction = { NotificationRelay.ensureBound(context, true) },
+                    secondaryLabel = "Open settings",
+                    onSecondary = {
+                        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                    }
+                )
+            }
+
+            if (!batteryExempt) {
+                PermissionCard(
+                    glyph = Symbols.settings,
+                    title = "Background connection",
+                    body = "Keep the connection alive while the screen is off. Android battery optimization can pause background networking; LinkPhone can ask to be exempt.",
+                    actionLabel = "Allow background",
+                    onAction = {
+                        val request = Intent(
+                            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                            "package:${context.packageName}".toUri()
+                        )
+                        runCatching { batteryExemption.launch(request) }.onFailure {
+                            runCatching {
+                                context.startActivity(
+                                    Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                )
+                            }
+                            notice = "Choose LinkPhone in the battery-optimization list and set it " +
+                                "to Don't optimize. On Xiaomi/HyperOS also enable Autostart."
+                        }
+                    }
+                )
+            }
+
+            if (!smsAccess) {
+                PermissionCard(
+                    glyph = Symbols.sms,
+                    title = "Messages",
+                    body = "Allow LinkPhone to read and send SMS so your texts show up on the PC. It stays a normal app — it never becomes your default SMS app. Android will also ask you to approve every text sent from the PC; that prompt is the system's protection for apps that are not the default SMS app.",
+                    actionLabel = "Allow messages",
+                    onAction = {
+                        smsPermission.launch(
+                            arrayOf(
+                                Manifest.permission.READ_SMS,
+                                Manifest.permission.SEND_SMS,
+                                Manifest.permission.RECEIVE_SMS
+                            )
+                        )
+                    }
+                )
+            }
+
+            if (!photoAccess) {
+                PermissionCard(
+                    glyph = Symbols.photo_library,
+                    title = "Photos and videos",
+                    body = "Allow LinkPhone to show photo and video albums on your PC. You can grant all media or a selected set on newer Android versions.",
+                    actionLabel = "Allow media",
+                    onAction = { photoPermission.launch(photoPermissions()) }
+                )
+            }
+
+            if (!contactsAccess) {
+                PermissionCard(
+                    glyph = Symbols.contacts,
+                    title = "Contact names",
+                    body = "Allow contact access to show names instead of numbers and to browse your contact list from the PC.",
+                    actionLabel = "Allow contacts",
+                    onAction = { contactsPermission.launch(Manifest.permission.READ_CONTACTS) }
+                )
+            }
+
+            if (!callLogAccess) {
+                PermissionCard(
+                    glyph = Symbols.call,
+                    title = "Call history",
+                    body = "Allow call-log access to see recent calls and call back from the PC.",
+                    actionLabel = "Allow call history",
+                    onAction = { callLogPermission.launch(Manifest.permission.READ_CALL_LOG) }
+                )
+            }
+
+            if (smsAccess && !simAccess) {
+                PermissionCard(
+                    glyph = Symbols.smartphone,
+                    title = "Choose a SIM",
+                    body = "Allow phone access to label texts and calls by SIM and pick a SIM from the PC.",
+                    actionLabel = "Allow phone access",
+                    onAction = { simPermission.launch(Manifest.permission.READ_PHONE_STATE) }
+                )
+            }
+
+            if (!outgoingReady || !callPermissionsGranted) {
+                PermissionCard(
+                    glyph = Symbols.call,
+                    title = "Calls from your PC",
+                    body = "Dial, answer, decline, hang up and switch the phone speaker from Windows. Audio always stays on this phone. No default-phone role is required.",
+                    actionLabel = if (!outgoingReady) "Allow call access" else "Allow call control",
+                    onAction = {
+                        if (!outgoingReady) {
+                            callPermission.launch(
+                                arrayOf(
+                                    Manifest.permission.CALL_PHONE,
+                                    Manifest.permission.READ_PHONE_STATE,
+                                    Manifest.permission.ANSWER_PHONE_CALLS
+                                )
+                            )
+                        } else {
+                            callPermission.launch(
+                                arrayOf(
+                                    Manifest.permission.READ_PHONE_STATE,
+                                    Manifest.permission.ANSWER_PHONE_CALLS
+                                )
                             )
                         }
-                        notice = "Choose LinkPhone in the battery-optimization list and set it " +
-                            "to Don't optimize. On Xiaomi/HyperOS also enable Autostart."
                     }
-                }
-            )
-        }
-
-        if (!smsAccess) {
-            PermissionCard(
-                glyph = Symbols.sms,
-                title = "Messages",
-                body = "Allow LinkPhone to read and send SMS so your texts show up on the PC. It stays a normal app — it never becomes your default SMS app. Android will also ask you to approve every text sent from the PC; that prompt is the system's protection for apps that are not the default SMS app.",
-                actionLabel = "Allow messages",
-                onAction = {
-                    smsPermission.launch(
-                        arrayOf(
-                            Manifest.permission.READ_SMS,
-                            Manifest.permission.SEND_SMS,
-                            Manifest.permission.RECEIVE_SMS
-                        )
-                    )
-                }
-            )
-        }
-
-        if (!photoAccess) {
-            PermissionCard(
-                glyph = Symbols.photo_library,
-                title = "Photos and videos",
-                body = "Allow LinkPhone to show photo and video albums on your PC. You can grant all media or a selected set on newer Android versions.",
-                actionLabel = "Allow media",
-                onAction = { photoPermission.launch(photoPermissions()) }
-            )
-        }
-
-        if (!contactsAccess) {
-            PermissionCard(
-                glyph = Symbols.contacts,
-                title = "Contact names",
-                body = "Allow contact access to show names instead of numbers and to browse your contact list from the PC.",
-                actionLabel = "Allow contacts",
-                onAction = { contactsPermission.launch(Manifest.permission.READ_CONTACTS) }
-            )
-        }
-
-        if (!callLogAccess) {
-            PermissionCard(
-                glyph = Symbols.call,
-                title = "Call history",
-                body = "Allow call-log access to see recent calls and call back from the PC.",
-                actionLabel = "Allow call history",
-                onAction = { callLogPermission.launch(Manifest.permission.READ_CALL_LOG) }
-            )
-        }
-
-        if (smsAccess && !simAccess) {
-            PermissionCard(
-                glyph = Symbols.smartphone,
-                title = "Choose a SIM",
-                body = "Allow phone access to label texts and calls by SIM and pick a SIM from the PC.",
-                actionLabel = "Allow phone access",
-                onAction = { simPermission.launch(Manifest.permission.READ_PHONE_STATE) }
-            )
-        }
-
-        if (!outgoingReady || !callPermissionsGranted) {
-            PermissionCard(
-                glyph = Symbols.call,
-                title = "Calls from your PC",
-                body = "Dial, answer, decline, hang up and switch the phone speaker from Windows. Audio always stays on this phone. No default-phone role is required.",
-                actionLabel = if (!outgoingReady) "Allow call access" else "Allow call control",
-                onAction = {
-                    if (!outgoingReady) {
-                        callPermission.launch(
-                            arrayOf(
-                                Manifest.permission.CALL_PHONE,
-                                Manifest.permission.READ_PHONE_STATE,
-                                Manifest.permission.ANSWER_PHONE_CALLS
-                            )
-                        )
-                    } else {
-                        callPermission.launch(
-                            arrayOf(
-                                Manifest.permission.READ_PHONE_STATE,
-                                Manifest.permission.ANSWER_PHONE_CALLS
-                            )
-                        )
-                    }
-                }
-            )
-        }
+                )
+            }
 
         }
 

@@ -9,6 +9,7 @@ import type {
 } from '@shared/protocol'
 import { Icon } from './Icon'
 import { bytes } from './FilesPanel'
+import { useFocusTrap } from '../lib/focus-trap'
 
 interface Props {
   albums: GalleryAlbum[]
@@ -91,6 +92,8 @@ export function PhotosPanel({
   const requested = useRef(new Set<string>())
   const [video, setVideo] = useState<GalleryPhoto | null>(null)
   const [videoError, setVideoError] = useState('')
+  const videoTrap = useFocusTrap<HTMLDivElement>(video !== null)
+  const previewTrap = useFocusTrap<HTMLDivElement>(preview !== null)
   const isVideo = kind === 'video'
   const videoKey = video ? `${kind}:${video.id}` : ''
   const videoDownload = videoKey ? downloads[videoKey] : undefined
@@ -273,10 +276,10 @@ export function PhotosPanel({
             </div>
             <div className="gallery-actions">
               {kinds.includes('video') && (
-                <div className="notif-view" role="group" aria-label="Media kind">
+                <div className="segmented" role="group" aria-label="Media kind">
                   <button
                     type="button"
-                    className={kind === 'image' ? 'notif-view-active' : ''}
+                    className={kind === 'image' ? 'segmented-active' : ''}
                     aria-pressed={kind === 'image'}
                     onClick={() => onSelectKind('image')}
                   >
@@ -284,7 +287,7 @@ export function PhotosPanel({
                   </button>
                   <button
                     type="button"
-                    className={kind === 'video' ? 'notif-view-active' : ''}
+                    className={kind === 'video' ? 'segmented-active' : ''}
                     aria-pressed={kind === 'video'}
                     onClick={() => onSelectKind('video')}
                   >
@@ -355,7 +358,12 @@ export function PhotosPanel({
 
       {video && (
         <div className="photo-lightbox" role="dialog" aria-modal="true" onClick={() => setVideo(null)}>
-          <div className="photo-lightbox-card" onClick={(event) => event.stopPropagation()}>
+          <div
+            className="photo-lightbox-card"
+            ref={videoTrap}
+            tabIndex={-1}
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="photo-lightbox-head">
               <strong title={video.name}>{video.name}</strong>
               <button className="icon-btn" onClick={() => setVideo(null)} aria-label="Close video">
@@ -433,7 +441,12 @@ export function PhotosPanel({
 
       {preview && (
         <div className="photo-lightbox" role="dialog" aria-modal="true" onClick={onClosePreview}>
-          <div className="photo-lightbox-card" onClick={(event) => event.stopPropagation()}>
+          <div
+            className="photo-lightbox-card"
+            ref={previewTrap}
+            tabIndex={-1}
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="photo-lightbox-head">
               <strong title={preview.name}>{preview.name}</strong>
               <button className="icon-btn" onClick={onClosePreview} aria-label="Close preview">
