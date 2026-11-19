@@ -735,6 +735,21 @@ Android:
 * ✅ Open the QR scanner on a tablet and in landscape → the finder box scales with the screen.
 * ✅ Onboarding → the step dots resize smoothly instead of snapping.
 
+## 30. Connection notification honesty (v0.1.9)
+
+* ✅ With the PC on and paired → the shade reads **Connected to <PC name>**, matching the app's card.
+* ✅ Turn the PC off (or leave the network) → within a few seconds the shade switches to
+  **Offline — searching for <PC name>**, while the app's card also reads Offline. They must never
+  disagree.
+* ✅ While it retries with backoff, the notification does not re-alert or flicker; the text changes
+  only when the state changes.
+* ✅ Kill LinkPhone on the PC while the phone app is closed → the notification updates without the
+  phone app being in the foreground (the service owns the notification).
+* ✅ Unpair / forget the PC → the shade reads **Not paired**.
+* ✅ While offline with clipboard sync switched off on the PC → the home screen says *Clipboard syncs
+  once your PC is connected*, not *turned off on your PC*.
+* ✅ Reconnect → the text returns to Connected and clipboard line again reflects the PC's setting.
+
 ## Debugging
 
 ```powershell
