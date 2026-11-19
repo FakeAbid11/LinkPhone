@@ -5,6 +5,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent
 } from 'react'
+import { createPortal } from 'react-dom'
 import type { PhoneContact, SimInfo, SmsActiveThread, SmsThread } from '@shared/protocol'
 import { Icon } from './Icon'
 import { digitsOf, initials, normalizeNumber, numbersMatch } from '../lib/phone'
@@ -119,6 +120,10 @@ export function MessagesPanel({
   const toRef = useRef<HTMLInputElement | null>(null)
   const bodyRef = useRef<HTMLTextAreaElement | null>(null)
   const pickerRef = useRef<HTMLDivElement | null>(null)
+  const listRef = useRef<HTMLUListElement | null>(null)
+  const [suggestPos, setSuggestPos] = useState<{ top: number; left: number; width: number } | null>(
+    null
+  )
   const optionRefs = useRef<Array<HTMLLIElement | null>>([])
   const lastPrefill = useRef(0)
   const defaultSimId = sims.find((sim) => sim.isDefault)?.id ?? sims[0]?.id ?? ''
@@ -214,9 +219,34 @@ export function MessagesPanel({
   }, [suggestions.length, suggestIndex])
 
   useEffect(() => {
+    if (!showSuggestions) {
+      setSuggestPos(null)
+      return
+    }
+    const place = (): void => {
+      const anchor = toRef.current
+      if (!anchor) return
+      const rect = anchor.getBoundingClientRect()
+      const width = Math.max(rect.width, 240)
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))
+      setSuggestPos({ top: rect.bottom + 4, left, width })
+    }
+    place()
+    // Fixed positioning does not follow the anchor, so track it while the pane scrolls.
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+    }
+  }, [showSuggestions])
+
+  useEffect(() => {
     if (!showSuggestions) return
     const close = (event: PointerEvent): void => {
-      if (!pickerRef.current?.contains(event.target as Node)) setSuggestOpen(false)
+      const target = event.target as Node
+      if (pickerRef.current?.contains(target) || listRef.current?.contains(target)) return
+      setSuggestOpen(false)
     }
     document.addEventListener('pointerdown', close)
     return () => document.removeEventListener('pointerdown', close)
@@ -553,36 +583,45 @@ export function MessagesPanel({
               }}
               onKeyDown={toKeyDown}
             />
-            {showSuggestions && (
-              <ul
-                className="sms-suggest-list"
-                id="sms-to-suggestions"
-                role="listbox"
-                aria-label="Contact suggestions"
-              >
-                {suggestions.map((row, index) => (
-                  <li
-                    key={row.key}
-                    id={`sms-to-option-${index}`}
-                    role="option"
-                    aria-selected={index === suggestIndex}
-                    ref={(element) => {
-                      optionRefs.current[index] = element
-                    }}
-                    className="sms-suggest-option"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => chooseSuggestion(row)}
-                  >
-                    <span className="sms-avatar">{initials(row.name)}</span>
-                    <span className="sms-suggest-text">
-                      <span className="sms-suggest-name">{row.name}</span>
-                      <span className="sms-suggest-number">{row.number}</span>
-                    </span>
-                    <span className="contact-label">{row.label}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            {showSuggestions &&
+              suggestPos &&
+              createPortal(
+                <ul
+                  className="sms-suggest-list"
+                  id="sms-to-suggestions"
+                  role="listbox"
+                  aria-label="Contact suggestions"
+                  ref={listRef}
+                  style={{
+                    top: `${suggestPos.top}px`,
+                    left: `${suggestPos.left}px`,
+                    width: `${suggestPos.width}px`
+                  }}
+                >
+                  {suggestions.map((row, index) => (
+                    <li
+                      key={row.key}
+                      id={`sms-to-option-${index}`}
+                      role="option"
+                      aria-selected={index === suggestIndex}
+                      ref={(element) => {
+                        optionRefs.current[index] = element
+                      }}
+                      className="sms-suggest-option"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => chooseSuggestion(row)}
+                    >
+                      <span className="sms-avatar">{initials(row.name)}</span>
+                      <span className="sms-suggest-text">
+                        <span className="sms-suggest-name">{row.name}</span>
+                        <span className="sms-suggest-number">{row.number}</span>
+                      </span>
+                      <span className="contact-label">{row.label}</span>
+                    </li>
+                  ))}
+                </ul>,
+                document.body
+              )}
           </div>
           {recipient && !showSuggestions && (
             <p className="sms-recipient">

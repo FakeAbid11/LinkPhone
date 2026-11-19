@@ -1010,12 +1010,11 @@ button {
   position: relative;
 }
 
+/* Rendered in a body portal with fixed coordinates: .content scrolls, and an absolutely
+   positioned list inside it was clipped at the pane edge. */
 .sms-suggest-list {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
+  position: fixed;
+  z-index: 120;
   max-height: 240px;
   overflow-y: auto;
   margin: 0;
