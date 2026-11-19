@@ -944,8 +944,8 @@ button {
 }
 
 .qr-loading {
-  width: 176px;
-  height: 176px;
+  width: 168px;
+  height: 168px;
   display: grid;
   place-items: center;
   border-radius: 8px;
@@ -2424,6 +2424,9 @@ button {
 
 @media (prefers-reduced-motion: reduce) {
   .call-tab-ring {
+    animation: none;
+  }
+  .camera-dot {
     animation: none;
   }
   .notif-progress-indeterminate .notif-progress-fill {

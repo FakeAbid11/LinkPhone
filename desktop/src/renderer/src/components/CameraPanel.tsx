@@ -283,7 +283,7 @@ export function CameraPanel({
             <p>{decodeError}</p>
           </div>
         )}
-        {streaming && (
+        {streaming && fps > 0 && (
           <div className="camera-live">
             <span className="camera-dot" /> Live · {fps} fps ·{' '}
             {orientation === 'portrait' ? 'Portrait' : 'Landscape'}

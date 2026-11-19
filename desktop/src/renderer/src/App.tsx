@@ -209,7 +209,7 @@ export default function App(): JSX.Element {
   }
 
   const connected = state.devices.filter((d) => d.connected)
-  const unread = state.notifications.length
+  const liveNotifications = state.notifications.length
   const pictureUploads = state.transfers.filter(
     (t) =>
       t.direction === 'out' &&
@@ -259,7 +259,14 @@ export default function App(): JSX.Element {
                 <Icon name={t.icon} />
                 <span>{t.label}</span>
               </span>
-              {t.id === 'notifications' && unread > 0 && <span className="badge">{unread}</span>}
+              {t.id === 'notifications' && liveNotifications > 0 && (
+                <span
+                  className="badge"
+                  title={`${liveNotifications} notifications showing on the phone`}
+                >
+                  {liveNotifications}
+                </span>
+              )}
               {t.id === 'calls' && state.phoneCalls.some((call) => call.phase === 'ringing') && (
                 <span className="call-tab-ring" title="Incoming call" />
               )}
