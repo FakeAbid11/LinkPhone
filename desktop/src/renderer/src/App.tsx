@@ -315,7 +315,7 @@ export default function App(): JSX.Element {
           </div>
         </header>
 
-        <section className="content">
+        <section className={`content${tab === 'messages' ? ' content-fill' : ''}`}>
           {tab === 'notifications' && (
             <NotificationsPanel
               notifications={state.notifications}
