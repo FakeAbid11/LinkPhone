@@ -765,7 +765,12 @@ private fun Screen(modifier: Modifier = Modifier) {
         Text(
             when {
                 !paired -> "Pair your phone to sync the clipboard."
-                !store.pcClipboardEnabled -> "Clipboard sync is turned off on your PC."
+                // pcClipboardEnabled is last-known state from the PC, so only claim it while the
+                // link is actually up; offline it would be stale rather than true.
+                !store.pcClipboardEnabled && status.state == LinkState.CONNECTED ->
+                    "Clipboard sync is turned off on your PC."
+                status.state != LinkState.CONNECTED ->
+                    "Clipboard syncs once your PC is connected."
                 backgroundClipboard ->
                     "Clipboard text syncs from any app while LinkPhone is in the background."
                 else ->
