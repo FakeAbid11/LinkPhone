@@ -963,6 +963,10 @@ button {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  /* .content-fill clips rather than scrolls, so the view that owns the content scrolls. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .sms-head-actions {
@@ -1162,6 +1166,20 @@ button {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* The conversation list and the composer are tall too; they scroll, not the pane. */
+.sms > .sms-new,
+.sms > .empty {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.sms > .files-head,
+.sms > .sms-search,
+.sms > .sms-approval-hint {
+  flex: 0 0 auto;
 }
 
 .sms-thread {
