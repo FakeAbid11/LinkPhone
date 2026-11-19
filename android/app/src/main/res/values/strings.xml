@@ -3,7 +3,16 @@
     <string name="app_name">LinkPhone</string>
     <string name="notif_service_label">LinkPhone notifications</string>
     <string name="service_channel">LinkPhone connection</string>
+    <!-- Channel description only: the notification body follows the real connection state. -->
     <string name="service_text">Connected to your PC</string>
+    <string name="service_connected">Connected to %1$s</string>
+    <string name="service_connecting">Connecting to %1$s…</string>
+    <string name="service_pairing">Pairing…</string>
+    <string name="service_offline">Offline — searching for %1$s…</string>
+    <string name="service_offline_unpaired">Offline</string>
+    <string name="service_idle_paired">Paired, not connected</string>
+    <string name="service_idle_unpaired">Not paired</string>
+    <string name="service_pc_generic">your PC</string>
     <string name="clipboard_accessibility_label">LinkPhone clipboard sync</string>
     <string name="clipboard_accessibility_description">Reads clipboard text while another app is in front so it can sync to your paired PC. LinkPhone never reads screen content.</string>
 </resources>
