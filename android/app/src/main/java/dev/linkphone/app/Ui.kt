@@ -39,7 +39,8 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** One gray ramp for the whole app: matte graphite, white ink, no hue. */
+/** One gray ramp for the whole app: matte graphite, white ink. Red and amber are reserved for
+ *  failure and caution, matching the desktop's --danger and --warn. */
 internal object LinkColors {
     val background = Color(0xFF000000)
     val surface = Color(0xFF121212)

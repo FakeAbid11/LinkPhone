@@ -297,10 +297,12 @@ does not subject to the six-hour `dataSync` limit.
 <details>
 <summary><strong>Theme and Start with Windows</strong></summary>
 
-Both apps use a strictly monochrome, dark-only Material 3 theme: `#000000` background, `#121212`
-cards, `#1C1C1C` elevated components, white primary text, `#B3B3B3` secondary text, and white/gray
-Material Symbols Rounded icons. There is no light theme and no colorful accent. Android
-notifications use a simplified phone + link mark with a gray accent so it stays legible at 24 dp.
+Both apps use a dark-only Material 3 theme built on one neutral gray ramp: `#000000` background,
+`#121212` cards, `#1C1C1C` elevated components, white primary text, `#B3B3B3` secondary text, and
+white/gray Material Symbols Rounded icons. There is no light theme and no decorative accent; the
+only hues are `#FF6B6B` for a failure and `#F5A524` for a caution, so an error cannot be mistaken
+for helper text. Android notifications use a simplified phone + link mark, tinted white so it stays
+legible at 24 dp.
 
 **Start with Windows** is off by default in **Settings**. Enabling it registers a per-user login item,
 so LinkPhone appears in **Windows Settings → Apps → Startup** and starts hidden in the tray. Disable

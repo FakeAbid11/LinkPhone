@@ -129,7 +129,7 @@ jobs:
             7. For calls, allow the phone and contacts permissions when prompted. LinkPhone does
                **not** need to be the default phone app; call audio always stays on the phone.
 
-            ## What's new in 0.1.8
+            ## What's new in ${{ steps.version.outputs.version }}
 
             A visual-correctness pass on both apps. No protocol change: 0.1.7 and 0.1.8 pair and
             talk to each other exactly as before.
@@ -173,8 +173,8 @@ jobs:
               optional Start with Windows hidden in the tray
             * Built-in Windows updater with download progress and restart-to-install, and an Android
               updater with SHA-256 and signing-certificate verification
-            * Strictly monochrome Material 3 themes on PC and Android with Material Symbols Rounded
-              icons, keyed to a single type and spacing scale
+            * Material 3 themes on PC and Android with Material Symbols Rounded icons, keyed to a
+              single type and spacing scale; one neutral gray ramp, with red reserved for failures
 
             ## Not in this build
 
