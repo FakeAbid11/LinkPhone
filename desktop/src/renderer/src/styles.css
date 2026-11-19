@@ -25,6 +25,8 @@
   --danger-soft: rgba(255, 107, 107, 0.16);
   --warn: #f5a524;
   --warn-soft: rgba(245, 165, 36, 0.16);
+  /* Tallest the video stage may get, so the controls under it stay on screen at any window height. */
+  --stage-max-h: 62vh;
   font-family: 'Segoe UI Variable', 'Segoe UI', Roboto, system-ui, -apple-system, sans-serif;
   color-scheme: dark;
 }
@@ -1278,9 +1280,10 @@ button {
   position: relative;
   display: grid;
   place-items: center;
-  width: 100%;
+  width: min(100%, calc(var(--stage-max-h) * 16 / 9));
+  margin-inline: auto;
   aspect-ratio: 16 / 9;
-  background: #000;
+  background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 12px;
   overflow: hidden;
@@ -1290,7 +1293,7 @@ button {
    the controls below stay reachable. */
 .camera-stage.camera-stage-portrait {
   align-self: center;
-  width: min(calc(64vh * 9 / 16), 100%);
+  width: min(100%, calc(var(--stage-max-h) * 9 / 16));
   aspect-ratio: 9 / 16;
 }
 
