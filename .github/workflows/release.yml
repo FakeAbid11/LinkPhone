@@ -126,25 +126,36 @@ jobs:
                still available as a fallback.
             6. On the phone, open notification settings, then tap **Allow SMS access** and
                **Allow photo access**.
-            7. For calls, allow the phone and contacts permissions when prompted. LinkPhone does
-               **not** need to be the default phone app; call audio always stays on the phone.
+            7. For calls, allow the phone and contacts permissions when prompted. Dialing, answering,
+               declining and hanging up need **no** default-phone role, and call audio always stays
+               on the phone. Switching a mobile call to the speaker does need that role; the phone
+               offers it the first time you press the button.
 
             ## What's new in ${{ steps.version.outputs.version }}
 
-            One Android fix, no protocol change: 0.1.8 and 0.1.9 pair and talk to each other
-            exactly as before.
+            The speaker button in the Calls tab used to do nothing at all on a normal mobile call,
+            and say nothing about it. It now explains why and offers a fix. No protocol change:
+            0.1.9 and 0.2.0 pair and talk in both directions.
 
-            * The **Android notification** said "Connected to your PC" for as long as the
-              background service ran, even while the app itself showed Offline. It now follows the
-              real connection state — connecting, connected, offline or not paired — and names the
-              PC it is reaching for
-            * The **clipboard line** on the Android home screen no longer reports the PC's
-              last-known clipboard setting while the phone is offline
-            * Everything from 0.1.8 is unchanged: the Messages layout, the unclipped contact
-              suggestions, the focus-trapped lightboxes, and the visual pass on both apps
+            * **Phone speaker** on a mobile call now reports that Android reserves call routing for
+              the **default phone app**, instead of silently ignoring the tap. The phone adds a
+              **Switch the phone speaker** card that grants exactly that role
+            * **Granting it** makes the button work and gives the PC the phone's real call state
+              instead of a notification-scraped approximation
+            * **VoIP speaker** — WhatsApp, Telegram, Messenger and Instagram manage their own audio,
+              so their cards disable the button with a reason rather than pretending
+            * **Speaker taps before `Connected`** are held and applied when the call connects, or
+              dropped if it ends first
+            * **No more false success**: every switch re-reads the route and reports the real
+              outcome, including on phones that accept the request and ignore it
+            * **Pressing the button with the phone disconnected** now says so, instead of
+              broadcasting into an empty link
+            * The notification action and the in-call screen read **Turn speaker on** / **Turn
+              speaker off** — previously the label named the current state but performed the
+              opposite action
 
-            **Update the phone app.** The notification fix lives in the Android build; the PC
-            installer is rebuilt with the same feature set as 0.1.8.
+            **Update the phone app.** The change lives in the Android build. The PC installer is
+            rebuilt with the same feature set as 0.1.9 plus the wording and error fixes above.
 
             ## Features
 
@@ -156,8 +167,9 @@ jobs:
               ongoing and MessagingStyle alerts, live progress, search, history and mute/clear
             * SMS: existing conversations, live incoming texts, contact suggestions, drafts that
               stay with their thread, and retry of failed sends
-            * Calls from the PC: dial, answer, decline, hang up, mute and phone speaker; SIM choice
-              on dual-SIM phones; VoIP calls (WhatsApp, Telegram, Messenger, Instagram)
+            * Calls from the PC: dial, answer, decline, hang up and mute; the phone speaker when
+              LinkPhone holds the default-phone role; SIM choice on dual-SIM phones; VoIP calls
+              (WhatsApp, Telegram, Messenger, Instagram)
             * Recent call history with direction, time and duration, and searchable contacts with
               click-to-call
             * Photo albums, videos and phone downloads: thumbnails, previews, uploads, resumable

@@ -32,11 +32,11 @@ service or a relay server.
 
 **No account. No cloud. No relay.**
 
-> **v0.1.9** makes the Android notification tell the truth. It used to read "Connected to your PC"
-> from the moment the background service started, even while the app itself showed Offline. It now
-> follows the real connection state and names the PC it is reaching for. The clipboard line on the
-> Android home screen no longer reports the PC's last-known setting while offline. No protocol
-> change: 0.1.8 and 0.1.9 pair and behave exactly as before.
+> **v0.2.0** makes the speaker button honest. Android only lets the default phone app move a call
+> between the earpiece and the speaker, so the button used to do nothing at all on a normal mobile
+> call — silently. It now says what it needs, and the phone offers the role once you ask for it.
+> Dialing, answering, declining and hanging up still need no role. No protocol change: 0.1.9 and
+> 0.2.0 pair and talk in both directions.
 
 ## Features
 
@@ -48,7 +48,7 @@ service or a relay server.
 | SMS | Partial | New or existing conversations with contact suggestions, search and retry failed sends; no MMS |
 | Dual SIM | Yes | Pick the SMS SIM and call SIM from the PC; labels on messages, calls and history |
 | Contacts and call history | Yes | Recent calls and contacts share a switch beside the dialer |
-| Phone calls | Partial | Dial, answer, hang up, mute and use the phone speaker from the PC (best effort); SIM and VoIP calls (WhatsApp, Telegram, Messenger, Instagram) controllable; audio stays on the phone |
+| Phone calls | Partial | Dial, answer, hang up and mute from the PC without the default-phone role; SIM and VoIP calls (WhatsApp, Telegram, Messenger, Instagram) controllable; the phone speaker is switchable when LinkPhone holds the default-phone role; audio stays on the phone |
 | Find my phone | Yes | Ring the connected phone for 5–30 s and stop it from the phone or the PC |
 | Media controls | Yes | Album art, seek and phone volume plus play/pause and next/previous |
 | Photo albums | Yes | Thumbnails, paged albums, previews, downloads, uploads and inline video playback |
@@ -80,7 +80,7 @@ discovery. See [docs/PROTOCOL.md](docs/PROTOCOL.md) for the handshake, frames an
 2. **Phone:** install `linkphone-android.apk` (allow “install unknown apps”). A fresh install opens
    a three-step intro: what LinkPhone is, why each permission is needed, and pairing. You can skip
    it and set everything up later on the main screen.
-3. **PC:** run `LinkPhone.Setup.0.1.9.exe`. The installer is unsigned, so SmartScreen requires
+3. **PC:** run `LinkPhone.Setup.0.2.0.exe`. The installer is unsigned, so SmartScreen requires
    **More info → Run anyway**. It also adds **Send to → LinkPhone** to Explorer; Windows 11 may keep
    it under **Show more options**.
 4. **Pair:** on the PC, expand **Scan QR code instead** in the sidebar. On the phone, tap **Scan QR**
@@ -88,7 +88,8 @@ discovery. See [docs/PROTOCOL.md](docs/PROTOCOL.md) for the handshake, frames an
 5. **Grant phone permissions:** notification access for mirroring, SMS for messages, photos for the
    gallery, and contacts + call logs for the contacts hub.
 6. **Calls:** allow **call access** on the phone. Notification access lets the PC see the live call
-   card; no default-phone role is required.
+   card. Dialing, answering, declining and hanging up need no default-phone role. Switching a mobile
+   call to the speaker does: the phone offers it the first time you try.
 7. Put both devices on the same Wi-Fi. mDNS and client-to-client traffic must be allowed;
    guest/AP-isolated networks will not work.
 
@@ -177,14 +178,22 @@ remain usable when Windows is offline.
 The PC call card comes from two sources: the system dialer’s call notification when available, and
 the phone’s own call state (`PhoneStateListener`). The second source appears even when the dialer
 notification is hidden from notification listeners; in that case the caller may show as “Phone
-call” or “Incoming call”. **Answer** uses `acceptRingingCall`, **Decline/Hang up** uses `endCall`,
-and **Phone speaker** asks Android to route communication audio to the speaker. These are
-best-effort: some phones or OEM dialers may block the deprecated Telecom calls or ignore speaker
-routing. If a control fails, the PC shows the error and the call stays controllable on the phone.
-With notification access off, the card still appears from call state; with phone-state access off,
-the PC keeps the “Call sent to your phone” confirmation. Microphone and call audio never cross the
+call” or “Incoming call”. **Answer** uses `acceptRingingCall`, **Decline/Hang up** uses `endCall`.
+These are best-effort: some phones or OEM dialers may block the deprecated Telecom calls. If a
+control fails, the PC shows the error and the call stays controllable on the phone. With
+notification access off, the card still appears from call state; with phone-state access off, the
+PC keeps the “Call sent to your phone” confirmation. Microphone and call audio never cross the
 network. Do not depend on LinkPhone for emergency calling; use the phone's emergency interface
 directly.
+
+**Phone speaker** is a special case. Android gives a mobile call's audio route to Telecom, and only
+the default phone app — an `InCallService` — is allowed to move it between the earpiece and the
+speaker. Pressing the button without that role cannot work, so it now says so instead of doing
+nothing: the PC shows an error, and the phone adds a **Switch the phone speaker** card offering the
+role. Granting it makes the button work and also gives the PC exact call state instead of a
+notification-scraped approximation. Dialing, answering, declining and hanging up never need the
+role. Calls owned by another app (WhatsApp, Telegram, Messenger, Instagram) manage their own audio,
+so the button is disabled for those cards.
 
 The card shows the number you dialed and `Dialing…` until the call connects, then `Connected` and a
 talk timer. The timer is kept by the PC (not the phone’s clock), so its length is unaffected by clock

@@ -205,7 +205,7 @@ paired phone the behaviour is unchanged.
 | `call.answer` | PC → phone | `callId` |
 | `call.reject` | PC → phone | `callId` |
 | `call.disconnect` | PC → phone | `callId` |
-| `call.speaker` | PC → phone | `enabled` — device-wide best effort |
+| `call.speaker` | PC → phone | `enabled` — only a live call accepts it; a SIM call additionally needs the default-phone role |
 | `call.mute` | PC → phone | `enabled` — device-wide best effort; needs the call-control service or `MODIFY_AUDIO_SETTINGS` |
 | `call.error` | phone → PC | `error` |
 | `contacts.request` | PC → phone | — |
@@ -360,6 +360,16 @@ ones. Without the role, mute falls back to `AudioManager.setMicrophoneMute` (dep
 ignored by some OEMs); the phone restores the microphone when the call ends and after a restart if
 LinkPhone was the one that muted it. Bluetooth routing is displayed, never selected.
 
+**Speaker routing needs the default-phone role for a SIM call.** A mobile call runs in
+`MODE_IN_CALL`, which Telecom owns; `AudioManager.setCommunicationDevice` reports success in that
+mode and changes nothing, so a third-party app cannot move the route. With the role, the phone calls
+`setAudioRoute` on its `InCallService` and the route really changes. Without it the phone answers a
+`call.speaker` frame with `call.error` naming the role and sets a one-time prompt on its home screen
+offering it. A request made before the call connects is held and replayed when it goes active, and a
+request for a card flagged `viaNotification` (a VoIP app's own call) is refused, because that app
+manages its own audio. After every switch the phone re-reads the route and reports `call.error` if
+the route did not actually move.
+
 **VoIP calls** (WhatsApp, Telegram, Messenger, Instagram) are self-managed connections that Telecom
 cannot answer or end. When a card came from an app's notification, the phone dispatches that
 notification's own Answer/Decline/Hang up action instead — the same thing tapping the button in the
@@ -370,8 +380,8 @@ the app acted, the phone waits five seconds for a state change and reports `call
 full-screen intent with no actions cannot be controlled.
 
 Windows sends commands by opaque call ID. Without the role, control uses `TelecomManager`
-(`acceptRingingCall`, `endCall`) and speaker routing uses the call-audio route when available,
-otherwise `AudioManager`. Outgoing PSTN calls use `TelecomManager.placeCall`.
+(`acceptRingingCall`, `endCall`) and speaker routing is unavailable for a SIM call, as described
+above. Outgoing PSTN calls use `TelecomManager.placeCall`.
 
 Only signaling/control data uses this protocol. LinkPhone does not access, encode or transport the
 microphone or call audio; audio remains on the phone earpiece/speaker (or another route selected by

@@ -178,7 +178,7 @@ private fun PhoneCallScreen(
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { CallHub.setSpeaker(!snapshot.speaker) }) {
-                    Text(if (snapshot.speaker) "Speaker on" else "Speaker off")
+                    Text(if (snapshot.speaker) "Turn speaker off" else "Turn speaker on")
                 }
                 Button(
                     onClick = { CallHub.disconnect(call.id) },
