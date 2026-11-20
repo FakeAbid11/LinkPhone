@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import android.Manifest
 import android.app.Activity
+import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -165,6 +166,7 @@ private fun Screen(modifier: Modifier = Modifier) {
     var simAccess by remember { mutableStateOf(hasSimAccess(context)) }
     var callPermissionsGranted by remember { mutableStateOf(hasCallPermissions(context)) }
     var outgoingReady by remember { mutableStateOf(CallHub.isOutgoingReady(context)) }
+    var speakerRolePrompt by remember { mutableStateOf(store.speakerRolePrompt) }
     var notice by remember { mutableStateOf<String?>(null) }
     var confirmForget by remember { mutableStateOf(false) }
     val paired = store.hasPairing()
@@ -219,6 +221,7 @@ private fun Screen(modifier: Modifier = Modifier) {
             }
             callLogAccess = hasCallLogAccess(context)
             simAccess = hasSimAccess(context)
+            speakerRolePrompt = store.speakerRolePrompt
             val nextCallPermissions = hasCallPermissions(context)
             outgoingReady = CallHub.isOutgoingReady(context)
             if (nextCallPermissions != callPermissionsGranted) {
@@ -282,6 +285,19 @@ private fun Screen(modifier: Modifier = Modifier) {
         CallHub.refreshDialerRole(context)
         if (!callPermissionsGranted) {
             notice = "Call permission was denied. Allow it in Settings → Apps → LinkPhone → Permissions."
+        }
+    }
+
+    val callRole = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        CallHub.refreshDialerRole(context)
+        val held = CallHub.isDefaultDialer(context)
+        store.speakerRolePrompt = !held
+        if (held) {
+            notice = "LinkPhone can now switch the phone speaker. Try it again from the PC."
+        } else {
+            notice = "The default phone app role was not granted. The speaker stays on the phone's route."
         }
     }
 
@@ -727,7 +743,7 @@ private fun Screen(modifier: Modifier = Modifier) {
                 PermissionCard(
                     glyph = Symbols.call,
                     title = "Calls from your PC",
-                    body = "Dial, answer, decline, hang up and switch the phone speaker from Windows. Audio always stays on this phone. No default-phone role is required.",
+                    body = "Dial, answer, decline and hang up from Windows. Audio always stays on this phone, and no default-phone role is required to do any of that.",
                     actionLabel = if (!outgoingReady) "Allow call access" else "Allow call control",
                     onAction = {
                         if (!outgoingReady) {
@@ -745,6 +761,24 @@ private fun Screen(modifier: Modifier = Modifier) {
                                     Manifest.permission.ANSWER_PHONE_CALLS
                                 )
                             )
+                        }
+                    }
+                )
+            }
+
+            if (paired && speakerRolePrompt && !CallHub.isDefaultDialer(context)) {
+                PermissionCard(
+                    glyph = Symbols.volume_up,
+                    title = "Switch the phone speaker",
+                    body = "Android only lets the default phone app move a call between the earpiece and the speaker. LinkPhone does not need this to dial, answer or hang up — grant it only if you want the PC's speaker button to work.",
+                    actionLabel = "Allow speaker control",
+                    onAction = {
+                        val roles = context.getSystemService(RoleManager::class.java)
+                        val intent = roles?.createRequestRoleIntent(RoleManager.ROLE_DIALER)
+                        if (intent != null) {
+                            callRole.launch(intent)
+                        } else {
+                            notice = "This phone does not offer a default-phone role."
                         }
                     }
                 )

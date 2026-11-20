@@ -111,6 +111,9 @@ object CallHub {
     private val callHeartbeatMs = 20_000L
     private val maxFallbackCalls = 8
     private var heartbeatActive = false
+    /** A speaker tap made before the call connected, replayed once it does. */
+    @Volatile
+    private var pendingSpeaker: Boolean? = null
     /** Bumped by every real call-state update; the action watchdog compares against it. */
     @Volatile
     private var stateRevision = 0L
@@ -122,6 +125,10 @@ object CallHub {
 
     private const val TELEPHONY_KEY = "telephony"
     private val anonymousNames = setOf("calling…", "calling...", "incoming call", "phone call", "unknown")
+
+    /** Shown when a SIM call has to be re-routed but LinkPhone is not the default phone app. */
+    const val SPEAKER_NEEDS_ROLE =
+        "Switching a call's speaker needs LinkPhone as your default phone app"
 
     /**
      * The PC dialed through us, but the notification and telephony fallbacks often report the
@@ -463,11 +470,13 @@ object CallHub {
         )
         // Re-send while a fallback call is live so a dropped frame cannot leave the PC stuck.
         if (fallbackCalls.isNotEmpty()) {
+            applyPendingSpeaker()
             if (!heartbeatActive) {
                 heartbeatActive = true
                 main.postDelayed(heartbeat, callHeartbeatMs)
             }
         } else {
+            pendingSpeaker = null
             main.removeCallbacks(heartbeat)
             heartbeatActive = false
         }
@@ -717,6 +726,13 @@ object CallHub {
         }, 5_000)
     }
 
+    /**
+     * Moves call audio without the dialer role.
+     *
+     * A SIM call runs in `MODE_IN_CALL`, owned by Telecom: only an `InCallService` — that is, the
+     * default phone app — can re-route it. `setCommunicationDevice` succeeds silently in that mode
+     * and changes nothing, so this reports the real outcome instead of assuming success.
+     */
     @Suppress("DEPRECATION")
     fun setSpeaker(context: Context, enabled: Boolean): Result<Unit> = runCatching {
         val service = PhoneCallService.instance
@@ -727,19 +743,95 @@ object CallHub {
         if (!hasAnswerPermission(context)) error("Allow call access on your phone")
         val audio = context.getSystemService(AudioManager::class.java)
             ?: error("Audio routing is unavailable on this device")
-        audio.isSpeakerphoneOn = enabled
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (enabled) {
-                val speaker = audio.availableCommunicationDevices.firstOrNull {
-                    it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
-                } ?: error("Speaker routing is unavailable")
-                if (!audio.setCommunicationDevice(speaker)) {
-                    error("Speaker routing was blocked by the phone")
-                }
-            } else {
-                audio.clearCommunicationDevice()
-            }
+        val live = _state.value.calls.filter {
+            it.phase == PhoneCallPhase.ACTIVE || it.phase == PhoneCallPhase.HELD
         }
+        if (live.isEmpty()) {
+            // The PC offers the button before the call connects; keep the request for the live call.
+            pendingSpeaker = enabled
+            return@runCatching
+        }
+        if (live.all { it.viaNotification }) {
+            error("This call belongs to its own app, which controls its speaker")
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (audio.mode == AudioManager.MODE_IN_CALL) {
+                // Telecom owns this call's route. Only its InCallService may move it.
+                if (!isDefaultDialer(context)) {
+                    requestSpeakerRole()
+                    error(SPEAKER_NEEDS_ROLE)
+                }
+                error("The phone is still binding its call service. Try again in a moment")
+            }
+            val target = audio.availableCommunicationDevices.firstOrNull {
+                it.type == if (enabled) {
+                    AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+                } else {
+                    AudioDeviceInfo.TYPE_BUILTIN_EARPIECE
+                }
+            } ?: error(
+                if (enabled) "Speaker routing is unavailable" else "Earpiece routing is unavailable"
+            )
+            if (!audio.setCommunicationDevice(target)) {
+                error("The phone blocked the speaker change")
+            }
+        } else {
+            audio.isSpeakerphoneOn = enabled
+        }
+        pendingSpeaker = null
+        publishSystemState()
+        // Only this path needs proving: with the role, Telecom reports the route back itself.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) verifySpeaker(context, enabled)
+    }
+
+    /**
+     * The switch is asynchronous, and some ROMs accept the call and ignore it. Compare the route
+     * once it settles so the PC is never told a change happened that did not.
+     */
+    private fun verifySpeaker(context: Context, enabled: Boolean) {
+        val wanted = if (enabled) "speaker" else "earpiece"
+        main.postDelayed({
+            val actual = routeOf(context)
+            if (actual == wanted) return@postDelayed
+            LinkCore.clientOrNull()?.sendCallError(
+                if (actual == "unknown") {
+                    "The phone did not confirm the speaker change"
+                } else {
+                    "The phone kept the call on its $actual"
+                }
+            )
+        }, 700)
+    }
+
+    /** Applies a speaker tap that arrived before the call connected. */
+    private fun applyPendingSpeaker() {
+        val wanted = pendingSpeaker ?: return
+        val context = appContext ?: return
+        if (_state.value.calls.none {
+                it.phase == PhoneCallPhase.ACTIVE || it.phase == PhoneCallPhase.HELD
+            }
+        ) return
+        pendingSpeaker = null
+        main.post {
+            setSpeaker(context, wanted)
+                .onFailure { LinkCore.clientOrNull()?.sendCallError(it.message ?: "Could not switch the speaker") }
+        }
+    }
+
+    /** Called from the InCallService once a call goes active, so a queued tap still lands. */
+    internal fun applyPendingSpeakerNow() {
+        if (pendingSpeaker == null) return
+        applyPendingSpeaker()
+    }
+
+    /** Holds a speaker request until a call is live (role holder path). */
+    internal fun queueSpeaker(enabled: Boolean) {
+        pendingSpeaker = enabled
+    }
+
+    /** Remembers that the PC asked for speaker control so the phone can offer the role. */
+    private fun requestSpeakerRole() {
+        runCatching { LinkCore.requireStore().speakerRolePrompt = true }
         publishSystemState()
     }
 
@@ -895,6 +987,12 @@ class PhoneCallService : InCallService() {
 
     @Suppress("DEPRECATION")
     fun setSpeaker(enabled: Boolean) {
+        val live = calls.values.any { it.state == Call.STATE_ACTIVE || it.state == Call.STATE_HOLDING }
+        // queue the request
+        if (!live) {
+            CallHub.queueSpeaker(enabled)
+            return
+        }
         setAudioRoute(if (enabled) CallAudioState.ROUTE_SPEAKER else CallAudioState.ROUTE_EARPIECE)
         publish()
     }
@@ -925,6 +1023,7 @@ class PhoneCallService : InCallService() {
         )
         CallHub.publish(snapshot)
         notifier.update(snapshot)
+        CallHub.applyPendingSpeakerNow()
     }
 
     private fun Call.toInfo(id: String, fallbackStartedAt: Long): PhoneCallInfo {
@@ -1060,7 +1159,7 @@ private class CallNotifier(private val context: Context) {
         } else {
             builder.addAction(
                 0,
-                if (snapshot.speaker) "Speaker on" else "Speaker off",
+                if (snapshot.speaker) "Turn speaker off" else "Turn speaker on",
                 action(
                     CallActionReceiver.ACTION_SPEAKER,
                     call.id,

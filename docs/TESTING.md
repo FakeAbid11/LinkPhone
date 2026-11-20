@@ -224,8 +224,13 @@ Best-effort no-role control:
   visible `call.error` appears and the phone still controls the call.
 * ✅ An incoming call produces a ringing card; **Answer** uses `acceptRingingCall` and **Decline**
   ends the ringing call. OEM blocks show an error instead of a false success.
-* ✅ **Phone speaker** attempts to route communication audio to the speaker and reports the requested
-  state. If routing is blocked, the call stays controllable on the phone and an error is shown.
+* ✅ **Phone speaker** on a SIM call without the default-phone role → the card shows
+  “Switching a call's speaker needs LinkPhone as your default phone app”, the audio stays where it
+  is, and the phone home screen offers a **Switch the phone speaker** card.
+* ✅ **Phone speaker** on a VoIP card (WhatsApp, Telegram) → “This call belongs to its own app,
+  which controls its speaker”; the audio is unchanged and the button stays usable for other calls.
+* ✅ Press **Phone speaker** while the call is still dialing → the request is held and applied when
+  the call connects, or dropped if it ends first.
 * ✅ Deny `ANSWER_PHONE_CALLS` → the live card shows disabled Answer/Decline/Hang up/Speaker controls
   with “Allow call access on your phone”; dialing still works.
 * ✅ Turn notification access off → the live card still appears from the phone’s call state
@@ -614,7 +619,8 @@ No default-phone role. Grant **Allow call access** and keep notification access 
   about a second (the dialer's notification starts its chronometer) and the timer starts near `0:00`.
 * ✅ The timer keeps advancing through notification updates and the 20 s heartbeat.
 * ✅ The card shows the observed route: **Earpiece**, **Speaker**, **Bluetooth** or **Headset**.
-  **Phone speaker** flips it and the label follows the read-back state; the icon matches the label.
+  Without the default-phone role the route is read-only for a SIM call and **Phone speaker** reports
+  that the role is required (see §31); the label always follows the read-back state.
 * ✅ **Mute** mutes the phone microphone, the button shows `Unmute`, and hanging up restores the
   microphone. Force-stop LinkPhone while muted, reopen it → the microphone is restored.
 * ✅ A second call while one is live → both cards appear (ringing first); **Answer**/**Decline** act
@@ -749,6 +755,32 @@ Android:
 * ✅ While offline with clipboard sync switched off on the PC → the home screen says *Clipboard syncs
   once your PC is connected*, not *turned off on your PC*.
 * ✅ Reconnect → the text returns to Connected and clipboard line again reflects the PC's setting.
+
+## 31. Speaker control honesty (v0.2.0)
+
+A SIM call's audio route belongs to Telecom. Only the default phone app can change it, so the
+speaker button is honest about that instead of silently doing nothing.
+
+* ✅ **Phone speaker** on a live SIM call without the default-phone role → a red
+  `call.error` reads *Switching a call's speaker needs LinkPhone as your default phone app*, and the
+  audio does not move. No false success.
+* ✅ That failure adds a **Switch the phone speaker** card to the phone home screen, once. Granting
+  it and retrying the PC button flips the route for real and the chip follows to **Speaker**.
+* ✅ Decline the role prompt → the card stays available under the permission list, and the error
+  keeps explaining why.
+* ✅ **Phone speaker** on a `viaNotification` card (WhatsApp, Telegram, Instagram) → *This call
+  belongs to its own app, which controls its speaker*; the button is disabled on the PC for those
+  cards.
+* ✅ Press **Phone speaker** during `Dialing…` → the PC button is disabled with *Available once the
+  call connects*; if the frame still arrives, the phone holds it and applies it on `Connected`.
+* ✅ End the call before it connects → a held speaker request is dropped, not replayed into the next
+  call.
+* ✅ With the role held, switching the speaker updates the notification action label and the
+  in-call screen button to **Turn speaker off** / **Turn speaker on**.
+* ✅ Disconnect the phone, then press **Phone speaker** → *Connect your phone to change the speaker*
+  instead of a silent no-op.
+* ✅ An OEM that accepts the route change and ignores it → within a second the card shows
+  *The phone kept the call on its earpiece* instead of claiming success.
 
 ## Debugging
 

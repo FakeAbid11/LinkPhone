@@ -77,6 +77,14 @@ class PairStore(context: Context) {
         get() = prefs.getBoolean("muteRestorePending", false)
         set(value) = prefs.edit().putBoolean("muteRestorePending", value).apply()
 
+    /**
+     * Set when the PC asked for speaker control on a SIM call, which only the default phone app
+     * can re-route. The home screen offers the role so the request is not a dead end.
+     */
+    var speakerRolePrompt: Boolean
+        get() = prefs.getBoolean("speakerRolePrompt", false)
+        set(value) = prefs.edit().putBoolean("speakerRolePrompt", value).apply()
+
     var onboardingDone: Boolean
         get() = prefs.getBoolean("onboardingDone", false)
         set(value) = prefs.edit().putBoolean("onboardingDone", value).apply()

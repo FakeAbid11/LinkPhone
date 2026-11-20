@@ -127,7 +127,7 @@ export function CallsPanel({
     <div className="calls-panel">
       <div className="call-audio-note">
         <strong>Call audio stays on your phone</strong>
-        <span>Windows controls the call only. Use the phone's speaker below when call control is enabled.</span>
+        <span>Windows controls the call only. Switch the phone's speaker from the control below once the call connects.</span>
       </div>
 
       {!connected && (
@@ -144,7 +144,7 @@ export function CallsPanel({
 
       {connected && calls.length > 0 && !controlReady && !calls.some((call) => call.canControl) && (
         <div className="call-warning">
-          Allow call access on your phone to answer, decline, hang up or use the speaker.
+          Allow call access on your phone to answer, decline, hang up or change the speaker.
         </div>
       )}
 
@@ -411,6 +411,17 @@ function CallCard({
   const ended = call.phase === 'disconnected'
   // VoIP cards can be controlled through their app's own notification action.
   const canControl = controlReady || call.canControl === true
+  // A SIM call only accepts a speaker change once it is live, and an app-managed call owns its
+  // own audio route, so the speaker button is not offered for those.
+  const live = call.phase === 'active' || call.phase === 'held'
+  const speakerBlocked = call.viaNotification === true
+  const speakerTitle = speakerBlocked
+    ? 'This app controls its own speaker'
+    : !controlReady
+      ? 'Allow call access on your phone'
+      : live
+        ? 'Toggle the phone speaker'
+        : 'Available once the call connects'
   const title = call.displayName || call.number || (call.incoming ? 'Incoming call' : 'Unknown number')
   const subtitle = call.displayName && call.number ? call.number : phaseLabel(call.phase)
   const since = call.activeSince ?? call.startedAt
@@ -466,9 +477,9 @@ function CallCard({
         <div className="call-actions">
           <button
             className={`call-speaker ${speaker ? 'call-speaker-on' : ''}`}
-            disabled={ended || !controlReady}
+            disabled={ended || !controlReady || !live || speakerBlocked}
             aria-pressed={speaker}
-            title={controlReady ? 'Toggle the phone speaker' : 'Allow call access on your phone'}
+            title={speakerTitle}
             onClick={() => onSpeaker(!speaker)}
           >
             <Icon name="volume_up" size={18} />
@@ -476,9 +487,15 @@ function CallCard({
           </button>
           <button
             className={`call-speaker ${muted ? 'call-speaker-on' : ''}`}
-            disabled={ended || !controlReady}
+            disabled={ended || !controlReady || !live}
             aria-pressed={muted}
-            title={controlReady ? 'Mute the phone microphone' : 'Allow call access on your phone'}
+            title={
+              !controlReady
+                ? 'Allow call access on your phone'
+                : live
+                  ? 'Mute the phone microphone'
+                  : 'Available once the call connects'
+            }
             onClick={() => onMute(!muted)}
           >
             {muted ? 'Unmute' : 'Mute'}

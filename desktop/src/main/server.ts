@@ -1708,11 +1708,19 @@ export class LinkServer extends EventEmitter {
 
   setCallSpeaker(enabled: boolean): void {
     this.store.setCallError('')
+    if (!this.hasConnectedPeer()) {
+      this.store.setCallError('Connect your phone to change the speaker')
+      return
+    }
     this.broadcast({ t: 'call.speaker', enabled })
   }
 
   setCallMute(enabled: boolean): void {
     this.store.setCallError('')
+    if (!this.hasConnectedPeer()) {
+      this.store.setCallError('Connect your phone to change the microphone')
+      return
+    }
     this.broadcast({ t: 'call.mute', enabled })
   }
 
