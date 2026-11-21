@@ -45,8 +45,17 @@ internal object LinkColors {
     val background = Color(0xFF000000)
     val surface = Color(0xFF121212)
     val raised = Color(0xFF1C1C1C)
-    val line = Color(0xFF2A2A2A)
-    val lineStrong = Color(0xFF3A3A3A)
+    /**
+     * Stroke ramp. [lineStrong] draws boundaries that have to be found (outlined fields, focus
+     * rings); [line] draws subdued separators. Both must clear the 3:1 UI-component minimum
+     * against the surface behind them, or the boundary simply is not there.
+     *
+     * The old #2A2A2A/#3A3A3A pair measured 1.31:1 and 1.65:1 on [surface], so every outlined
+     * field, focus ring and card edge rendered as nothing. These measure 3.78:1 and 4.24:1
+     * there, and still clear 3:1 on [raised], the lightest surface a stroke is drawn against.
+     */
+    val line = Color(0xFF707070)
+    val lineStrong = Color(0xFF787878)
     val text = Color(0xFFFFFFFF)
     val muted = Color(0xFFB3B3B3)
     /** Matches the desktop's --danger/--warn so a failure reads as one on both screens. */
@@ -221,7 +230,7 @@ internal fun LinkDot(active: Boolean, modifier: Modifier = Modifier) {
         modifier
             .size(6.dp)
             .clip(CircleShape)
-            .background(if (active) LinkColors.text else LinkColors.lineStrong)
+            .background(if (active) LinkColors.text else LinkColors.line)
     )
 }
 

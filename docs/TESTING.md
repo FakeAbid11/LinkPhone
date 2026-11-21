@@ -782,6 +782,25 @@ speaker button is honest about that instead of silently doing nothing.
 * ✅ An OEM that accepts the route change and ignores it → within a second the card shows
   *The phone kept the call on its earpiece* instead of claiming success.
 
+## 32. Contrast and reading width (v0.2.1)
+
+Descriptive, not behavioural. Nothing here changes what LinkPhone does, so it is checked by eye
+and by a contrast measurement rather than by a test.
+
+* ✅ Android: an outlined field, a divider and a card edge are all visibly present on a
+  phone at default brightness. Before this, `LinkColors.line` and `lineStrong` measured 1.31:1 and
+  1.65:1 on the card surface and read as nothing. The minimum for a UI boundary is 3:1.
+  Dividers now measure 3.78:1 and field borders 4.24:1, so the hierarchy survives the lift.
+* ✅ Android: the small dot next to an offline device is faint but visible. It uses the softer
+  of the two greys so it does not compete with the connected state.
+* ✅ Desktop: open **Notifications** in a maximised window on a 1440p or larger display → the
+  list stops widening at 1120px and centres in the column instead of running edge to edge.
+* ✅ Desktop: the header and the list share one left edge at every window width. Resize slowly
+  from 2400px down to 900px; the gutter narrows to 26px and then holds, and the two never drift.
+* ✅ Desktop: open **Photos** and **Camera** in the same wide window → both use the full width.
+  The grid gains columns rather than stretching its tiles, and the camera stage stays 16:9.
+* ✅ Desktop: the vertical scrollbar stays against the window edge, not inset with the content.
+
 ## Debugging
 
 ```powershell

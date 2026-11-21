@@ -32,6 +32,11 @@ service or a relay server.
 
 **No account. No cloud. No relay.**
 
+> **v0.2.1** is a visual pass, not a behaviour change. Android's dividers, outlined fields and
+> focus rings were drawn at 1.3–1.7:1 against the surface, so they were effectively invisible;
+> they now clear the 3:1 minimum. The desktop's main column also stops stretching to the full
+> width of a large window. No protocol change: 0.2.0 and 0.2.1 pair and talk in both directions.
+
 > **v0.2.0** makes the speaker button honest. Android only lets the default phone app move a call
 > between the earpiece and the speaker, so the button used to do nothing at all on a normal mobile
 > call — silently. It now says what it needs, and the phone offers the role once you ask for it.
@@ -80,7 +85,7 @@ discovery. See [docs/PROTOCOL.md](docs/PROTOCOL.md) for the handshake, frames an
 2. **Phone:** install `linkphone-android.apk` (allow “install unknown apps”). A fresh install opens
    a three-step intro: what LinkPhone is, why each permission is needed, and pairing. You can skip
    it and set everything up later on the main screen.
-3. **PC:** run `LinkPhone.Setup.0.2.0.exe`. The installer is unsigned, so SmartScreen requires
+3. **PC:** run `LinkPhone.Setup.0.2.1.exe`. The installer is unsigned, so SmartScreen requires
    **More info → Run anyway**. It also adds **Send to → LinkPhone** to Explorer; Windows 11 may keep
    it under **Show more options**.
 4. **Pair:** on the PC, expand **Scan QR code instead** in the sidebar. On the phone, tap **Scan QR**

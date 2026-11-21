@@ -133,29 +133,31 @@ jobs:
 
             ## What's new in ${{ steps.version.outputs.version }}
 
-            The speaker button in the Calls tab used to do nothing at all on a normal mobile call,
-            and say nothing about it. It now explains why and offers a fix. No protocol change:
-            0.1.9 and 0.2.0 pair and talk in both directions.
+            A visual pass on both apps. Nothing about pairing, mirroring or calling changed, so an
+            earlier build pairs and talks in both directions with this one.
 
-            * **Phone speaker** on a mobile call now reports that Android reserves call routing for
-              the **default phone app**, instead of silently ignoring the tap. The phone adds a
-              **Switch the phone speaker** card that grants exactly that role
-            * **Granting it** makes the button work and gives the PC the phone's real call state
-              instead of a notification-scraped approximation
-            * **VoIP speaker** — WhatsApp, Telegram, Messenger and Instagram manage their own audio,
-              so their cards disable the button with a reason rather than pretending
-            * **Speaker taps before `Connected`** are held and applied when the call connects, or
-              dropped if it ends first
-            * **No more false success**: every switch re-reads the route and reports the real
-              outcome, including on phones that accept the request and ignore it
-            * **Pressing the button with the phone disconnected** now says so, instead of
-              broadcasting into an empty link
-            * The notification action and the in-call screen read **Turn speaker on** / **Turn
-              speaker off** — previously the label named the current state but performed the
-              opposite action
+            Android's dividers, outlined fields, focus rings and card edges were drawn almost
+            invisible: the stroke colours measured 1.31:1 and 1.65:1 against the card surface, where
+            the minimum for a UI boundary is 3:1. They now measure 3.78:1 and 4.24:1, so the shape of
+            a field is visible before you tap it.
 
-            **Update the phone app.** The change lives in the Android build. The PC installer is
-            rebuilt with the same feature set as 0.1.9 plus the wording and error fixes above.
+            * **Visible boundaries on Android** — outlined fields, focus rings and card edges now
+              clear the 3:1 minimum instead of rendering as nothing
+            * **The offline device dot** is faint but no longer invisible
+            * **A reading width on the PC** — the notification list, message threads and settings
+              stop stretching across a 1440p or 4K window and centre in the column instead
+            * **Photos and Camera still use the full width** — the grid gains columns instead of
+              stretching its tiles, and the camera stage stays 16:9
+
+            No phone-side behaviour changed, but the colours live in the Android build, so install
+            the new APK to get them.
+
+            ## The previous release
+
+            0.2.0 made the **Phone speaker** button honest. Android reserves call routing for the
+            **default phone app**, so the button used to do nothing on a mobile call and say nothing
+            about it. It now explains why, and the phone offers the role only when you ask for it.
+            Dialing, answering, declining and hanging up need no role.
 
             ## Features
 
