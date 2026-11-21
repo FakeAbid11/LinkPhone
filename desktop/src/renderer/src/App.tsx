@@ -224,7 +224,7 @@ export default function App(): JSX.Element {
           <div className="brand-mark"><img src={logo} alt="" /></div>
           <div>
             <div className="brand-name">LinkPhone</div>
-            <div className="brand-sub">Local network · v{state.desktopUpdate.currentVersion || '0.2.0'}</div>
+            <div className="brand-sub">Local network · v{state.desktopUpdate.currentVersion || '0.2.1'}</div>
           </div>
         </div>
 
@@ -292,7 +292,7 @@ export default function App(): JSX.Element {
         </div>
       </aside>
 
-      <main className="main">
+      <main className={`main${tab === 'photos' || tab === 'camera' ? ' main-wide' : ''}`}>
         <header className="main-head">
           <div>
             <h1>{TABS.find((t) => t.id === tab)?.label}</h1>
